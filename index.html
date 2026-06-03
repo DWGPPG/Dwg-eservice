@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Solar Drawing e-Service</title>
+<title>PPG Drawing e-Service</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
@@ -26,16 +26,45 @@
 -->
 
 <script>
-// โหลด MSAL จาก unpkg (reliable CDN)
+// โหลด MSAL แบบ dynamic — ลอง CDN หลายตัวจนสำเร็จ
+(function() {
+  var cdns = [
+    'https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/microsoft-msal-browser/2.38.2/msal-browser.min.js',
+    'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.2/lib/msal-browser.min.js',
+    'https://unpkg.com/@azure/msal-browser@2.38.2/lib/msal-browser.min.js',
+  ];
+  var idx = 0;
+  function tryLoad() {
+    if (idx >= cdns.length) {
+      document.getElementById('configStatus').textContent = '❌ โหลด MSAL ไม่ได้ — กรุณาปิด Ad blocker หรือลอง browser อื่น';
+      document.getElementById('configBanner').className = 'config-banner error';
+      return;
+    }
+    var s = document.createElement('script');
+    s.src = cdns[idx++];
+    s.onload = function() {
+      if (typeof msal !== 'undefined') { init(); }
+      else { tryLoad(); }
+    };
+    s.onerror = function() { tryLoad(); };
+    document.head.appendChild(s);
+  }
+  // รอ DOM พร้อมก่อน
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', tryLoad);
+  } else {
+    tryLoad();
+  }
+})();
 </script>
-<script src="https://unpkg.com/@azure/msal-browser@2.38.2/lib/msal-browser.min.js"></script>
 
 <style>
 :root {
-  --sun: #F5A623; --sun-light: #FDE9C0; --sun-dark: #C47D0E;
-  --navy: #0D1B2A; --navy-soft: #243B55;
-  --sky: #E8F4FD; --white: #FAFBFC;
-  --gray-100: #F0F4F8; --gray-200: #DCE5EF; --gray-400: #8FA3B8; --gray-600: #4A6580;
+  --sun: #0DB14B; --sun-light: #D6F5E3; --sun-dark: #00873A;
+  --navy: #005DAC; --navy-soft: #004A8E;
+  --sky: #EAF7EF; --white: #FAFBFC;
+  --gray-100: #F0F4F8; --gray-200: #E4E5E6; --gray-400: #8FA3B8; --gray-600: #4A6580;
   --success: #1B7A4A; --success-bg: #E6F4ED;
   --warning: #8B5E00; --warning-bg: #FEF3D7;
   --danger: #A8200D; --danger-bg: #FDECEA;
@@ -47,13 +76,13 @@
 body { font-family: var(--font); background: var(--gray-100); color: var(--navy); min-height: 100vh; font-size: 14px; line-height: 1.6; }
 
 /* ── CONFIG BANNER ── */
-.config-banner { background: #1e3a5f; color: #93c5fd; padding: 10px 20px; font-size: 12px; font-family: var(--mono); display: flex; align-items: center; gap: 10px; }
+.config-banner { background: #003d7a; color: #93c5fd; padding: 10px 20px; font-size: 12px; font-family: var(--mono); display: flex; align-items: center; gap: 10px; }
 .config-banner.ready { background: #14532d; color: #86efac; }
 .config-banner.error { background: #7f1d1d; color: #fca5a5; }
 .cb-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
 /* ── LOGIN SCREEN ── */
-.login-screen { display: none; min-height: 100vh; align-items: center; justify-content: center; background: var(--navy); flex-direction: column; gap: 24px; }
+.login-screen { display: none; min-height: 100vh; align-items: center; justify-content: center; background: linear-gradient(135deg,#005DAC 0%,#003d7a 50%,#00873A 100%); flex-direction: column; gap: 24px; }
 .login-screen.show { display: flex; }
 .login-card { background: var(--white); border-radius: 20px; padding: 40px; max-width: 380px; width: 90%; text-align: center; }
 .login-logo { width: 56px; height: 56px; background: var(--sun); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
@@ -69,7 +98,7 @@ body { font-family: var(--font); background: var(--gray-100); color: var(--navy)
 .main-app.show { display: block; }
 
 /* NAV */
-.nav { background: var(--navy); padding: 0 24px; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; }
+.nav { background: linear-gradient(90deg,#005DAC,#004A8E); padding: 0 24px; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; }
 .nav-logo { display: flex; align-items: center; gap: 10px; color: var(--white); font-weight: 600; font-size: 15px; margin-right: 32px; text-decoration: none; }
 .nav-logo-icon { width: 30px; height: 30px; background: var(--sun); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
 .nav-tabs { display: flex; height: 100%; flex: 1; }
@@ -101,7 +130,7 @@ body { font-family: var(--font); background: var(--gray-100); color: var(--navy)
 label { font-size: 12px; font-weight: 500; color: var(--gray-600); }
 label span.req { color: var(--sun-dark); margin-left: 2px; }
 input, select, textarea { padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius); font-family: var(--font); font-size: 13px; color: var(--navy); background: var(--white); transition: border-color .15s; outline: none; }
-input:focus, select:focus, textarea:focus { border-color: var(--sun); box-shadow: 0 0 0 3px rgba(245,166,35,.12); }
+input:focus, select:focus, textarea:focus { border-color: var(--sun); box-shadow: 0 0 0 3px rgba(13,177,75,.15); }
 textarea { resize: vertical; min-height: 90px; }
 input:read-only { background: var(--gray-100); color: var(--gray-600); }
 
@@ -287,9 +316,9 @@ tr:hover td { background: var(--sky); }
 <!-- ══ LOGIN SCREEN ══ -->
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
-    <div class="login-logo">☀️</div>
-    <div class="login-title">Solar Drawing e-Service</div>
-    <div class="login-sub">ระบบคำร้องแผนกเขียนแบบโซลาร์เซลล์</div>
+    <div class="login-logo" style="background:linear-gradient(135deg,#005DAC,#0DB14B);font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.5px">PPG</div>
+    <div class="login-title">PPG Drawing e-Service</div>
+    <div class="login-sub">ระบบคำร้องฝ่ายเขียนแบบ</div>
     <div class="login-domain">@primepower.co.th</div>
     <button class="btn-ms" onclick="signIn()">
       <svg class="ms-logo" viewBox="0 0 21 21" fill="none">
@@ -308,8 +337,8 @@ tr:hover td { background: var(--sky); }
 <div class="main-app" id="mainApp">
   <nav class="nav">
     <a class="nav-logo" href="#">
-      <div class="nav-logo-icon">☀️</div>
-      Solar Drawing
+      <div class="nav-logo-icon" style="background:linear-gradient(135deg,#005DAC,#0DB14B);font-size:10px;font-weight:700;color:#fff;letter-spacing:-0.5px">PPG</div>
+      PPG Drawing
     </a>
     <div class="nav-tabs">
       <div class="nav-tab active" onclick="showPage('dashboard',this)">
@@ -341,7 +370,7 @@ tr:hover td { background: var(--sky); }
   <div class="page active" id="page-dashboard">
     <div class="page-header">
       <div class="page-title">Dashboard สถานะงาน</div>
-      <div class="page-sub">ดึงข้อมูลจาก SharePoint List แบบ real-time</div>
+      <div class="page-sub">ระบบคำร้องฝ่ายเขียนแบบ PRIME POWER GROUP</div>
     </div>
     <div class="stats-row" id="statsRow">
       <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val skeleton" style="height:30px;width:60px">&nbsp;</div></div>
@@ -1358,8 +1387,7 @@ function daysBetween(a, b) {
   return Math.abs(new Date(b) - new Date(a)) / 86400000;
 }
 
-// ── START ──
-init();
+// ── START ── (init() ถูกเรียกจาก MSAL onload ด้านบนแล้ว)
 </script>
 </body>
 </html>
