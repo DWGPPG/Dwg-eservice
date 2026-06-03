@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Drawing e-Service</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!--
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  SOLAR DRAWING e-SERVICE — Production Version               ║
+  ║  เชื่อมกับ Microsoft 365 ผ่าน Graph API                     ║
+  ║                                                              ║
+  ║  วิธีตั้งค่า (ทำครั้งเดียว):                                ║
+  ║  1. ไปที่ portal.azure.com → App registrations              ║
+  ║     → New registration → ตั้งชื่อ "SolarDrawingApp"         ║
+  ║     → Redirect URI = URL ของหน้านี้บน SharePoint            ║
+  ║  2. API permissions → Add: Sites.ReadWrite.All,             ║
+  ║     User.Read, Mail.Send (Delegated)                         ║
+  ║  3. Copy "Application (client) ID" → ใส่ใน CONFIG ด้านล่าง  ║
+  ║  4. สร้าง SharePoint List ชื่อ "SolarRequests"              ║
+  ║     ตาม column ที่กำหนดใน CONFIG                             ║
+  ║  5. Copy Site ID และ List ID → ใส่ใน CONFIG                  ║
+  ╚══════════════════════════════════════════════════════════════╝
+-->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-msal-browser/2.38.2/msal-browser.min.js"></script>
+
+<style>
+:root {
+  --sun: #F5A623; --sun-light: #FDE9C0; --sun-dark: #C47D0E;
+  --navy: #0D1B2A; --navy-soft: #243B55;
+  --sky: #E8F4FD; --white: #FAFBFC;
+  --gray-100: #F0F4F8; --gray-200: #DCE5EF; --gray-400: #8FA3B8; --gray-600: #4A6580;
+  --success: #1B7A4A; --success-bg: #E6F4ED;
+  --warning: #8B5E00; --warning-bg: #FEF3D7;
+  --danger: #A8200D; --danger-bg: #FDECEA;
+  --info: #0B5394; --info-bg: #E8F0FB;
+  --radius: 10px; --radius-lg: 16px;
+  --font: 'IBM Plex Sans Thai', sans-serif; --mono: 'IBM Plex Mono', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--gray-100); color: var(--navy); min-height: 100vh; font-size: 14px; line-height: 1.6; }
+
+/* ── CONFIG BANNER ── */
+.config-banner { background: #1e3a5f; color: #93c5fd; padding: 10px 20px; font-size: 12px; font-family: var(--mono); display: flex; align-items: center; gap: 10px; }
+.config-banner.ready { background: #14532d; color: #86efac; }
+.config-banner.error { background: #7f1d1d; color: #fca5a5; }
+.cb-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+/* ── LOGIN SCREEN ── */
+.login-screen { display: none; min-height: 100vh; align-items: center; justify-content: center; background: var(--navy); flex-direction: column; gap: 24px; }
+.login-screen.show { display: flex; }
+.login-card { background: var(--white); border-radius: 20px; padding: 40px; max-width: 380px; width: 90%; text-align: center; }
+.login-logo { width: 56px; height: 56px; background: var(--sun); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+.login-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.login-sub { font-size: 13px; color: var(--gray-600); margin-bottom: 24px; }
+.login-domain { display: inline-block; background: var(--navy); color: var(--sun); font-family: var(--mono); font-size: 12px; padding: 4px 12px; border-radius: 6px; margin-bottom: 20px; }
+.btn-ms { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px 20px; background: #0078D4; color: #fff; border: none; border-radius: var(--radius); font-size: 14px; font-weight: 500; cursor: pointer; font-family: var(--font); }
+.btn-ms:hover { background: #106EBE; }
+.ms-logo { width: 20px; height: 20px; }
+
+/* ── MAIN APP (hidden until login) ── */
+.main-app { display: none; }
+.main-app.show { display: block; }
+
+/* NAV */
+.nav { background: var(--navy); padding: 0 24px; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; }
+.nav-logo { display: flex; align-items: center; gap: 10px; color: var(--white); font-weight: 600; font-size: 15px; margin-right: 32px; text-decoration: none; }
+.nav-logo-icon { width: 30px; height: 30px; background: var(--sun); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.nav-tabs { display: flex; height: 100%; flex: 1; }
+.nav-tab { display: flex; align-items: center; gap: 7px; padding: 0 18px; color: var(--gray-400); font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; transition: all .18s; white-space: nowrap; user-select: none; }
+.nav-tab:hover { color: var(--white); }
+.nav-tab.active { color: var(--sun); border-bottom-color: var(--sun); }
+.nav-tab svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.nav-user { display: flex; align-items: center; gap: 8px; color: var(--gray-400); font-size: 12px; cursor: pointer; }
+.nav-user:hover { color: var(--white); }
+.avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--navy-soft); color: var(--sun); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+
+/* PAGES */
+.page { display: none; padding: 28px 24px; max-width: 960px; margin: 0 auto; }
+.page.active { display: block; }
+.page-header { margin-bottom: 24px; }
+.page-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: var(--gray-600); }
+
+/* CARDS */
+.card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 16px; }
+.card-title { font-size: 11px; font-weight: 600; color: var(--gray-400); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: .01em; }
+.card-title::after { content: ''; flex: 1; height: 1px; background: var(--gray-200); }
+
+/* FORM */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.span2 { grid-column: 1/-1; }
+label { font-size: 12px; font-weight: 500; color: var(--gray-600); }
+label span.req { color: var(--sun-dark); margin-left: 2px; }
+input, select, textarea { padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius); font-family: var(--font); font-size: 13px; color: var(--navy); background: var(--white); transition: border-color .15s; outline: none; }
+input:focus, select:focus, textarea:focus { border-color: var(--sun); box-shadow: 0 0 0 3px rgba(245,166,35,.12); }
+textarea { resize: vertical; min-height: 90px; }
+input:read-only { background: var(--gray-100); color: var(--gray-600); }
+
+/* Map */
+.map-input-wrap { position: relative; }
+.map-input-wrap input { padding-right: 90px; }
+.map-open-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 11px; padding: 4px 10px; background: var(--sun-light); color: var(--sun-dark); border: 1px solid var(--sun); border-radius: 6px; cursor: pointer; font-weight: 500; }
+.map-open-btn:hover { background: var(--sun); color: var(--navy); }
+.map-preview { margin-top: 6px; padding: 8px 10px; background: var(--sky); border: 1px solid #B8D9F0; border-radius: 8px; font-size: 12px; color: var(--info); display: none; align-items: center; gap: 6px; }
+.map-preview.show { display: flex; }
+
+/* File drop */
+.file-drop { border: 1.5px dashed var(--gray-200); border-radius: var(--radius); padding: 24px; text-align: center; cursor: pointer; transition: all .15s; background: var(--gray-100); }
+.file-drop:hover { border-color: var(--sun); background: var(--sun-light); }
+.file-list { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.file-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--white); border: 1px solid var(--gray-200); border-radius: 8px; font-size: 12px; }
+.file-remove { margin-left: auto; cursor: pointer; color: var(--gray-400); font-size: 16px; }
+.file-remove:hover { color: var(--danger); }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: var(--radius); font-family: var(--font); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; border: 1px solid transparent; }
+.btn-primary { background: var(--sun); color: var(--navy); border-color: var(--sun-dark); }
+.btn-primary:hover { background: var(--sun-dark); color: var(--white); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-secondary { background: var(--white); color: var(--navy); border-color: var(--gray-200); }
+.btn-secondary:hover { background: var(--gray-100); }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { opacity: .88; }
+.btn-success:disabled { opacity: .5; cursor: not-allowed; }
+.btn-danger { background: var(--danger-bg); color: var(--danger); border-color: #F5C6C2; }
+.btn-danger:hover { background: var(--danger); color: #fff; }
+.btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.btn-loading { position: relative; color: transparent !important; pointer-events: none; }
+.btn-loading::after { content: ''; position: absolute; width: 14px; height: 14px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; color: var(--navy); }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.badge-pending  { background: var(--warning-bg); color: var(--warning); }
+.badge-review   { background: var(--info-bg); color: var(--info); }
+.badge-approved { background: var(--success-bg); color: var(--success); }
+.badge-rejected { background: var(--danger-bg); color: var(--danger); }
+
+/* Type grid */
+.type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 6px; }
+.type-card { border: 1.5px solid var(--gray-200); border-radius: var(--radius); padding: 14px 12px; cursor: pointer; transition: all .15s; text-align: center; }
+.type-card:hover { border-color: var(--sun); background: var(--sun-light); }
+.type-card.selected { border-color: var(--sun-dark); background: var(--sun-light); }
+.type-card-icon { font-size: 22px; margin-bottom: 6px; }
+.type-card-label { font-size: 12px; font-weight: 500; }
+.type-card-sub { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(13,27,42,.5); z-index: 200; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--white); border-radius: var(--radius-lg); padding: 32px; max-width: 420px; width: 90%; text-align: center; }
+.modal-icon { font-size: 48px; margin-bottom: 12px; }
+.modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.modal p { font-size: 13px; color: var(--gray-600); margin-bottom: 6px; }
+.modal-ref { background: var(--navy); color: var(--sun); font-family: var(--mono); padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: 500; margin: 12px 0 20px; display: inline-block; }
+
+/* Assign Modal */
+.assign-modal { background: var(--white); border-radius: var(--radius-lg); padding: 28px; max-width: 460px; width: 90%; }
+.assign-modal h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.assign-modal .sub { font-size: 12px; color: var(--gray-600); margin-bottom: 20px; }
+.assignee-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.assignee-card { border: 1.5px solid var(--gray-200); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 10px; }
+.assignee-card:hover { border-color: var(--sun); background: var(--sun-light); }
+.assignee-card.selected { border-color: var(--sun-dark); background: var(--sun-light); }
+.assignee-av { width: 32px; height: 32px; border-radius: 50%; background: var(--navy-soft); color: var(--sun); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; flex-shrink: 0; }
+
+/* Tracking */
+.search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+.timeline { position: relative; padding-left: 28px; }
+.timeline::before { content: ''; position: absolute; left: 9px; top: 8px; bottom: 8px; width: 1.5px; background: var(--gray-200); }
+.tl-item { position: relative; margin-bottom: 20px; }
+.tl-dot { position: absolute; left: -22px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--gray-200); border: 2px solid var(--white); box-shadow: 0 0 0 1.5px var(--gray-200); }
+.tl-dot.done   { background: var(--success); box-shadow: 0 0 0 1.5px var(--success); }
+.tl-dot.active { background: var(--sun); box-shadow: 0 0 0 1.5px var(--sun); }
+.tl-title { font-size: 13px; font-weight: 500; }
+.tl-meta  { font-size: 11px; color: var(--gray-400); margin-top: 2px; }
+.tl-note  { margin-top: 6px; padding: 8px 10px; background: var(--gray-100); border-radius: 6px; font-size: 12px; border-left: 3px solid var(--gray-200); }
+.tl-note.warn { background: var(--warning-bg); border-color: var(--sun); color: var(--warning); }
+.req-meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+.meta-label { font-size: 11px; color: var(--gray-400); margin-bottom: 2px; }
+.meta-val   { font-size: 13px; font-weight: 500; }
+
+/* Dashboard */
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+.stat-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); padding: 16px; }
+.stat-label { font-size: 11px; color: var(--gray-400); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em; }
+.stat-val   { font-size: 26px; font-weight: 600; line-height: 1; }
+.stat-sub   { font-size: 11px; color: var(--gray-400); margin-top: 4px; }
+.stat-card.accent { border-color: var(--sun); }
+.stat-card.accent .stat-val { color: var(--sun-dark); }
+.chart-bar-wrap { display: flex; gap: 6px; align-items: flex-end; height: 80px; padding: 0 4px; }
+.bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.bar { width: 100%; background: var(--sun); border-radius: 4px 4px 0 0; opacity: .85; }
+.bar.dim { background: var(--gray-200); }
+.bar-label { font-size: 10px; color: var(--gray-400); }
+.progress-bar-wrap { background: var(--gray-200); border-radius: 4px; height: 6px; }
+.progress-bar { height: 6px; border-radius: 4px; background: var(--sun); }
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
+td { padding: 11px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--sky); }
+.assignee-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; }
+.assignee-chip-av { width: 20px; height: 20px; border-radius: 50%; background: var(--navy-soft); color: var(--sun); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; }
+
+/* Filter */
+.filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-btn { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--gray-200); background: var(--white); color: var(--gray-600); transition: all .15s; }
+.filter-btn.active { background: var(--navy); color: var(--sun); border-color: var(--navy); }
+
+/* Admin cards */
+.req-card { background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 10px; }
+.req-card:hover { border-color: var(--gray-400); }
+.req-card-header { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.req-card-icon { width: 38px; height: 38px; background: var(--sun-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.req-card-info { flex: 1; }
+.req-card-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.req-card-ref   { font-size: 11px; color: var(--gray-400); font-family: var(--mono); }
+.req-card-body  { font-size: 12px; color: var(--gray-600); margin-bottom: 12px; line-height: 1.6; }
+.req-card-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.req-card-meta  { font-size: 11px; color: var(--gray-400); display: flex; align-items: center; gap: 4px; }
+.req-card-meta svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.approve-actions { margin-left: auto; display: flex; gap: 8px; }
+.comment-box { display: none; margin-top: 12px; padding: 14px; background: var(--gray-100); border-radius: var(--radius); }
+.comment-box.show { display: block; }
+.comment-box textarea { width: 100%; margin-bottom: 8px; }
+.comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Workload */
+.wl-wrap { display: flex; flex-direction: column; }
+.wl-row { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--gray-100); }
+.wl-row:last-child { border-bottom: none; }
+.wl-person { display: flex; align-items: center; gap: 8px; }
+.wl-av { width: 26px; height: 26px; border-radius: 50%; background: var(--navy-soft); color: var(--sun); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
+.wl-name { font-size: 12px; font-weight: 500; }
+.wl-bar-track { height: 22px; background: var(--gray-100); border-radius: 6px; overflow: hidden; display: flex; }
+.wl-seg { height: 100%; transition: opacity .15s; cursor: pointer; }
+.wl-seg:hover { opacity: .8; }
+.wl-count { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.wl-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.wl-leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--gray-600); }
+.wl-leg-dot { width: 10px; height: 10px; border-radius: 3px; }
+.s-inprog   { background: #3B82F6; }
+.s-notdone  { background: #F59E0B; }
+.s-waitup   { background: #8B5CF6; }
+.s-duetoday { background: #EF4444; }
+.s-overdue  { background: #7F1D1D; }
+.s-cancel   { background: #9CA3AF; }
+.wl-overdue-badge { font-size: 10px; font-weight: 700; background: #7F1D1D; color: #FEE2E2; padding: 2px 7px; border-radius: 4px; }
+.wl-summary { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.wl-chip { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; font-size: 12px; font-weight: 500; }
+.wl-chip-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* Loading skeleton */
+.skeleton { background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 50%, var(--gray-100) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--navy); color: var(--white); padding: 12px 18px; border-radius: var(--radius); font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 10px; z-index: 300; transform: translateY(80px); opacity: 0; transition: all .3s; max-width: 340px; }
+.toast.show { transform: translateY(0); opacity: 1; }
+.divider { height: 1px; background: var(--gray-200); margin: 20px 0; }
+.empty-state { text-align: center; padding: 48px 24px; color: var(--gray-400); }
+.empty-state-icon { font-size: 40px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ══ CONFIG BANNER ══ -->
+<div class="config-banner" id="configBanner">
+  <div class="cb-dot"></div>
+  <span id="configStatus">⚙️ กำลังเชื่อมต่อ Microsoft 365...</span>
+</div>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">☀️</div>
+    <div class="login-title">Solar Drawing e-Service</div>
+    <div class="login-sub">ระบบคำร้องแผนกเขียนแบบโซลาร์เซลล์</div>
+    <div class="login-domain">@primepower.co.th</div>
+    <button class="btn-ms" onclick="signIn()">
+      <svg class="ms-logo" viewBox="0 0 21 21" fill="none">
+        <rect x="1" y="1" width="9" height="9" fill="#F25022"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7FBA00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00A4EF"/>
+        <rect x="11" y="11" width="9" height="9" fill="#FFB900"/>
+      </svg>
+      Sign in with Microsoft 365
+    </button>
+    <p style="margin-top:14px;font-size:11px;color:var(--gray-400)">เฉพาะบัญชี @primepower.co.th เท่านั้น</p>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div class="main-app" id="mainApp">
+  <nav class="nav">
+    <a class="nav-logo" href="#">
+      <div class="nav-logo-icon">☀️</div>
+      Solar Drawing
+    </a>
+    <div class="nav-tabs">
+      <div class="nav-tab active" onclick="showPage('dashboard',this)">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-tab" onclick="showPage('submit',this)">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+        ส่งคำร้อง
+      </div>
+      <div class="nav-tab" onclick="showPage('track',this)">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>
+        ติดตามสถานะ
+      </div>
+      <div class="nav-tab" id="adminTab" onclick="showPage('admin',this)" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></svg>
+        อนุมัติ (Admin)
+      </div>
+    </div>
+    <div class="nav-right">
+      <div class="nav-user" onclick="signOut()">
+        <div class="avatar" id="navAvatar">?</div>
+        <span id="navName">...</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- DASHBOARD -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-header">
+      <div class="page-title">Dashboard สถานะงาน</div>
+      <div class="page-sub">ดึงข้อมูลจาก SharePoint List แบบ real-time</div>
+    </div>
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val skeleton" style="height:30px;width:60px">&nbsp;</div></div>
+      <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val skeleton" style="height:30px;width:50px">&nbsp;</div></div>
+      <div class="stat-card"><div class="stat-label">อนุมัติแล้ว</div><div class="stat-val skeleton" style="height:30px;width:50px">&nbsp;</div></div>
+      <div class="stat-card"><div class="stat-label">เฉลี่ยวันทำการ</div><div class="stat-val skeleton" style="height:30px;width:50px">&nbsp;</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-title">คำร้องรายสัปดาห์</div>
+        <div class="chart-bar-wrap" id="barChart"></div>
+      </div>
+      <div class="card" style="margin-bottom:0">
+        <div class="card-title">สัดส่วนตามประเภท</div>
+        <div id="typeChart" style="display:flex;flex-direction:column;gap:10px;margin-top:4px"></div>
+      </div>
+    </div>
+    <div class="card" id="workloadCard">
+      <div class="card-title">ปริมาณงานคงค้างของทีม</div>
+      <div class="wl-summary" id="wlSummary"></div>
+      <div class="wl-wrap" id="workloadRows"></div>
+      <div class="wl-legend">
+        <div class="wl-leg-item"><div class="wl-leg-dot s-inprog"></div>กำลังดำเนินการ</div>
+        <div class="wl-leg-item"><div class="wl-leg-dot s-notdone"></div>ยังไม่เสร็จ</div>
+        <div class="wl-leg-item"><div class="wl-leg-dot s-waitup"></div>รออัพเดต</div>
+        <div class="wl-leg-item"><div class="wl-leg-dot s-duetoday"></div>ส่งวันนี้</div>
+        <div class="wl-leg-item"><div class="wl-leg-dot s-overdue"></div>เกินกำหนด</div>
+        <div class="wl-leg-item"><div class="wl-leg-dot s-cancel"></div>ยกเลิก</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">คำร้องทั้งหมด</div>
+      <div class="filter-row" style="margin-bottom:12px">
+        <button class="filter-btn active" onclick="filterTable('all',this)">ทั้งหมด</button>
+        <button class="filter-btn" onclick="filterTable('pending',this)">รออนุมัติ</button>
+        <button class="filter-btn" onclick="filterTable('approved',this)">อนุมัติแล้ว</button>
+        <button class="filter-btn" onclick="filterTable('rejected',this)">ส่งกลับ</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>เลขที่คำร้อง</th><th>ประเภท</th><th>โครงการ</th>
+            <th>ฝ่าย/แผนก</th><th>วันที่ส่ง</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th>
+          </tr></thead>
+          <tbody id="dashTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBMIT -->
+  <div class="page" id="page-submit">
+    <div class="page-header">
+      <div class="page-title">ส่งคำร้องใหม่</div>
+      <div class="page-sub">ข้อมูลจะถูกบันทึกลง SharePoint List และแจ้งเตือนทาง Teams</div>
+    </div>
+    <div class="card">
+      <div class="card-title">ประเภทคำร้อง</div>
+      <div class="type-grid">
+        <div class="type-card selected" onclick="selectType(this,'📋','เขียนแบบ Proposal')"><div class="type-card-icon">📋</div><div class="type-card-label">เขียนแบบ Proposal</div><div class="type-card-sub">นำเสนอโครงการ</div></div>
+        <div class="type-card" onclick="selectType(this,'🏛️','เขียนแบบขออนุญาตก่อสร้าง')"><div class="type-card-icon">🏛️</div><div class="type-card-label">ขออนุญาตก่อสร้าง</div><div class="type-card-sub">ยื่นขออนุญาต</div></div>
+        <div class="type-card" onclick="selectType(this,'🏗️','เขียนแบบก่อสร้าง')"><div class="type-card-icon">🏗️</div><div class="type-card-label">เขียนแบบก่อสร้าง</div><div class="type-card-sub">แบบก่อสร้างจริง</div></div>
+        <div class="type-card" onclick="selectType(this,'✏️','Revision / แก้ไขแบบ')"><div class="type-card-icon">✏️</div><div class="type-card-label">Revision / แก้ไขแบบ</div><div class="type-card-sub">แก้ไขงานเดิม</div></div>
+        <div class="type-card" onclick="selectType(this,'📁','อื่นๆ')"><div class="type-card-icon">📁</div><div class="type-card-label">อื่นๆ</div><div class="type-card-sub">ระบุในรายละเอียด</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">ข้อมูลผู้ส่ง</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>ชื่อ-นามสกุล <span class="req">*</span></label>
+          <input type="text" id="f_name" placeholder="กรอกชื่อ-นามสกุล">
+        </div>
+        <div class="field">
+          <label>ฝ่าย / แผนก <span class="req">*</span></label>
+          <input type="text" id="f_dept" placeholder="เช่น ฝ่ายวิศวกรรม, แผนกออกแบบ">
+        </div>
+        <div class="field span2">
+          <label>อีเมล</label>
+          <input type="email" id="f_email" readonly>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">รายละเอียดโครงการ</div>
+      <div class="form-grid">
+        <div class="field span2">
+          <label>ชื่อโครงการ <span class="req">*</span></label>
+          <input type="text" id="f_project" placeholder="ระบุชื่อโครงการ">
+        </div>
+        <div class="field">
+          <label>ขนาดระบบโซลาร์ (kWp)</label>
+          <input type="text" id="f_kwp" placeholder="เช่น 50, 100, 500">
+        </div>
+        <div class="field">
+          <label>ที่ตั้งโครงการ (Google Maps Link)</label>
+          <div class="map-input-wrap">
+            <input type="url" id="f_location" placeholder="วาง Link Google Maps" oninput="previewMap(this.value)">
+            <span class="map-open-btn" onclick="openMap()">📍 เปิดแผนที่</span>
+          </div>
+          <div class="map-preview" id="mapPreview">
+            🗺️ <a id="mapLink" href="#" target="_blank" style="color:var(--info);font-size:12px;word-break:break-all"></a>
+          </div>
+        </div>
+        <div class="field">
+          <label>วันที่ต้องการรับงาน</label>
+          <input type="date" id="f_duedate">
+        </div>
+        <div class="field">
+          <label>ระดับความเร่งด่วน</label>
+          <select id="f_urgent">
+            <option>ปกติ</option>
+            <option>เร่งด่วน</option>
+            <option>เร่งด่วนมาก</option>
+          </select>
+        </div>
+        <div class="field span2">
+          <label>รายละเอียดเพิ่มเติม</label>
+          <textarea id="f_detail" placeholder="อธิบายรายละเอียดงาน ข้อกำหนดพิเศษ..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">แนบเอกสาร / แบบ</div>
+      <div class="file-drop" id="fileDrop" onclick="triggerFileInput()">
+        <div style="font-size:28px;margin-bottom:8px">📎</div>
+        <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
+        <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 50MB</p>
+      </div>
+      <input type="file" id="fileInput" multiple accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" style="display:none" onchange="handleFiles(this.files)">
+      <div class="file-list" id="fileList"></div>
+      <div class="form-actions" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
+        <button class="btn btn-primary" id="submitBtn" onclick="submitRequest()">
+          <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ส่งคำร้อง
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TRACKING -->
+  <div class="page" id="page-track">
+    <div class="page-header">
+      <div class="page-title">ติดตามสถานะคำร้อง</div>
+      <div class="page-sub">ดึงข้อมูลสถานะล่าสุดจาก SharePoint</div>
+    </div>
+    <div class="search-bar">
+      <input type="text" id="trackSearch" placeholder="เลขที่คำร้อง เช่น SDR-2025-0042" style="max-width:320px">
+      <button class="btn btn-primary" onclick="searchRequest()">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>
+        ค้นหา
+      </button>
+    </div>
+    <div id="trackResult"></div>
+  </div>
+
+  <!-- ADMIN -->
+  <div class="page" id="page-admin">
+    <div class="page-header">
+      <div class="page-title">หน้าอนุมัติคำร้อง</div>
+      <div class="page-sub" id="adminRoleText">ดึงรายการจาก SharePoint ที่รออนุมัติจากคุณ</div>
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="filterAdmin('all',this)">ทั้งหมด</button>
+      <button class="filter-btn" onclick="filterAdmin('proposal',this)">📋 Proposal</button>
+      <button class="filter-btn" onclick="filterAdmin('construction',this)">🏗️ ก่อสร้าง</button>
+      <button class="filter-btn" onclick="filterAdmin('permit',this)">🏛️ ขออนุญาต</button>
+      <button class="filter-btn" onclick="filterAdmin('revision',this)">✏️ Revision</button>
+    </div>
+    <div id="adminList"></div>
+  </div>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="successModal">
+  <div class="modal">
+    <div class="modal-icon">✅</div>
+    <h2>ส่งคำร้องสำเร็จ!</h2>
+    <p>บันทึกลง SharePoint แล้ว<br>ผู้ตรวจสอบได้รับแจ้งเตือนทาง Teams และ Email</p>
+    <div class="modal-ref" id="refNumber">SDR-2025-0049</div>
+    <p style="font-size:11px;color:var(--gray-400)">บันทึกเลขที่นี้ไว้เพื่อติดตามสถานะ</p>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:20px">
+      <button class="btn btn-secondary" onclick="closeModal('successModal')">ปิด</button>
+      <button class="btn btn-primary" onclick="goTrack()">ติดตามสถานะ</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="assignModal">
+  <div class="assign-modal">
+    <h2>ระบุผู้รับผิดชอบในแผนก</h2>
+    <p class="sub" id="assignSubtitle">เลือกผู้รับงาน — ระบบจะแจ้งเตือนทาง Teams</p>
+    <div class="assignee-grid" id="assigneeGrid"></div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;margin-bottom:6px">หมายเหตุถึงผู้รับงาน</label>
+      <textarea id="assignNote" placeholder="เช่น ลูกค้าต้องการงานภายใน 5 วันทำการ..." rows="2" style="width:100%"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('assignModal')">ยกเลิก</button>
+      <button class="btn btn-success" id="confirmAssignBtn" onclick="confirmAssign()">
+        <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ยืนยันอนุมัติ + มอบหมายงาน
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <span id="toastIcon">✓</span>
+  <span id="toastMsg">สำเร็จ</span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  ⚙️ CONFIG — แก้ไขค่าเหล่านี้ก่อนใช้งาน
+// ═══════════════════════════════════════════════════════════════
+const CONFIG = {
+  // 1. จาก Azure AD App Registration → Overview
+  clientId: 'YOUR_CLIENT_ID_HERE',
+
+  // 2. จาก Azure AD → Overview (ของ tenant บริษัท)
+  tenantId: 'YOUR_TENANT_ID_HERE',
+
+  // 3. URL ของหน้านี้บน SharePoint (ต้องตรงกับ Redirect URI ใน Azure AD)
+  redirectUri: window.location.href.split('?')[0],
+
+  // 4. ชื่อ SharePoint site (ดูจาก URL: https://COMPANY.sharepoint.com/sites/SITENAME)
+  spSite: 'SolarDrawing',
+  spTenantName: 'primepower',  // ชื่อหน้า .sharepoint.com
+
+  // 5. ชื่อ SharePoint List ที่สร้างไว้
+  spListName: 'SolarRequests',
+
+  // 6. อีเมลทีมงานในแผนก (สำหรับ assign งาน)
+  teamMembers: [
+    { id:'m1', name:'ปณิดา นาคเงิน',   email:'panida@primepower.co.th',   role:'วิศวกรออกแบบ Sr.' },
+    { id:'m2', name:'กวิน ศรีสุข',      email:'kawin@primepower.co.th',    role:'วิศวกรออกแบบ' },
+    { id:'m3', name:'ชัยพร มงคลกิจ',   email:'chaiyaporn@primepower.co.th', role:'นักเขียนแบบ Sr.' },
+    { id:'m4', name:'วรรณิดา พรมชาติ', email:'wannida@primepower.co.th',  role:'นักเขียนแบบ' },
+    { id:'m5', name:'อนุชา สิงห์โต',    email:'anucha@primepower.co.th',   role:'วิศวกรโครงการ' },
+    { id:'m6', name:'สกุลรัตน์ วงค์ดี', email:'sakulrat@primepower.co.th', role:'นักเขียนแบบ' },
+  ],
+
+  // 7. อีเมลหัวหน้าที่อนุมัติ Lv.2
+  approverLv2Email: 'manager@primepower.co.th',
+
+  // 8. ชื่อ domain บริษัท (ใช้ตรวจสอบ login)
+  allowedDomain: 'primepower.co.th',
+
+  // 9. Teams Webhook URL (Power Automate HTTP trigger URL)
+  //    สร้าง Power Automate Flow: HTTP trigger → Post Teams message + Send Email
+  //    แล้ว copy URL มาใส่ที่นี่
+  automateWebhookUrl: 'YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL',
+};
+// ═══════════════════════════════════════════════════════════════
+
+// ── MSAL Setup ──
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: CONFIG.redirectUri,
+  },
+  cache: { cacheLocation: 'sessionStorage' }
+};
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+const graphScopes  = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All'];
+
+let currentUser  = null;
+let accessToken  = null;
+let allRequests  = [];
+let selectedType = '📋 เขียนแบบ Proposal';
+let selectedFiles = [];
+let pendingApproveId = null;
+let selectedAssignee = null;
+let adminFilter  = 'all';
+let spSiteId     = null;
+let spListId     = null;
+
+// ── INIT ──
+async function init() {
+  setBanner('connecting', '⚙️ กำลังเชื่อมต่อ Microsoft 365...');
+
+  if (CONFIG.clientId === 'YOUR_CLIENT_ID_HERE') {
+    setBanner('error', '⚠️ ยังไม่ได้ตั้งค่า CONFIG — กรุณาใส่ clientId, tenantId และค่าอื่นๆ ก่อนใช้งาน');
+    showLogin();
+    return;
+  }
+
+  try {
+    await msalInstance.initialize();
+    const resp = await msalInstance.handleRedirectPromise();
+    if (resp) {
+      currentUser = resp.account;
+      accessToken = resp.accessToken;
+    } else {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        currentUser = accounts[0];
+        await refreshToken();
+      }
+    }
+
+    if (currentUser) {
+      if (!currentUser.username.endsWith('@' + CONFIG.allowedDomain)) {
+        setBanner('error', `⛔ บัญชีนี้ไม่ได้รับอนุญาต — ใช้ได้เฉพาะ @${CONFIG.allowedDomain}`);
+        await msalInstance.logoutRedirect();
+        return;
+      }
+      await onSignedIn();
+    } else {
+      showLogin();
+      setBanner('ready', '✅ พร้อมเชื่อมต่อ — กด Sign in ด้วยบัญชี Microsoft 365');
+    }
+  } catch (e) {
+    setBanner('error', '❌ เกิดข้อผิดพลาด: ' + e.message);
+    showLogin();
+  }
+}
+
+function setBanner(type, msg) {
+  const b = document.getElementById('configBanner');
+  b.className = 'config-banner' + (type === 'ready' ? ' ready' : type === 'error' ? ' error' : '');
+  document.getElementById('configStatus').textContent = msg;
+}
+
+function showLogin() {
+  document.getElementById('loginScreen').classList.add('show');
+  document.getElementById('mainApp').classList.remove('show');
+}
+
+async function signIn() {
+  try {
+    await msalInstance.loginRedirect({ scopes: graphScopes });
+  } catch(e) { showToast('❌', 'Login ไม่สำเร็จ: ' + e.message); }
+}
+
+async function signOut() {
+  if (!confirm('ออกจากระบบ?')) return;
+  await msalInstance.logoutRedirect();
+}
+
+async function refreshToken() {
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
+    accessToken = r.accessToken;
+  } catch {
+    await msalInstance.acquireTokenRedirect({ scopes: graphScopes });
+  }
+}
+
+async function onSignedIn() {
+  document.getElementById('loginScreen').classList.remove('show');
+  document.getElementById('mainApp').classList.add('show');
+
+  const initials = currentUser.name ? currentUser.name.split(' ').map(n=>n[0]).join('').slice(0,2) : currentUser.username.slice(0,2);
+  document.getElementById('navAvatar').textContent = initials.toUpperCase();
+  document.getElementById('navName').textContent   = currentUser.name || currentUser.username;
+
+  // แสดง Admin tab ถ้าเป็น approver
+  if (isApprover()) document.getElementById('adminTab').style.display = 'flex';
+
+  setBanner('connecting', '🔄 กำลังโหลดข้อมูลจาก SharePoint...');
+
+  // Pre-fill email ในฟอร์ม
+  const emailInput = document.getElementById('f_email');
+  if (emailInput) emailInput.value = currentUser.username;
+
+  // โหลด SharePoint IDs และข้อมูล
+  await loadSpIds();
+  await buildDashboard();
+  if (isApprover()) await buildAdmin();
+
+  setBanner('ready', `✅ เชื่อมต่อแล้ว — ${currentUser.username} | SharePoint: ${CONFIG.spSite}`);
+}
+
+function isApprover() {
+  if (!currentUser) return false;
+  const em = currentUser.username.toLowerCase();
+  return em === CONFIG.approverLv2Email.toLowerCase() ||
+         CONFIG.teamMembers.some(m => m.email.toLowerCase() === em);
+}
+
+// ── GRAPH API helpers ──
+async function graphGet(path) {
+  await refreshToken();
+  const r = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { Authorization: 'Bearer ' + accessToken }
+  });
+  if (!r.ok) throw new Error(`Graph ${path} → ${r.status}`);
+  return r.json();
+}
+
+async function graphPost(path, body) {
+  await refreshToken();
+  const r = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`Graph POST ${path} → ${r.status}`);
+  return r.json();
+}
+
+async function graphPatch(path, body) {
+  await refreshToken();
+  const r = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`Graph PATCH ${path} → ${r.status}`);
+  return r.json();
+}
+
+async function loadSpIds() {
+  try {
+    const site = await graphGet(`/sites/${CONFIG.spTenantName}.sharepoint.com:/sites/${CONFIG.spSite}`);
+    spSiteId = site.id;
+    const lists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spListName}'`);
+    spListId = lists.value[0]?.id;
+    if (!spListId) throw new Error(`ไม่พบ List "${CONFIG.spListName}" — กรุณาสร้างก่อน`);
+  } catch(e) {
+    setBanner('error', '❌ ' + e.message);
+    throw e;
+  }
+}
+
+// ── SHAREPOINT LIST HELPERS ──
+async function spGetItems(filter = '') {
+  const q = filter ? `&$filter=${filter}` : '';
+  const r = await graphGet(`/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=500${q}`);
+  return r.value.map(i => i.fields);
+}
+
+async function spCreateItem(fields) {
+  const r = await graphPost(`/sites/${spSiteId}/lists/${spListId}/items`, { fields });
+  return r.fields;
+}
+
+async function spUpdateItem(itemId, fields) {
+  return graphPatch(`/sites/${spSiteId}/lists/${spListId}/items/${itemId}/fields`, fields);
+}
+
+// อัปโหลดไฟล์ไปยัง SharePoint Document Library
+async function spUploadFile(folderPath, fileName, fileBuffer) {
+  await refreshToken();
+  const r = await fetch(
+    `https://graph.microsoft.com/v1.0/sites/${spSiteId}/drive/root:/${folderPath}/${fileName}:/content`,
+    { method: 'PUT', headers: { Authorization: 'Bearer ' + accessToken }, body: fileBuffer }
+  );
+  if (!r.ok) throw new Error('Upload file failed');
+  return r.json();
+}
+
+// ── POWER AUTOMATE WEBHOOK ──
+// เรียก webhook เพื่อให้ Power Automate ส่งแจ้งเตือน Teams + Email
+async function triggerAutomate(payload) {
+  if (!CONFIG.automateWebhookUrl || CONFIG.automateWebhookUrl === 'YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL') {
+    console.warn('Power Automate webhook ยังไม่ได้ตั้งค่า — ข้ามการแจ้งเตือน');
+    return;
+  }
+  try {
+    await fetch(CONFIG.automateWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch(e) { console.warn('Automate trigger failed:', e); }
+}
+
+// ── GENERATE REF NUMBER ──
+function genRefNumber() {
+  const yr = new Date().getFullYear() + 543;
+  const seq = String(allRequests.length + 1).padStart(4, '0');
+  return `SDR-${yr}-${seq}`;
+}
+
+// ── PAGE: SUBMIT ──
+function selectType(el, icon, label) {
+  document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedType = icon + ' ' + label;
+}
+
+function triggerFileInput() { document.getElementById('fileInput').click(); }
+
+function handleFiles(files) {
+  Array.from(files).forEach(f => {
+    if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f);
+  });
+  renderFiles();
+}
+
+function renderFiles() {
+  document.getElementById('fileList').innerHTML = selectedFiles.map((f,i) => `
+    <div class="file-item">
+      <span>📄</span><span>${f.name}</span>
+      <span style="color:var(--gray-400);margin-left:4px;font-size:11px">${(f.size/1024/1024).toFixed(1)} MB</span>
+      <span class="file-remove" onclick="removeFile(${i})">×</span>
+    </div>`).join('');
+}
+function removeFile(i) { selectedFiles.splice(i,1); renderFiles(); }
+
+// ── DRAG & DROP ──
+const dropZone = document.getElementById('fileDrop');
+if (dropZone) {
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--sun)'; });
+  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.style.borderColor = '';
+    handleFiles(e.dataTransfer.files);
+  });
+}
+
+function previewMap(val) {
+  const preview = document.getElementById('mapPreview');
+  const link    = document.getElementById('mapLink');
+  const isMap = val && (val.includes('maps.google') || val.includes('goo.gl') || val.includes('google.com/maps'));
+  preview.style.display = isMap ? 'flex' : 'none';
+  if (isMap) { link.href = val; link.textContent = val.length > 55 ? val.slice(0,55)+'…' : val; }
+}
+function openMap() {
+  const v = document.getElementById('f_location').value;
+  window.open(v || 'https://maps.google.com', '_blank');
+}
+
+async function submitRequest() {
+  const name    = document.getElementById('f_name').value.trim();
+  const dept    = document.getElementById('f_dept').value.trim();
+  const project = document.getElementById('f_project').value.trim();
+  if (!name || !dept || !project) { showToast('⚠️', 'กรุณากรอกข้อมูลที่จำเป็นให้ครบ'); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.classList.add('btn-loading');
+  btn.disabled = true;
+
+  try {
+    const refNo = genRefNumber();
+    const now   = new Date().toISOString();
+
+    // 1. สร้าง item ใน SharePoint List
+    const item = await spCreateItem({
+      Title:       refNo,
+      RequestType: selectedType,
+      ProjectName: project,
+      Department:  dept,
+      SenderName:  name,
+      SenderEmail: currentUser.username,
+      SolarKwp:    document.getElementById('f_kwp').value,
+      Location:    document.getElementById('f_location').value,
+      DueDate:     document.getElementById('f_duedate').value || null,
+      Urgency:     document.getElementById('f_urgent').value,
+      Detail:      document.getElementById('f_detail').value,
+      Status:      'pending',
+      SubmittedAt: now,
+    });
+
+    // 2. อัปโหลดไฟล์แนบไปยัง SharePoint (โฟลเดอร์ตามเลขคำร้อง)
+    for (const file of selectedFiles) {
+      const buf = await file.arrayBuffer();
+      await spUploadFile(`SolarRequests/${refNo}`, file.name, buf);
+    }
+
+    // 3. ส่ง webhook → Power Automate → Teams + Email
+    await triggerAutomate({
+      action:      'new_request',
+      refNo,
+      type:        selectedType,
+      project,
+      sender:      name,
+      senderEmail: currentUser.username,
+      urgency:     document.getElementById('f_urgent').value,
+      detail:      document.getElementById('f_detail').value,
+      submittedAt: now,
+    });
+
+    allRequests.unshift({ ...item, id: item.id });
+    document.getElementById('refNumber').textContent = refNo;
+    document.getElementById('successModal').classList.add('show');
+    resetForm();
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.classList.remove('btn-loading');
+    btn.disabled = false;
+  }
+}
+
+function resetForm() {
+  ['f_name','f_dept','f_kwp','f_location','f_duedate','f_detail'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.readOnly) el.value = '';
+  });
+  document.getElementById('f_urgent').value = 'ปกติ';
+  document.getElementById('mapPreview').style.display = 'none';
+  selectedFiles = []; renderFiles();
+  document.querySelectorAll('.type-card').forEach((c,i) => { c.classList.remove('selected'); if(i===0) c.classList.add('selected'); });
+  selectedType = '📋 เขียนแบบ Proposal';
+}
+
+// ── PAGE: TRACKING ──
+async function searchRequest() {
+  const q = document.getElementById('trackSearch').value.trim();
+  if (!q) { showToast('⚠️', 'กรุณากรอกเลขที่คำร้อง'); return; }
+  const container = document.getElementById('trackResult');
+  container.innerHTML = '<div class="empty-state"><div class="empty-state-icon skeleton" style="width:48px;height:48px;border-radius:50%;margin:0 auto 12px">&nbsp;</div><p>กำลังค้นหา...</p></div>';
+  try {
+    const items = await spGetItems(`Title eq '${q}'`);
+    if (!items.length) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><p>ไม่พบเลขที่คำร้องนี้</p></div>';
+      return;
+    }
+    renderTrackResult(items[0]);
+  } catch(e) { container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">❌</div><p>${e.message}</p></div>`; }
+}
+
+function renderTrackResult(r) {
+  const statusLabel = { pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2', approved:'อนุมัติแล้ว', rejected:'ส่งกลับแก้ไข' };
+  const statusClass = { pending:'badge-pending', review:'badge-review', approved:'badge-approved', rejected:'badge-rejected' };
+  const steps = [
+    { title:'ส่งคำร้องเข้าระบบ',       meta:r.Title+' · '+fmtDate(r.SubmittedAt),   state:'done' },
+    { title:'ผู้ตรวจสอบ Lv.1 รับเรื่อง', meta:r.ReviewerLv1||'รอมอบหมาย',             state: r.Status==='pending'?'active':'done' },
+    { title:'มอบหมายผู้รับผิดชอบ',        meta:r.AssigneeName||'รอมอบหมาย',             state: r.AssigneeName?'done':'skip' },
+    { title:'ผู้อนุมัติ Lv.2 พิจารณา',   meta:r.ReviewerLv2||'รอ Lv.1',               state: ['review','approved','rejected'].includes(r.Status)?((r.Status==='approved'?'done':'active')):'skip' },
+    { title:'อนุมัติและส่งมอบ',           meta:r.Status==='approved'?'เสร็จสิ้น':'รอดำเนินการ', state: r.Status==='approved'?'done':'skip' },
+  ];
+  document.getElementById('trackResult').innerHTML = `
+    <div class="card">
+      <div class="req-meta-grid">
+        <div><div class="meta-label">เลขที่คำร้อง</div><div class="meta-val" style="font-family:var(--mono)">${r.Title}</div></div>
+        <div><div class="meta-label">สถานะ</div><div class="meta-val"><span class="badge ${statusClass[r.Status]||'badge-pending'}">${statusLabel[r.Status]||r.Status}</span></div></div>
+        <div><div class="meta-label">ประเภท</div><div class="meta-val">${r.RequestType||'—'}</div></div>
+        <div><div class="meta-label">โครงการ</div><div class="meta-val">${r.ProjectName||'—'}</div></div>
+        <div><div class="meta-label">ผู้รับผิดชอบ</div><div class="meta-val">${r.AssigneeName||'<span style="color:var(--gray-400)">ยังไม่มอบหมาย</span>'}</div></div>
+        ${r.Location ? `<div><div class="meta-label">ที่ตั้งโครงการ</div><div class="meta-val"><a href="${r.Location}" target="_blank" style="color:var(--info)">🗺️ เปิดแผนที่</a></div></div>` : ''}
+      </div>
+      <div style="height:1px;background:var(--gray-200);margin:16px 0"></div>
+      <div class="card-title">ความคืบหน้า</div>
+      <div class="timeline">
+        ${steps.map(s=>`<div class="tl-item"><div class="tl-dot ${s.state}"></div><div class="tl-title">${s.title}</div><div class="tl-meta">${s.meta}</div>${r.RejectReason&&s.title.includes('Lv.2')?`<div class="tl-note warn">⚠️ ${r.RejectReason}</div>`:''}</div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ── PAGE: DASHBOARD ──
+async function buildDashboard() {
+  try {
+    allRequests = await spGetItems();
+    renderStats();
+    renderTypeChart();
+    renderBarChart();
+    renderWorkload();
+    renderTable(allRequests);
+  } catch(e) {
+    setBanner('error', '❌ โหลด Dashboard ไม่สำเร็จ: ' + e.message);
+  }
+}
+
+function renderStats() {
+  const total    = allRequests.length;
+  const pending  = allRequests.filter(r => ['pending','review'].includes(r.Status)).length;
+  const approved = allRequests.filter(r => r.Status === 'approved').length;
+  const lv1      = allRequests.filter(r => r.Status === 'pending').length;
+  const lv2      = allRequests.filter(r => r.Status === 'review').length;
+
+  // คำนวณเฉลี่ยวันทำการ
+  const done = allRequests.filter(r => r.Status === 'approved' && r.SubmittedAt && r.ApprovedAt);
+  const avgDays = done.length ? (done.reduce((a,r) => a + daysBetween(r.SubmittedAt, r.ApprovedAt), 0) / done.length).toFixed(1) : '—';
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val">${total}</div><div class="stat-sub">รอ: ${pending} รายการ</div></div>
+    <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val">${pending}</div><div class="stat-sub">Lv.1: ${lv1} · Lv.2: ${lv2}</div></div>
+    <div class="stat-card"><div class="stat-label">อนุมัติแล้ว</div><div class="stat-val">${approved}</div><div class="stat-sub">${total ? (approved/total*100).toFixed(1) : 0}%</div></div>
+    <div class="stat-card"><div class="stat-label">เฉลี่ยวันทำการ</div><div class="stat-val">${avgDays}</div><div class="stat-sub">วัน/คำร้อง</div></div>`;
+}
+
+function renderTypeChart() {
+  const types = { 'Proposal':0, 'ก่อสร้าง':0, 'ขออนุญาต':0, 'Revision':0, 'อื่นๆ':0 };
+  allRequests.forEach(r => {
+    const t = r.RequestType || '';
+    if (t.includes('Proposal'))    types['Proposal']++;
+    else if (t.includes('ก่อสร้าง')) types['ก่อสร้าง']++;
+    else if (t.includes('ขออนุญาต')) types['ขออนุญาต']++;
+    else if (t.includes('Revision')) types['Revision']++;
+    else types['อื่นๆ']++;
+  });
+  const icons = {'Proposal':'📋','ก่อสร้าง':'🏗️','ขออนุญาต':'🏛️','Revision':'✏️','อื่นๆ':'📁'};
+  const total = allRequests.length || 1;
+  document.getElementById('typeChart').innerHTML = Object.entries(types).map(([k,v]) => `
+    <div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>${icons[k]} ${k}</span><span style="font-weight:500">${v} (${(v/total*100).toFixed(0)}%)</span></div>
+      <div class="progress-bar-wrap"><div class="progress-bar" style="width:${v/total*100}%"></div></div>
+    </div>`).join('');
+}
+
+function renderBarChart() {
+  const days = ['อา','จ','อ','พ','พฤ','ศ','ส'];
+  const counts = Array(7).fill(0);
+  const now = new Date();
+  allRequests.forEach(r => {
+    if (!r.SubmittedAt) return;
+    const d = new Date(r.SubmittedAt);
+    const diff = Math.floor((now - d) / 86400000);
+    if (diff < 7) counts[6 - diff]++;
+  });
+  const max = Math.max(...counts, 1);
+  const today = new Date().getDay();
+  document.getElementById('barChart').innerHTML = counts.map((v,i) => `
+    <div class="bar-col">
+      <div class="bar ${i===6?'':'dim'}" style="height:${Math.round(v/max*72)}px" title="${v} รายการ"></div>
+      <div class="bar-label">${days[(today - (6-i) + 7) % 7]}</div>
+    </div>`).join('');
+}
+
+function renderWorkload() {
+  // จัดกลุ่มข้อมูลตาม assignee จาก SharePoint
+  const today = new Date(); today.setHours(0,0,0,0);
+  const wl = {};
+  CONFIG.teamMembers.forEach(m => {
+    const k = m.email;
+    wl[k] = { name:m.name, inprog:0, notdone:0, waitup:0, duetoday:0, overdue:0, cancel:0 };
+  });
+
+  allRequests.forEach(r => {
+    if (!r.AssigneeEmail || !wl[r.AssigneeEmail]) return;
+    const d = r.DueDate ? new Date(r.DueDate) : null;
+    if (d) d.setHours(0,0,0,0);
+    const w = wl[r.AssigneeEmail];
+    if      (r.WorkStatus === 'cancel')   w.cancel++;
+    else if (d && d < today)              w.overdue++;
+    else if (d && d.getTime()===today.getTime()) w.duetoday++;
+    else if (r.WorkStatus === 'waitup')   w.waitup++;
+    else if (r.WorkStatus === 'notdone')  w.notdone++;
+    else                                   w.inprog++;
+  });
+
+  const segs = [
+    {key:'inprog',cls:'s-inprog',label:'กำลังดำเนินการ'},
+    {key:'notdone',cls:'s-notdone',label:'ยังไม่เสร็จ'},
+    {key:'waitup',cls:'s-waitup',label:'รออัพเดต'},
+    {key:'duetoday',cls:'s-duetoday',label:'ส่งวันนี้'},
+    {key:'overdue',cls:'s-overdue',label:'เกินกำหนด'},
+    {key:'cancel',cls:'s-cancel',label:'ยกเลิก'},
+  ];
+
+  // summary chips
+  const totals = {};
+  segs.forEach(s => { totals[s.key] = Object.values(wl).reduce((a,d)=>a+d[s.key],0); });
+  const chipColors = {inprog:'#EFF6FF',notdone:'#FFFBEB',waitup:'#F5F3FF',duetoday:'#FEF2F2',overdue:'#450a0a',cancel:'#F9FAFB'};
+  document.getElementById('wlSummary').innerHTML = segs.map(s => `
+    <div class="wl-chip" style="background:${chipColors[s.key]};${s.key==='overdue'?'color:#FEE2E2;border:1.5px solid #7F1D1D':''}">
+      <div class="wl-chip-dot ${s.cls}"></div>${s.label} <strong>${totals[s.key]}</strong>
+    </div>`).join('');
+
+  const maxTotal = Math.max(...Object.values(wl).map(d => segs.reduce((a,s)=>a+d[s.key],0)), 1);
+  const sorted   = Object.entries(wl).sort((a,b) => b[1].overdue - a[1].overdue);
+
+  document.getElementById('workloadRows').innerHTML = sorted.map(([email, d]) => {
+    const total = segs.reduce((a,s)=>a+d[s.key],0);
+    const bars  = segs.map(s => d[s.key]>0
+      ? `<div class="wl-seg ${s.cls}" style="width:${d[s.key]/maxTotal*100}%" title="${s.label}: ${d[s.key]}"></div>`
+      : '').join('');
+    const rowStyle = d.overdue>0 ? 'background:rgba(127,29,29,.04);border-radius:8px;padding:7px 8px;margin:0 -8px;' : '';
+    return `<div class="wl-row" style="${rowStyle}">
+      <div class="wl-person">
+        <div class="wl-av" style="${d.overdue>0?'background:#7F1D1D;':''}">${d.name.split(' ')[0].slice(0,2)}</div>
+        <div><div class="wl-name">${d.name.split(' ')[0]}</div></div>
+      </div>
+      <div class="wl-bar-track">${bars}</div>
+      <div class="wl-count">
+        ${total}
+        ${d.duetoday>0?`<span style="font-size:10px;background:#FEE2E2;color:#B91C1C;padding:2px 5px;border-radius:4px;font-weight:600">🔴${d.duetoday}</span>`:''}
+        ${d.overdue>0?`<span class="wl-overdue-badge">⚠️${d.overdue}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+let currentFilter = 'all';
+function renderTable(items) {
+  const filtered = currentFilter === 'all' ? items
+    : items.filter(r => {
+        if (currentFilter === 'pending') return ['pending','review'].includes(r.Status);
+        if (currentFilter === 'approved') return r.Status === 'approved';
+        if (currentFilter === 'rejected') return r.Status === 'rejected';
+        return true;
+      });
+
+  const statusLabel = {pending:'รอตรวจสอบ Lv.1',review:'รออนุมัติ Lv.2',approved:'อนุมัติแล้ว',rejected:'ส่งกลับแก้ไข'};
+  const statusClass = {pending:'badge-pending',review:'badge-review',approved:'badge-approved',rejected:'badge-rejected'};
+
+  document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
+    <tr>
+      <td style="font-family:var(--mono);font-size:12px">${r.Title}</td>
+      <td>${r.RequestType||'—'}</td>
+      <td style="font-weight:500">${r.ProjectName||'—'}</td>
+      <td>${r.Department||'—'}</td>
+      <td style="color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
+      <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
+      <td><span class="badge ${statusClass[r.Status]||'badge-pending'}">${statusLabel[r.Status]||r.Status}</span></td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
+}
+
+function filterTable(f, btn) {
+  document.querySelectorAll('.filter-row .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = f;
+  renderTable(allRequests);
+}
+
+// ── PAGE: ADMIN ──
+async function buildAdmin() {
+  try {
+    const myEmail = currentUser.username.toLowerCase();
+    const isMgr   = myEmail === CONFIG.approverLv2Email.toLowerCase();
+    document.getElementById('adminRoleText').textContent = isMgr
+      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการที่ผ่าน Lv.1 แล้ว'
+      : 'สิทธิ์: ผู้ตรวจสอบ Lv.1 — รายการรออนุมัติจากคุณ';
+
+    const filter = isMgr ? "Status eq 'review'" : "Status eq 'pending'";
+    const items  = await spGetItems(filter);
+    renderAdminList(items);
+  } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
+}
+
+function renderAdminList(items) {
+  const filtered = adminFilter === 'all' ? items
+    : items.filter(r => {
+        const t = (r.RequestType||'').toLowerCase();
+        if (adminFilter==='proposal')     return t.includes('proposal');
+        if (adminFilter==='construction') return t.includes('ก่อสร้าง');
+        if (adminFilter==='permit')       return t.includes('ขออนุญาต');
+        if (adminFilter==='revision')     return t.includes('revision');
+        return true;
+      });
+
+  const list = document.getElementById('adminList');
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>ไม่มีรายการในหมวดนี้</p></div>';
+    return;
+  }
+  const urgentClass = { 'เร่งด่วน':'badge-pending', 'เร่งด่วนมาก':'badge-rejected' };
+  list.innerHTML = filtered.map(item => `
+    <div class="req-card" id="card-${item.id}">
+      <div class="req-card-header">
+        <div class="req-card-icon">${(item.RequestType||'📁').slice(0,2)}</div>
+        <div class="req-card-info">
+          <div class="req-card-title">${item.RequestType||'คำร้อง'} — ${item.ProjectName||'—'}</div>
+          <div class="req-card-ref">${item.Title}</div>
+        </div>
+        ${item.Urgency && item.Urgency !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Urgency]||'badge-pending'}">${item.Urgency}</span>` : ''}
+      </div>
+      <div class="req-card-body">${item.Detail||'—'}</div>
+      <div class="req-card-footer">
+        <span class="req-card-meta">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          ${item.Department||'—'}
+        </span>
+        <span class="req-card-meta" style="margin-left:10px">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          ${fmtDate(item.SubmittedAt)}
+        </span>
+        ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
+        <div class="approve-actions">
+          <button class="btn btn-secondary" onclick="toggleComment('${item.id}','return')">
+            <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
+            ส่งกลับ
+          </button>
+          <button class="btn btn-success" onclick="openAssignModal('${item.id}','${item.ProjectName||item.Title}')">
+            <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            อนุมัติ + มอบหมาย
+          </button>
+        </div>
+      </div>
+      <div class="comment-box" id="comment-${item.id}">
+        <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:500;color:var(--gray-600)">หมายเหตุการส่งกลับ</label>
+        <textarea placeholder="ระบุเหตุผลและสิ่งที่ต้องแก้ไข..." rows="3"></textarea>
+        <div class="comment-actions">
+          <button class="btn btn-secondary" onclick="toggleComment('${item.id}','cancel')">ยกเลิก</button>
+          <button class="btn btn-danger" onclick="rejectItem('${item.id}')">ยืนยันส่งกลับ</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function filterAdmin(f, btn) {
+  document.querySelectorAll('.filter-row .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  adminFilter = f;
+  buildAdmin();
+}
+
+function toggleComment(id, mode) {
+  const box = document.getElementById('comment-'+id);
+  if (!box) return;
+  if (mode==='cancel') { box.classList.remove('show'); return; }
+  box.classList.toggle('show');
+}
+
+// ── ASSIGN MODAL ──
+function openAssignModal(id, project) {
+  pendingApproveId = id;
+  selectedAssignee = null;
+  document.getElementById('assignSubtitle').textContent = 'โครงการ: ' + project;
+  document.getElementById('assignNote').value = '';
+  document.getElementById('assigneeGrid').innerHTML = CONFIG.teamMembers.map(m => `
+    <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
+      <div class="assignee-av">${m.name.split(' ')[0].slice(0,2)}</div>
+      <div><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--gray-400)">${m.role}</div></div>
+    </div>`).join('');
+  document.getElementById('assignModal').classList.add('show');
+}
+
+function selectAssignee(id) {
+  selectedAssignee = CONFIG.teamMembers.find(m=>m.id===id);
+  document.querySelectorAll('.assignee-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById('ac-'+id).classList.add('selected');
+}
+
+async function confirmAssign() {
+  if (!selectedAssignee) { showToast('⚠️', 'กรุณาเลือกผู้รับผิดชอบก่อน'); return; }
+  const btn = document.getElementById('confirmAssignBtn');
+  btn.classList.add('btn-loading'); btn.disabled = true;
+  try {
+    const note   = document.getElementById('assignNote').value;
+    const isMgr  = currentUser.username.toLowerCase() === CONFIG.approverLv2Email.toLowerCase();
+    const newStatus = isMgr ? 'approved' : 'review';
+
+    // อัปเดต SharePoint
+    await spUpdateItem(pendingApproveId, {
+      Status:        newStatus,
+      AssigneeName:  selectedAssignee.name,
+      AssigneeEmail: selectedAssignee.email,
+      ReviewerLv1:   isMgr ? undefined : currentUser.name,
+      ReviewerLv2:   isMgr ? currentUser.name : undefined,
+      ApprovedAt:    isMgr ? new Date().toISOString() : undefined,
+      AssignNote:    note,
+    });
+
+    // แจ้งเตือน Power Automate
+    await triggerAutomate({
+      action:        isMgr ? 'approved_lv2' : 'approved_lv1',
+      itemId:        pendingApproveId,
+      assigneeName:  selectedAssignee.name,
+      assigneeEmail: selectedAssignee.email,
+      note,
+      approverName:  currentUser.name,
+    });
+
+    closeModal('assignModal');
+    const card = document.getElementById('card-'+pendingApproveId);
+    if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
+    showToast('✅', `อนุมัติแล้ว — มอบหมายให้ ${selectedAssignee.name} แจ้งเตือนทาง Teams แล้ว`);
+    setTimeout(() => { if(card) card.remove(); }, 1800);
+    await buildDashboard();
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    btn.classList.remove('btn-loading'); btn.disabled = false;
+  }
+}
+
+async function rejectItem(id) {
+  const box  = document.getElementById('comment-'+id);
+  const note = box ? box.querySelector('textarea').value : '';
+  try {
+    await spUpdateItem(id, { Status:'rejected', RejectReason: note });
+    await triggerAutomate({ action:'rejected', itemId:id, reason:note, approverName:currentUser.name });
+    const card = document.getElementById('card-'+id);
+    if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
+    showToast('↩️', 'ส่งกลับแก้ไขแล้ว — แจ้งเตือนผู้ส่งทาง Teams');
+    setTimeout(() => { if(card) card.remove(); }, 1800);
+    await buildDashboard();
+  } catch(e) { showToast('❌', e.message); }
+}
+
+// ── UTILS ──
+function showPage(name, tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if (tab) tab.classList.add('active');
+  if (name==='dashboard') buildDashboard();
+  if (name==='admin')     buildAdmin();
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+function goTrack() {
+  closeModal('successModal');
+  document.getElementById('trackSearch').value = document.getElementById('refNumber').textContent;
+  showPage('track', document.querySelectorAll('.nav-tab')[2]);
+  searchRequest();
+}
+
+function showToast(icon, msg) {
+  document.getElementById('toastIcon').textContent = icon;
+  document.getElementById('toastMsg').textContent  = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+
+function daysBetween(a, b) {
+  return Math.abs(new Date(b) - new Date(a)) / 86400000;
+}
+
+// ── START ──
+init();
+</script>
+</body>
+</html>
