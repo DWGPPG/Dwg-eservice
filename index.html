@@ -25,7 +25,10 @@
   ╚══════════════════════════════════════════════════════════════╝
 -->
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-msal-browser/2.38.2/msal-browser.min.js"></script>
+<script>
+// โหลด MSAL จาก unpkg (reliable CDN)
+</script>
+<script src="https://unpkg.com/@azure/msal-browser@2.38.2/lib/msal-browser.min.js"></script>
 
 <style>
 :root {
@@ -557,41 +560,39 @@ tr:hover td { background: var(--sky); }
 //  ⚙️ CONFIG — แก้ไขค่าเหล่านี้ก่อนใช้งาน
 // ═══════════════════════════════════════════════════════════════
 const CONFIG = {
-  // 1. จาก Azure AD App Registration → Overview
-  clientId: 'YOUR_CLIENT_ID_HERE',
+  // ── ค่าจาก Azure AD DrawingReqApp ──
+  clientId: '8afc41c2-6018-4f5e-9175-fe9613d0e5ec',
+  tenantId: '2ca2640f-6b35-45d1-930b-9b4ee11fb711',
 
-  // 2. จาก Azure AD → Overview (ของ tenant บริษัท)
-  tenantId: 'YOUR_TENANT_ID_HERE',
+  // ── GitHub Pages URL (Redirect URI) ──
+  redirectUri: 'https://dwgppg.github.io/Dwg-eservice/',
 
-  // 3. URL ของหน้านี้บน SharePoint (ต้องตรงกับ Redirect URI ใน Azure AD)
-  redirectUri: window.location.href.split('?')[0],
+  // ── SharePoint ──
+  // ดู spSite จาก URL: https://XXXX.sharepoint.com/sites/[ชื่อ site]
+  // เปลี่ยน spTenantName เป็นชื่อหน้า .sharepoint.com ของบริษัท
+  spSite: 'SolarDrawing',           // ← เปลี่ยนเป็นชื่อ SharePoint Site ที่จะสร้าง
+  spTenantName: 'primepower',       // ← เปลี่ยนเป็นชื่อ tenant (ดูจาก URL sharepoint.com)
 
-  // 4. ชื่อ SharePoint site (ดูจาก URL: https://COMPANY.sharepoint.com/sites/SITENAME)
-  spSite: 'SolarDrawing',
-  spTenantName: 'primepower',  // ชื่อหน้า .sharepoint.com
+  // ── ชื่อ SharePoint List ──
+  spListName: 'SolarRequests',      // ← ต้องตรงกับชื่อ List ที่สร้างใน SharePoint
 
-  // 5. ชื่อ SharePoint List ที่สร้างไว้
-  spListName: 'SolarRequests',
-
-  // 6. อีเมลทีมงานในแผนก (สำหรับ assign งาน)
+  // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
   teamMembers: [
-    { id:'m1', name:'ปณิดา นาคเงิน',   email:'panida@primepower.co.th',   role:'วิศวกรออกแบบ Sr.' },
-    { id:'m2', name:'กวิน ศรีสุข',      email:'kawin@primepower.co.th',    role:'วิศวกรออกแบบ' },
-    { id:'m3', name:'ชัยพร มงคลกิจ',   email:'chaiyaporn@primepower.co.th', role:'นักเขียนแบบ Sr.' },
-    { id:'m4', name:'วรรณิดา พรมชาติ', email:'wannida@primepower.co.th',  role:'นักเขียนแบบ' },
-    { id:'m5', name:'อนุชา สิงห์โต',    email:'anucha@primepower.co.th',   role:'วิศวกรโครงการ' },
-    { id:'m6', name:'สกุลรัตน์ วงค์ดี', email:'sakulrat@primepower.co.th', role:'นักเขียนแบบ' },
+    { id:'m1', name:'ชื่อ นามสกุล 1', email:'email1@primepower.co.th', role:'ตำแหน่ง' },
+    { id:'m2', name:'ชื่อ นามสกุล 2', email:'email2@primepower.co.th', role:'ตำแหน่ง' },
+    { id:'m3', name:'ชื่อ นามสกุล 3', email:'email3@primepower.co.th', role:'ตำแหน่ง' },
+    { id:'m4', name:'ชื่อ นามสกุล 4', email:'email4@primepower.co.th', role:'ตำแหน่ง' },
+    { id:'m5', name:'ชื่อ นามสกุล 5', email:'email5@primepower.co.th', role:'ตำแหน่ง' },
+    { id:'m6', name:'ชื่อ นามสกุล 6', email:'email6@primepower.co.th', role:'ตำแหน่ง' },
   ],
 
-  // 7. อีเมลหัวหน้าที่อนุมัติ Lv.2
-  approverLv2Email: 'manager@primepower.co.th',
+  // ── อีเมลผู้อนุมัติ Lv.2 (หัวหน้าแผนก) ──
+  approverLv2Email: 'narakorn.pa@primepower.co.th', // ← เปลี่ยนเป็นอีเมลหัวหน้าที่อนุมัติ Lv.2
 
-  // 8. ชื่อ domain บริษัท (ใช้ตรวจสอบ login)
+  // ── domain บริษัท ──
   allowedDomain: 'primepower.co.th',
 
-  // 9. Teams Webhook URL (Power Automate HTTP trigger URL)
-  //    สร้าง Power Automate Flow: HTTP trigger → Post Teams message + Send Email
-  //    แล้ว copy URL มาใส่ที่นี่
+  // ── Power Automate Webhook (ใส่ทีหลังหลัง setup Power Automate เสร็จ) ──
   automateWebhookUrl: 'YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL',
 };
 // ═══════════════════════════════════════════════════════════════
@@ -603,7 +604,7 @@ const msalConfig = {
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
     redirectUri: CONFIG.redirectUri,
   },
-  cache: { cacheLocation: 'sessionStorage' }
+  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
 };
 
 const msalInstance = new msal.PublicClientApplication(msalConfig);
