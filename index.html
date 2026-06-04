@@ -486,11 +486,32 @@ tr:hover td { background: var(--sky); }
       <div class="form-grid">
         <div class="field span2">
           <label>ชื่อโครงการ <span class="req">*</span></label>
-          <input type="text" id="f_project" placeholder="ระบุชื่อโครงการ">
+          <div class="combo-wrap">
+            <select id="f_project" onchange="onProjectSelect(this.value)">
+              <option value="">-- เลือกหรือเพิ่มโครงการใหม่ --</option>
+            </select>
+            <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">＋</button>
+          </div>
+          <div class="add-item-row" id="addProjectRow">
+            <input type="text" id="newProjectName" placeholder="ชื่อโครงการใหม่">
+            <input type="text" id="newProjectKwp" placeholder="kWp" style="max-width:80px">
+            <button class="btn-save-sm" onclick="saveNewProject()">บันทึก</button>
+            <button class="btn-cancel-sm" onclick="toggleAddProject()">ยกเลิก</button>
+          </div>
         </div>
         <div class="field">
           <label>ขนาดระบบโซลาร์ (kWp)</label>
-          <input type="text" id="f_kwp" placeholder="เช่น 50, 100, 500">
+          <div class="combo-wrap">
+            <select id="f_kwp_select" onchange="onKwpSelect(this.value)">
+              <option value="">-- เลือก --</option>
+              <option>10</option><option>20</option><option>30</option><option>50</option>
+              <option>100</option><option>150</option><option>200</option><option>300</option>
+              <option>500</option><option>1000</option>
+              <option value="custom">กรอกเอง...</option>
+            </select>
+            <button type="button" class="btn-add-sm" onclick="toggleAddKwp()">✏️</button>
+          </div>
+          <input type="text" id="f_kwp" placeholder="กรอกขนาด kWp" style="margin-top:6px;display:none">
         </div>
         <div class="field">
           <label>ที่ตั้งโครงการ <span style="font-size:11px;color:var(--gray-400)">(วาง Link หรือกด 📍 เพื่อเปิดแผนที่แล้ว copy link)</span></label>
