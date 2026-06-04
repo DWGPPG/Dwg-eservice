@@ -279,7 +279,7 @@ tr:hover td { background: var(--sky); }
 
 /* Workload */
 .wl-wrap { display: flex; flex-direction: column; }
-.wl-row { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--gray-100); }
+.wl-row { display: grid; grid-template-columns: 130px 1fr minmax(90px,auto); align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--gray-100); }
 .wl-row:last-child { border-bottom: none; }
 .wl-person { display: flex; align-items: center; gap: 8px; }
 .wl-av { width: 26px; height: 26px; border-radius: 50%; background: var(--navy-soft); color: var(--sun); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; flex-shrink: 0; }
@@ -493,7 +493,7 @@ tr:hover td { background: var(--sky); }
           <input type="text" id="f_kwp" placeholder="เช่น 50, 100, 500">
         </div>
         <div class="field">
-          <label>ที่ตั้งโครงการ (Google Maps Link)</label>
+          <label>ที่ตั้งโครงการ <span style="font-size:11px;color:var(--gray-400)">(วาง Link หรือกด 📍 เพื่อเปิดแผนที่แล้ว copy link)</span></label>
           <div class="map-input-wrap">
             <input type="text" id="f_location" placeholder="วาง Link Google Maps" oninput="previewMap(this.value)">
             <span class="map-open-btn" onclick="openMap()">📍 เปิดแผนที่</span>
@@ -638,6 +638,7 @@ const CONFIG = {
 
   // ── ชื่อ SharePoint List ──
   spListName: 'DrawingRequests',
+  spProjectListName: 'ProjectList',   // List เก็บชื่อโครงการ
 
   // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
   teamMembers: [
@@ -680,10 +681,110 @@ let selectedFiles = [];
 let pendingApproveId = null;
 let selectedAssignee = null;
 let adminFilter  = 'all';
-let spSiteId     = null;
-let spListId     = null;
+let spSiteId          = null;
+let spListId          = null;
+let spProjectListId   = null;
+let projectListCache  = [];
 
 // ── INIT ──
+// ── PROJECT LIST HELPERS ──
+async function loadProjectList() {
+  try {
+    if (!spProjectListId) return;
+    const r = await graphGet(`/sites/${spSiteId}/lists/${spProjectListId}/items?expand=fields&$top=200`);
+    projectListCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    renderProjectSelect();
+  } catch(e) { console.warn('loadProjectList:', e); }
+}
+
+function renderProjectSelect() {
+  const sel = document.getElementById('f_project');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- เลือกหรือเพิ่มโครงการ --</option>';
+  projectListCache.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.Title + (p.SolarKwp ? ` (${p.SolarKwp} kWp)` : '');
+    opt.dataset.kwp = p.SolarKwp || '';
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+function onProjectSelect(val) {
+  if (!val) return;
+  const proj = projectListCache.find(p => p.id === val);
+  if (proj?.SolarKwp) {
+    const kwpSel = document.getElementById('f_kwp_select');
+    const kwpIn  = document.getElementById('f_kwp');
+    if (kwpSel) kwpSel.value = proj.SolarKwp;
+    if (kwpIn)  kwpIn.value  = proj.SolarKwp;
+  }
+}
+
+function onKwpSelect(val) {
+  const kwpIn = document.getElementById('f_kwp');
+  if (!kwpIn) return;
+  if (val === 'custom' || val === '') {
+    kwpIn.style.display = 'block';
+    kwpIn.focus();
+  } else {
+    kwpIn.style.display = 'none';
+    kwpIn.value = val;
+  }
+}
+
+function toggleAddProject() {
+  const row = document.getElementById('addProjectRow');
+  if (!row) return;
+  const showing = row.classList.contains('show');
+  row.classList.toggle('show');
+  if (!showing) document.getElementById('newProjectName')?.focus();
+  else {
+    const n = document.getElementById('newProjectName');
+    const k = document.getElementById('newProjectKwp');
+    if(n) n.value = ''; if(k) k.value = '';
+  }
+}
+
+function toggleAddKwp() {
+  const kwpIn = document.getElementById('f_kwp');
+  if (!kwpIn) return;
+  const visible = kwpIn.style.display !== 'none';
+  kwpIn.style.display = visible ? 'none' : 'block';
+  if (!visible) kwpIn.focus();
+}
+
+async function saveNewProject() {
+  const nameEl = document.getElementById('newProjectName');
+  const kwpEl  = document.getElementById('newProjectKwp');
+  const name   = nameEl?.value.trim();
+  if (!name) { showToast('⚠️', 'กรุณาใส่ชื่อโครงการ'); return; }
+  if (!spProjectListId) { showToast('⚠️', 'ไม่พบ ProjectList ใน SharePoint'); return; }
+  try {
+    const fields = { Title: name };
+    if (kwpEl?.value) fields.SolarKwp = kwpEl.value.trim();
+    const r = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields });
+    projectListCache.push({ id: r.id, ...r.fields });
+    renderProjectSelect();
+    // เลือกโปรเจกต์ที่เพิ่งเพิ่ม
+    const sel = document.getElementById('f_project');
+    if (sel) sel.value = r.id;
+    toggleAddProject();
+    showToast('✅', `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว`);
+  } catch(e) { showToast('❌', 'เพิ่มโครงการไม่สำเร็จ: ' + e.message); }
+}
+
+// ── WORK STATUS UPDATE (for assignee) ──
+async function updateWorkStatus(itemId, status) {
+  try {
+    await spUpdateItem(itemId, { WorkStatus: status, Status: status === 'done' ? 'done' : (status === 'cancelled' ? 'cancelled' : 'working') });
+    showToast('✅', `อัปเดตสถานะเป็น "${status}" แล้ว`);
+    await buildDashboard();
+  } catch(e) { showToast('❌', 'อัปเดตสถานะไม่สำเร็จ: ' + e.message); }
+}
+
 async function init() {
   setBanner('connecting', '⚙️ กำลังเชื่อมต่อ Microsoft 365...');
 
@@ -858,6 +959,12 @@ async function loadSpIds() {
     const lists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spListName}'`);
     spListId = lists.value[0]?.id;
     if (!spListId) throw new Error(`ไม่พบ List "${CONFIG.spListName}" — กรุณาสร้างก่อน`);
+    // โหลด ProjectList (optional — ไม่ error ถ้าไม่มี)
+    try {
+      const pLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spProjectListName}'`);
+      spProjectListId = pLists.value[0]?.id || null;
+      if (spProjectListId) await loadProjectList();
+    } catch(e) { console.warn('ProjectList not found:', e.message); }
   } catch(e) {
     setBanner('error', '❌ ' + e.message);
     throw e;
@@ -1006,7 +1113,10 @@ async function submitRequest() {
     dept = otherEl ? otherEl.value.trim() : '';
     if (!dept) { showToast('⚠️', 'กรุณาระบุชื่อฝ่าย/แผนก'); return; }
   }
-  const project = projectEl ? projectEl.value.trim() : '';
+  // f_project เป็น select — ดึงค่าจาก selectedOptions text
+  const project = projectEl
+    ? (projectEl.options[projectEl.selectedIndex]?.text || projectEl.value || '').replace('-- เลือกหรือเพิ่มโครงการ --','').trim()
+    : '';
   if (!name || !project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการให้ครบ'); return; }
 
   const btn = document.getElementById('submitBtn');
@@ -1276,7 +1386,7 @@ function renderWorkload() {
       </div>
       <div class="wl-bar-track">${bars}</div>
       <div class="wl-count">
-        ${total}
+        <span title="จำนวนรายการ">${total} รายการ</span>
         ${d.duetoday>0?`<span style="font-size:10px;background:#FEE2E2;color:#B91C1C;padding:2px 5px;border-radius:4px;font-weight:600">🔴${d.duetoday}</span>`:''}
         ${d.overdue>0?`<span class="wl-overdue-badge">⚠️${d.overdue}</span>`:''}
       </div>
@@ -1327,7 +1437,7 @@ async function buildAdmin() {
     const allItems = await spGetItems();
     // Manager เห็นทั้ง pending และ review / ทีมเห็นเฉพาะ pending
     const items = isManager
-      ? allItems.filter(r => ['pending','review'].includes(r.Status))
+      ? allItems.filter(r => ['pending','inprogress','review'].includes(r.Status))
       : allItems.filter(r => r.Status === 'pending');
     renderAdminList(items);
   } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
@@ -1371,6 +1481,13 @@ function renderAdminList(items) {
           ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
         </span>
         ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
+        ${item.AssigneeEmail === (currentUser?.username||'').toLowerCase() ? `
+        <select class="work-status-select" style="margin-left:10px" onchange="updateWorkStatus('${item.id}',this.value)">
+          <option value="">📋 อัปเดตสถานะงาน</option>
+          <option value="working" ${item.WorkStatus==='working'?'selected':''}>🔵 กำลังดำเนินการ</option>
+          <option value="done"    ${item.WorkStatus==='done'?'selected':''}>✅ เสร็จสิ้น</option>
+          <option value="cancelled" ${item.WorkStatus==='cancelled'?'selected':''}>❌ ยกเลิก</option>
+        </select>` : ''}
         <div class="approve-actions">
           <button class="btn btn-secondary" onclick="toggleComment('${item.id}','return')">
             <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
@@ -1434,7 +1551,9 @@ async function confirmAssign() {
   try {
     const note   = document.getElementById('assignNote')?.value;
     const isManager = isMgr();
-    const newStatus = isManager ? 'approved' : 'review';
+    // Lv1 → 'inprogress' (กำลังดำเนินการ รอผจก.)
+    // Lv2 → 'approved' (ตรวจสอบแล้ว กำลังดำเนินการ)
+    const newStatus = isManager ? 'approved' : 'inprogress';
 
     // อัปเดต SharePoint — ส่งทีละ field เพื่อหลีกเลี่ยง error
     const updateData = { Status: newStatus };
