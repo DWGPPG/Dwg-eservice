@@ -1187,16 +1187,21 @@ function renderWorkload() {
   });
 
   allRequests.forEach(r => {
-    const assignedEmail = CONFIG.teamMembers.find(m=>m.name===r.AssigneeName)?.email; if (!assignedEmail || !wl[assignedEmail]) return; const assignedWl = wl[assignedEmail];
-    const d = r.DueDate ? new Date(r.DueDate) : null;
-    if (d) d.setHours(0,0,0,0);
-    const w = wl[r.AssigneeEmail];
-    if      (r.WorkStatus === 'cancel')   w.cancel++;
-    else if (d && d < today)              w.overdue++;
-    else if (d && d.getTime()===today.getTime()) w.duetoday++;
-    else if (r.WorkStatus === 'waitup')   w.waitup++;
-    else if (r.WorkStatus === 'notdone')  w.notdone++;
-    else                                   w.inprog++;
+    try {
+      // หา email จาก AssigneeName หรือ AssigneeEmail
+      const assignedEmail = r.AssigneeEmail || CONFIG.teamMembers.find(m=>m.name===r.AssigneeName)?.email;
+      if (!assignedEmail || !wl[assignedEmail]) return;
+      const w = wl[assignedEmail];
+      if (!w) return;
+      const d = r.DueDate ? new Date(r.DueDate) : null;
+      if (d) d.setHours(0,0,0,0);
+      if      (r.WorkStatus === 'cancel')               w.cancel++;
+      else if (d && d < today)                          w.overdue++;
+      else if (d && d.getTime() === today.getTime())    w.duetoday++;
+      else if (r.WorkStatus === 'waitup')               w.waitup++;
+      else if (r.WorkStatus === 'notdone')              w.notdone++;
+      else                                               w.inprog++;
+    } catch(e) { /* skip this record */ }
   });
 
   const segs = [
