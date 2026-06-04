@@ -599,11 +599,11 @@ const CONFIG = {
   // ── SharePoint ──
   // ดู spSite จาก URL: https://XXXX.sharepoint.com/sites/[ชื่อ site]
   // เปลี่ยน spTenantName เป็นชื่อหน้า .sharepoint.com ของบริษัท
-  spSite: 'SolarDrawing',           // ← เปลี่ยนเป็นชื่อ SharePoint Site ที่จะสร้าง
-  spTenantName: 'primepower',       // ← เปลี่ยนเป็นชื่อ tenant (ดูจาก URL sharepoint.com)
+  spSite: 'DrawingDepartment',
+  spTenantName: 'primepowertl',
 
   // ── ชื่อ SharePoint List ──
-  spListName: 'SolarRequests',      // ← ต้องตรงกับชื่อ List ที่สร้างใน SharePoint
+  spListName: 'Drawing_Requests',
 
   // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
   teamMembers: [
@@ -653,7 +653,7 @@ async function init() {
       authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
       redirectUri: CONFIG.redirectUri,
     },
-    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
+    cache: { cacheReferenceFile: 'localStorage', storeAuthStateInCookie: true }
   };
   msalInstance = new msal.PublicClientApplication(msalConfig);
 
@@ -918,18 +918,18 @@ async function submitRequest() {
     // 1. สร้าง item ใน SharePoint List
     const item = await spCreateItem({
       Title:       refNo,
-      RequestType: selectedType,
+      TypeOfDrawing: selectedType,
       ProjectName: project,
       Department:  dept,
-      SenderName:  name,
-      SenderEmail: currentUser.username,
-      SolarKwp:    document.getElementById('f_kwp').value,
-      Location:    document.getElementById('f_location').value,
+      RequestedBy:  name,
+      RequesterEmail: currentUser.username,
+      ProjectCode:    document.getElementById('f_kwp').value,
+      ReferenceFile:    document.getElementById('f_location').value,
       DueDate:     document.getElementById('f_duedate').value || null,
-      Urgency:     document.getElementById('f_urgent').value,
-      Detail:      document.getElementById('f_detail').value,
+      Priority:     document.getElementById('f_urgent').value,
+      Description:      document.getElementById('f_detail').value,
       Status:      'pending',
-      SubmittedAt: now,
+      SubmittedDate: now,
     });
 
     // 2. อัปโหลดไฟล์แนบไปยัง SharePoint (โฟลเดอร์ตามเลขคำร้อง)
@@ -996,10 +996,10 @@ function renderTrackResult(r) {
   const statusLabel = { pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2', approved:'อนุมัติแล้ว', rejected:'ส่งกลับแก้ไข' };
   const statusClass = { pending:'badge-pending', review:'badge-review', approved:'badge-approved', rejected:'badge-rejected' };
   const steps = [
-    { title:'ส่งคำร้องเข้าระบบ',       meta:r.Title+' · '+fmtDate(r.SubmittedAt),   state:'done' },
-    { title:'ผู้ตรวจสอบ Lv.1 รับเรื่อง', meta:r.ReviewerLv1||'รอมอบหมาย',             state: r.Status==='pending'?'active':'done' },
-    { title:'มอบหมายผู้รับผิดชอบ',        meta:r.AssigneeName||'รอมอบหมาย',             state: r.AssigneeName?'done':'skip' },
-    { title:'ผู้อนุมัติ Lv.2 พิจารณา',   meta:r.ReviewerLv2||'รอ Lv.1',               state: ['review','approved','rejected'].includes(r.Status)?((r.Status==='approved'?'done':'active')):'skip' },
+    { title:'ส่งคำร้องเข้าระบบ',       meta:r.Title+' · '+fmtDate(r.SubmittedDate),   state:'done' },
+    { title:'ผู้ตรวจสอบ Lv.1 รับเรื่อง', meta:r.EmployeeStatus||'รอมอบหมาย',             state: r.Status==='pending'?'active':'done' },
+    { title:'มอบหมายผู้รับผิดชอบ',        meta:r.AssignedTo||'รอมอบหมาย',             state: r.AssignedTo?'done':'skip' },
+    { title:'ผู้อนุมัติ Lv.2 พิจารณา',   meta:r.ManagerStatus||'รอ Lv.1',               state: ['review','approved','rejected'].includes(r.Status)?((r.Status==='approved'?'done':'active')):'skip' },
     { title:'อนุมัติและส่งมอบ',           meta:r.Status==='approved'?'เสร็จสิ้น':'รอดำเนินการ', state: r.Status==='approved'?'done':'skip' },
   ];
   document.getElementById('trackResult').innerHTML = `
@@ -1007,15 +1007,15 @@ function renderTrackResult(r) {
       <div class="req-meta-grid">
         <div><div class="meta-label">เลขที่คำร้อง</div><div class="meta-val" style="font-family:var(--mono)">${r.Title}</div></div>
         <div><div class="meta-label">สถานะ</div><div class="meta-val"><span class="badge ${statusClass[r.Status]||'badge-pending'}">${statusLabel[r.Status]||r.Status}</span></div></div>
-        <div><div class="meta-label">ประเภท</div><div class="meta-val">${r.RequestType||'—'}</div></div>
+        <div><div class="meta-label">ประเภท</div><div class="meta-val">${r.TypeOfDrawing||'—'}</div></div>
         <div><div class="meta-label">โครงการ</div><div class="meta-val">${r.ProjectName||'—'}</div></div>
-        <div><div class="meta-label">ผู้รับผิดชอบ</div><div class="meta-val">${r.AssigneeName||'<span style="color:var(--gray-400)">ยังไม่มอบหมาย</span>'}</div></div>
-        ${r.Location ? `<div><div class="meta-label">ที่ตั้งโครงการ</div><div class="meta-val"><a href="${r.Location}" target="_blank" style="color:var(--info)">🗺️ เปิดแผนที่</a></div></div>` : ''}
+        <div><div class="meta-label">ผู้รับผิดชอบ</div><div class="meta-val">${r.AssignedTo||'<span style="color:var(--gray-400)">ยังไม่มอบหมาย</span>'}</div></div>
+        ${r.ReferenceFile ? `<div><div class="meta-label">ที่ตั้งโครงการ</div><div class="meta-val"><a href="${r.ReferenceFile}" target="_blank" style="color:var(--info)">🗺️ เปิดแผนที่</a></div></div>` : ''}
       </div>
       <div style="height:1px;background:var(--gray-200);margin:16px 0"></div>
       <div class="card-title">ความคืบหน้า</div>
       <div class="timeline">
-        ${steps.map(s=>`<div class="tl-item"><div class="tl-dot ${s.state}"></div><div class="tl-title">${s.title}</div><div class="tl-meta">${s.meta}</div>${r.RejectReason&&s.title.includes('Lv.2')?`<div class="tl-note warn">⚠️ ${r.RejectReason}</div>`:''}</div>`).join('')}
+        ${steps.map(s=>`<div class="tl-item"><div class="tl-dot ${s.state}"></div><div class="tl-title">${s.title}</div><div class="tl-meta">${s.meta}</div>${r.ManagerComment&&s.title.includes('Lv.2')?`<div class="tl-note warn">⚠️ ${r.ManagerComment}</div>`:''}</div>`).join('')}
       </div>
     </div>`;
 }
@@ -1042,8 +1042,8 @@ function renderStats() {
   const lv2      = allRequests.filter(r => r.Status === 'review').length;
 
   // คำนวณเฉลี่ยวันทำการ
-  const done = allRequests.filter(r => r.Status === 'approved' && r.SubmittedAt && r.ApprovedAt);
-  const avgDays = done.length ? (done.reduce((a,r) => a + daysBetween(r.SubmittedAt, r.ApprovedAt), 0) / done.length).toFixed(1) : '—';
+  const done = allRequests.filter(r => r.Status === 'approved' && r.SubmittedDate && r.ManagerDate);
+  const avgDays = done.length ? (done.reduce((a,r) => a + daysBetween(r.SubmittedDate, r.ManagerDate), 0) / done.length).toFixed(1) : '—';
 
   document.getElementById('statsRow').innerHTML = `
     <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val">${total}</div><div class="stat-sub">รอ: ${pending} รายการ</div></div>
@@ -1055,7 +1055,7 @@ function renderStats() {
 function renderTypeChart() {
   const types = { 'Proposal':0, 'ก่อสร้าง':0, 'ขออนุญาต':0, 'Revision':0, 'อื่นๆ':0 };
   allRequests.forEach(r => {
-    const t = r.RequestType || '';
+    const t = r.TypeOfDrawing || '';
     if (t.includes('Proposal'))    types['Proposal']++;
     else if (t.includes('ก่อสร้าง')) types['ก่อสร้าง']++;
     else if (t.includes('ขออนุญาต')) types['ขออนุญาต']++;
@@ -1076,8 +1076,8 @@ function renderBarChart() {
   const counts = Array(7).fill(0);
   const now = new Date();
   allRequests.forEach(r => {
-    if (!r.SubmittedAt) return;
-    const d = new Date(r.SubmittedAt);
+    if (!r.SubmittedDate) return;
+    const d = new Date(r.SubmittedDate);
     const diff = Math.floor((now - d) / 86400000);
     if (diff < 7) counts[6 - diff]++;
   });
@@ -1170,11 +1170,11 @@ function renderTable(items) {
   document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
     <tr>
       <td style="font-family:var(--mono);font-size:12px">${r.Title}</td>
-      <td>${r.RequestType||'—'}</td>
+      <td>${r.TypeOfDrawing||'—'}</td>
       <td style="font-weight:500">${r.ProjectName||'—'}</td>
       <td>${r.Department||'—'}</td>
-      <td style="color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
-      <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
+      <td style="color:var(--gray-400)">${fmtDate(r.SubmittedDate)}</td>
+      <td>${r.AssignedTo ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssignedTo.slice(0,2)}</div>${r.AssignedTo}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
       <td><span class="badge ${statusClass[r.Status]||'badge-pending'}">${statusLabel[r.Status]||r.Status}</span></td>
     </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
 }
@@ -1204,7 +1204,7 @@ async function buildAdmin() {
 function renderAdminList(items) {
   const filtered = adminFilter === 'all' ? items
     : items.filter(r => {
-        const t = (r.RequestType||'').toLowerCase();
+        const t = (r.TypeOfDrawing||'').toLowerCase();
         if (adminFilter==='proposal')     return t.includes('proposal');
         if (adminFilter==='construction') return t.includes('ก่อสร้าง');
         if (adminFilter==='permit')       return t.includes('ขออนุญาต');
@@ -1221,12 +1221,12 @@ function renderAdminList(items) {
   list.innerHTML = filtered.map(item => `
     <div class="req-card" id="card-${item.id}">
       <div class="req-card-header">
-        <div class="req-card-icon">${(item.RequestType||'📁').slice(0,2)}</div>
+        <div class="req-card-icon">${(item.TypeOfDrawing||'📁').slice(0,2)}</div>
         <div class="req-card-info">
-          <div class="req-card-title">${item.RequestType||'คำร้อง'} — ${item.ProjectName||'—'}</div>
+          <div class="req-card-title">${item.TypeOfDrawing||'คำร้อง'} — ${item.ProjectName||'—'}</div>
           <div class="req-card-ref">${item.Title}</div>
         </div>
-        ${item.Urgency && item.Urgency !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Urgency]||'badge-pending'}">${item.Urgency}</span>` : ''}
+        ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}">${item.Priority}</span>` : ''}
       </div>
       <div class="req-card-body">${item.Detail||'—'}</div>
       <div class="req-card-footer">
@@ -1307,12 +1307,12 @@ async function confirmAssign() {
     // อัปเดต SharePoint
     await spUpdateItem(pendingApproveId, {
       Status:        newStatus,
-      AssigneeName:  selectedAssignee.name,
+      AssignedTo:  selectedAssignee.name,
       AssigneeEmail: selectedAssignee.email,
-      ReviewerLv1:   isMgr ? undefined : currentUser.name,
-      ReviewerLv2:   isMgr ? currentUser.name : undefined,
-      ApprovedAt:    isMgr ? new Date().toISOString() : undefined,
-      AssignNote:    note,
+      EmployeeStatus:   isMgr ? undefined : currentUser.name,
+      ManagerStatus:   isMgr ? currentUser.name : undefined,
+      ManagerDate:    isMgr ? new Date().toISOString() : undefined,
+      EmployeeComment:    note,
     });
 
     // แจ้งเตือน Power Automate
@@ -1342,7 +1342,7 @@ async function rejectItem(id) {
   const box  = document.getElementById('comment-'+id);
   const note = box ? box.querySelector('textarea').value : '';
   try {
-    await spUpdateItem(id, { Status:'rejected', RejectReason: note });
+    await spUpdateItem(id, { Status:'rejected', ManagerComment: note });
     await triggerAutomate({ action:'rejected', itemId:id, reason:note, approverName:currentUser.name });
     const card = document.getElementById('card-'+id);
     if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
