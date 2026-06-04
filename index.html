@@ -607,16 +607,23 @@ const CONFIG = {
 
   // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
   teamMembers: [
-    { id:'m1', name:'ชื่อ นามสกุล 1', email:'email1@primepower.co.th', role:'ตำแหน่ง' },
-    { id:'m2', name:'ชื่อ นามสกุล 2', email:'email2@primepower.co.th', role:'ตำแหน่ง' },
-    { id:'m3', name:'ชื่อ นามสกุล 3', email:'email3@primepower.co.th', role:'ตำแหน่ง' },
-    { id:'m4', name:'ชื่อ นามสกุล 4', email:'email4@primepower.co.th', role:'ตำแหน่ง' },
-    { id:'m5', name:'ชื่อ นามสกุล 5', email:'email5@primepower.co.th', role:'ตำแหน่ง' },
-    { id:'m6', name:'ชื่อ นามสกุล 6', email:'email6@primepower.co.th', role:'ตำแหน่ง' },
+    { id:'m1', name:'Jeerapat Upaiprom',   email:'jeerapat.up@primepower.co.th',  role:'ผู้จัดการแผนกเขียนแบบโครงการ' },
+    { id:'m2', name:'Narakorn Pankord',    email:'narakorn.pa@primepower.co.th',  role:'ผู้จัดการแผนกเขียนแบบขายโครงการ' },
+    { id:'m3', name:'Archan Saengphloeng', email:'archan.sa@primepower.co.th',    role:'ผู้จัดการแผนกเขียนแบบโครงสร้าง' },
+    { id:'m4', name:'Sarit Sribangsai',    email:'Sarit.Sr@primepower.co.th',     role:'วิศวกรไฟฟ้าเขียนแบบอาวุโส' },
+    { id:'m5', name:'Janjira Phongphut',   email:'janjira.ph@primepower.co.th',   role:'วิศวกรไฟฟ้าเขียนแบบ' },
+    { id:'m6', name:'Panuwat Panno',       email:'panuwat.pa@primepower.co.th',   role:'พนักงานเขียนแบบโครงการอาวุโส' },
+    { id:'m7', name:'Kotchakorn Kumla',    email:'Kotchakorn.Ku@primepower.co.th',role:'พนักงานเขียนแบบโครงสร้าง' },
   ],
 
   // ── อีเมลผู้อนุมัติ Lv.2 (หัวหน้าแผนก) ──
-  approverLv2Email: 'narakorn.pa@primepower.co.th', // ← เปลี่ยนเป็นอีเมลหัวหน้าที่อนุมัติ Lv.2
+  approverLv2Email: 'narakorn.pa@primepower.co.th', // primary (ใช้สำหรับ isMgr check)
+  // ผู้จัดการทั้ง 3 คน — อนุมัติ Lv.2 ได้
+  approverLv2Emails: [
+    'jeerapat.up@primepower.co.th',
+    'narakorn.pa@primepower.co.th',
+    'archan.sa@primepower.co.th',
+  ],
 
   // ── domain บริษัท ──
   allowedDomain: 'primepower.co.th',
@@ -734,7 +741,7 @@ async function onSignedIn() {
   document.getElementById('navName').textContent   = currentUser.name || currentUser.username;
 
   // แสดง Admin tab ถ้าเป็น approver
-  if (isApprover()) document.getElementById('adminTab').style.display = 'flex';
+  document.getElementById('adminTab').style.display = 'flex'; // ทุกคนในทีมเห็น Admin tab
 
   setBanner('connecting', '🔄 กำลังโหลดข้อมูลจาก SharePoint...');
 
@@ -745,7 +752,7 @@ async function onSignedIn() {
   // โหลด SharePoint IDs และข้อมูล
   await loadSpIds();
   await buildDashboard();
-  if (isApprover()) await buildAdmin();
+  await buildAdmin(); // โหลด admin list สำหรับทุกคน
 
   setBanner('ready', `✅ เชื่อมต่อแล้ว — ${currentUser.username} | SharePoint: ${CONFIG.spSite}`);
 }
@@ -753,8 +760,14 @@ async function onSignedIn() {
 function isApprover() {
   if (!currentUser) return false;
   const em = currentUser.username.toLowerCase();
-  return em === CONFIG.approverLv2Email.toLowerCase() ||
-         CONFIG.teamMembers.some(m => m.email.toLowerCase() === em);
+  return CONFIG.teamMembers.some(m => m.email.toLowerCase() === em);
+}
+
+function isMgr() {
+  if (!currentUser) return false;
+  const em = currentUser.username.toLowerCase();
+  const mgrs = (CONFIG.approverLv2Emails || [CONFIG.approverLv2Email]);
+  return mgrs.some(e => e.toLowerCase() === em);
 }
 
 // ── GRAPH API helpers ──
@@ -1315,23 +1328,23 @@ async function confirmAssign() {
   btn.classList.add('btn-loading'); btn.disabled = true;
   try {
     const note   = document.getElementById('assignNote').value;
-    const isMgr  = currentUser.username.toLowerCase() === CONFIG.approverLv2Email.toLowerCase();
-    const newStatus = isMgr ? 'approved' : 'review';
+    const isManager = isMgr();
+    const newStatus = isManager ? 'approved' : 'review';
 
     // อัปเดต SharePoint
     await spUpdateItem(pendingApproveId, {
       Status:        newStatus,
       AssignedTo:  selectedAssignee.name,
       AssigneeEmail: selectedAssignee.email,
-      EmployeeStatus:   isMgr ? undefined : currentUser.name,
-      ManagerStatus:   isMgr ? currentUser.name : undefined,
-      ManagerDate:    isMgr ? new Date().toISOString() : undefined,
+      ReviewerLv1:  isManager ? undefined : currentUser.name,
+      ReviewerLv2:  isManager ? currentUser.name : undefined,
+      ApprovedAt:   isManager ? new Date().toISOString() : undefined,
       EmployeeComment:    note,
     });
 
     // แจ้งเตือน Power Automate
     await triggerAutomate({
-      action:        isMgr ? 'approved_lv2' : 'approved_lv1',
+      action:        isManager ? 'approved_lv2' : 'approved_lv1',
       itemId:        pendingApproveId,
       assigneeName:  selectedAssignee.name,
       assigneeEmail: selectedAssignee.email,
