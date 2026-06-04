@@ -455,7 +455,25 @@ tr:hover td { background: var(--sky); }
         </div>
         <div class="field">
           <label>ฝ่าย / แผนก <span class="req">*</span></label>
-          <input type="text" id="f_dept" placeholder="เช่น ฝ่ายวิศวกรรม, แผนกออกแบบ">
+          <select id="f_dept" onchange="toggleDeptOther(this.value)">
+            <option value="">-- เลือกฝ่าย/แผนก --</option>
+            <option>ฝ่ายขายและการตลาด</option>
+            <option>ฝ่ายวิศวกรรมและพัฒนาโครงการ</option>
+            <option>ฝ่ายเขียนแบบ</option>
+            <option>ฝ่ายจัดซื้อและคลังสินค้า</option>
+            <option>ฝ่ายขออนุญาตและใบอนุญาต</option>
+            <option>ฝ่ายบริหารโครงการ</option>
+            <option>ฝ่ายควบคุมการเดินระบบและบำรุงรักษา</option>
+            <option>ฝ่ายความปลอดภัย อาชีวอนามัย และสิ่งแวดล้อม</option>
+            <option>ฝ่ายบัญชีและการเงิน</option>
+            <option>ฝ่ายทรัพยากรบุคคล</option>
+            <option>ฝ่ายประสานงานและอำนวยการ</option>
+            <option>ฝ่ายระบบบริหารคุณภาพ</option>
+            <option value="other">อื่นๆ โปรดระบุ</option>
+          </select>
+          <div id="deptOtherWrap" style="display:none;margin-top:8px">
+            <input type="text" id="f_dept_other" placeholder="กรุณาระบุชื่อฝ่าย/แผนก">
+          </div>
         </div>
         <div class="field span2">
           <label>อีเมล</label>
@@ -939,6 +957,18 @@ if (dropZone) {
   });
 }
 
+function toggleDeptOther(val) {
+  const wrap = document.getElementById('deptOtherWrap');
+  if (!wrap) return;
+  if (val === 'other') {
+    wrap.style.display = 'block';
+    document.getElementById('f_dept_other').focus();
+  } else {
+    wrap.style.display = 'none';
+    document.getElementById('f_dept_other').value = '';
+  }
+}
+
 function previewDataLink(val) {
   const preview = document.getElementById('datalinkPreview');
   const anchor  = document.getElementById('datalinkAnchor');
@@ -970,7 +1000,12 @@ async function submitRequest() {
   const deptEl    = document.getElementById('f_dept');
   const projectEl = document.getElementById('f_project');
   const name    = nameEl    ? nameEl.value.trim()    : (currentUser?.name || currentUser?.username?.split('@')[0] || '');
-  const dept    = deptEl    ? deptEl.value.trim()    : '';
+  let dept = deptEl ? deptEl.value.trim() : '';
+  if (dept === 'other') {
+    const otherEl = document.getElementById('f_dept_other');
+    dept = otherEl ? otherEl.value.trim() : '';
+    if (!dept) { showToast('⚠️', 'กรุณาระบุชื่อฝ่าย/แผนก'); return; }
+  }
   const project = projectEl ? projectEl.value.trim() : '';
   if (!name || !project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการให้ครบ'); return; }
 
@@ -1051,11 +1086,14 @@ async function submitRequest() {
 }
 
 function resetForm() {
-  ['f_dept','f_kwp','f_location','f_datalink','f_duedate','f_detail'].forEach(id => {
+  ['f_kwp','f_location','f_datalink','f_duedate','f_detail'].forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
   const urgEl = document.getElementById('f_urgent'); if(urgEl) urgEl.value = 'ปกติ';
+  const deptEl2 = document.getElementById('f_dept'); if(deptEl2) deptEl2.selectedIndex = 0;
+  const deptOther = document.getElementById('deptOtherWrap'); if(deptOther) deptOther.style.display = 'none';
+  const deptOtherInput = document.getElementById('f_dept_other'); if(deptOtherInput) deptOtherInput.value = '';
   const mpEl = document.getElementById('mapPreview'); if(mpEl) mpEl.style.display = 'none';
   const dlEl = document.getElementById('datalinkPreview'); if(dlEl) dlEl.style.display = 'none';
   selectedFiles = []; renderFiles();
