@@ -44,8 +44,17 @@
     var s = document.createElement('script');
     s.src = cdns[idx++];
     s.onload = function() {
-      if (typeof msal !== 'undefined') { init(); }
-      else { tryLoad(); }
+      if (typeof msal !== 'undefined') {
+        // รอให้ script ทั้งหมดโหลดเสร็จก่อน
+        if (typeof init === 'function') {
+          init();
+        } else {
+          setTimeout(function() {
+            if (typeof init === 'function') init();
+            else console.error('init() not found');
+          }, 100);
+        }
+      } else { tryLoad(); }
     };
     s.onerror = function() { tryLoad(); };
     document.head.appendChild(s);
@@ -946,12 +955,13 @@ function previewDataLink(val) {
 function previewMap(val) {
   const preview = document.getElementById('mapPreview');
   const link    = document.getElementById('mapLink');
+  if (!preview) return;
   const isMap = val && (val.includes('maps.google') || val.includes('goo.gl') || val.includes('google.com/maps'));
   preview.style.display = isMap ? 'flex' : 'none';
   if (isMap) { link.href = val; link.textContent = val.length > 55 ? val.slice(0,55)+'…' : val; }
 }
 function openMap() {
-  const v = document.getElementById('f_location').value;
+  const v = document.getElementById('f_location')?.value || '';
   window.open(v || 'https://maps.google.com', '_blank');
 }
 
@@ -1045,8 +1055,9 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
-  document.getElementById('f_urgent').value = 'ปกติ';
-  document.getElementById('mapPreview').style.display = 'none';
+  const urgEl = document.getElementById('f_urgent'); if(urgEl) urgEl.value = 'ปกติ';
+  const mpEl = document.getElementById('mapPreview'); if(mpEl) mpEl.style.display = 'none';
+  const dlEl = document.getElementById('datalinkPreview'); if(dlEl) dlEl.style.display = 'none';
   selectedFiles = []; renderFiles();
   document.querySelectorAll('.type-card').forEach((c,i) => { c.classList.remove('selected'); if(i===0) c.classList.add('selected'); });
   selectedType = '📋 เขียนแบบ Proposal';
@@ -1054,7 +1065,7 @@ function resetForm() {
 
 // ── PAGE: TRACKING ──
 async function searchRequest() {
-  const q = document.getElementById('trackSearch').value.trim();
+  const q = (document.getElementById('trackSearch')?.value || '').trim();
   if (!q) { showToast('⚠️', 'กรุณากรอกเลขที่คำร้อง'); return; }
   const container = document.getElementById('trackResult');
   container.innerHTML = '<div class="empty-state"><div class="empty-state-icon skeleton" style="width:48px;height:48px;border-radius:50%;margin:0 auto 12px">&nbsp;</div><p>กำลังค้นหา...</p></div>';
@@ -1358,7 +1369,7 @@ function openAssignModal(id, project) {
   pendingApproveId = id;
   selectedAssignee = null;
   document.getElementById('assignSubtitle').textContent = 'โครงการ: ' + project;
-  document.getElementById('assignNote').value = '';
+  const _an = document.getElementById('assignNote'); if(_an) _an.value = '';
   document.getElementById('assigneeGrid').innerHTML = CONFIG.teamMembers.map(m => `
     <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
       <div class="assignee-av">${m.name.split(' ')[0].slice(0,2)}</div>
@@ -1378,7 +1389,7 @@ async function confirmAssign() {
   const btn = document.getElementById('confirmAssignBtn');
   btn.classList.add('btn-loading'); btn.disabled = true;
   try {
-    const note   = document.getElementById('assignNote').value;
+    const note   = document.getElementById('assignNote')?.value;
     const isManager = isMgr();
     const newStatus = isManager ? 'approved' : 'review';
 
@@ -1449,7 +1460,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('show'); 
 
 function goTrack() {
   closeModal('successModal');
-  document.getElementById('trackSearch').value = document.getElementById('refNumber').textContent;
+  const _ts = document.getElementById('trackSearch'); if(_ts) _ts.value = document.getElementById('refNumber')?.textContent || '';
   showPage('track', document.querySelectorAll('.nav-tab')[2]);
   searchRequest();
 }
