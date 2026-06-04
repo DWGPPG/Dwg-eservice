@@ -916,27 +916,27 @@ async function submitRequest() {
     const now   = new Date().toISOString();
 
     // 1. สร้าง item ใน SharePoint List
-    // ส่งเฉพาะ fields หลักก่อน เพิ่มทีหลังได้
-    const createFields = { Title: refNo };
-    const safeFields = {
-      SenderName:   name,
-      Department:    dept,
-      RequestType: selectedType,
-      ProjectName:   project,
-      Status:        'Pending',
-    };
-    // เพิ่ม optional fields ถ้ามีค่า
-    const kwp = document.getElementById('f_kwp').value;
-    const loc = document.getElementById('f_location').value;
+    // หมายเหตุ Internal Names จริงจาก SharePoint API:
+    //   "RequestType" (display) → InternalName = "ProjectName"
+    //   "ProjectName" (display) → InternalName = "ProjectName0"
     const due = document.getElementById('f_duedate').value;
-    const urg = document.getElementById('f_urgent').value;
-    const det = document.getElementById('f_detail').value;
-    if (kwp) safeFields.ProjectCode  = kwp;
-    if (loc) safeFields.ReferenceFile = loc;
-    if (due) safeFields.DueDate       = due;
-    if (urg) safeFields.Priority      = urg;
+    const createData = {
+      Title:        refNo,
+      ProjectName:  selectedType,          // RequestType field
+      ProjectName0: project,               // ProjectName field
+      Department:   dept,
+      SenderName:   name,
+      SenderEmail:  currentUser.username,
+      SolarKwp:     document.getElementById('f_kwp').value || '',
+      Location:     document.getElementById('f_location').value || '',
+      Urgency:      document.getElementById('f_urgent').value,
+      Detail:       document.getElementById('f_detail').value || '',
+      Status:       'pending',
+      SubmittedAt:  now,
+    };
+    if (due) createData.DueDate = new Date(due).toISOString();
 
-    const item = await spCreateItem({ ...createFields, ...safeFields });
+    const item = await spCreateItem(createData);
 
     // 2. อัปโหลดไฟล์แนบไปยัง SharePoint (โฟลเดอร์ตามเลขคำร้อง)
     for (const file of selectedFiles) {
@@ -1013,8 +1013,8 @@ function renderTrackResult(r) {
       <div class="req-meta-grid">
         <div><div class="meta-label">เลขที่คำร้อง</div><div class="meta-val" style="font-family:var(--mono)">${r.Title}</div></div>
         <div><div class="meta-label">สถานะ</div><div class="meta-val"><span class="badge ${statusClass[r.Status]||'badge-pending'}">${statusLabel[r.Status]||r.Status}</span></div></div>
-        <div><div class="meta-label">ประเภท</div><div class="meta-val">${r.RequestType||'—'}</div></div>
-        <div><div class="meta-label">โครงการ</div><div class="meta-val">${r.ProjectName||'—'}</div></div>
+        <div><div class="meta-label">ประเภท</div><div class="meta-val">${r.ProjectName0||'—'}</div></div>
+        <div><div class="meta-label">โครงการ</div><div class="meta-val">${r.ProjectName0||'—'}</div></div>
         <div><div class="meta-label">ผู้รับผิดชอบ</div><div class="meta-val">${r.AssigneeName||'<span style="color:var(--gray-400)">ยังไม่มอบหมาย</span>'}</div></div>
         ${r.ReferenceFile ? `<div><div class="meta-label">ที่ตั้งโครงการ</div><div class="meta-val"><a href="${r.ReferenceFile}" target="_blank" style="color:var(--info)">🗺️ เปิดแผนที่</a></div></div>` : ''}
       </div>
@@ -1061,7 +1061,7 @@ function renderStats() {
 function renderTypeChart() {
   const types = { 'Proposal':0, 'ก่อสร้าง':0, 'ขออนุญาต':0, 'Revision':0, 'อื่นๆ':0 };
   allRequests.forEach(r => {
-    const t = r.RequestType || '';
+    const t = r.ProjectName || '';
     if (t.includes('Proposal'))    types['Proposal']++;
     else if (t.includes('ก่อสร้าง')) types['ก่อสร้าง']++;
     else if (t.includes('ขออนุญาต')) types['ขออนุญาต']++;
@@ -1176,8 +1176,8 @@ function renderTable(items) {
   document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
     <tr>
       <td style="font-family:var(--mono);font-size:12px">${r.Title}</td>
-      <td>${r.RequestType||'—'}</td>
-      <td style="font-weight:500">${r.ProjectName||'—'}</td>
+      <td>${r.ProjectName0||'—'}</td>
+      <td style="font-weight:500">${r.ProjectName0||'—'}</td>
       <td>${r.Department||'—'}</td>
       <td style="color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
       <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
@@ -1210,7 +1210,7 @@ async function buildAdmin() {
 function renderAdminList(items) {
   const filtered = adminFilter === 'all' ? items
     : items.filter(r => {
-        const t = (r.RequestType||'').toLowerCase();
+        const t = (r.ProjectName||'').toLowerCase();
         if (adminFilter==='proposal')     return t.includes('proposal');
         if (adminFilter==='construction') return t.includes('ก่อสร้าง');
         if (adminFilter==='permit')       return t.includes('ขออนุญาต');
@@ -1227,9 +1227,9 @@ function renderAdminList(items) {
   list.innerHTML = filtered.map(item => `
     <div class="req-card" id="card-${item.id}">
       <div class="req-card-header">
-        <div class="req-card-icon">${(item.RequestType||'📁').slice(0,2)}</div>
+        <div class="req-card-icon">${(item.ProjectName0||'📁').slice(0,2)}</div>
         <div class="req-card-info">
-          <div class="req-card-title">${item.RequestType||'คำร้อง'} — ${item.ProjectName||'—'}</div>
+          <div class="req-card-title">${item.ProjectName0||'คำร้อง'} — ${item.ProjectName0||'—'}</div>
           <div class="req-card-ref">${item.Title}</div>
         </div>
         ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}">${item.Priority}</span>` : ''}
@@ -1250,7 +1250,7 @@ function renderAdminList(items) {
             <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
             ส่งกลับ
           </button>
-          <button class="btn btn-success" onclick="openAssignModal('${item.id}','${item.ProjectName||item.Title}')">
+          <button class="btn btn-success" onclick="openAssignModal('${item.id}','${item.ProjectName0||item.Title}')">
             <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             อนุมัติ + มอบหมาย
           </button>
