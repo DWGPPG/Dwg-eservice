@@ -917,19 +917,20 @@ async function submitRequest() {
 
     // 1. สร้าง item ใน SharePoint List
     const item = await spCreateItem({
-      Title:       refNo,
-      TypeOfDrawing: selectedType,
-      ProjectName: project,
-      Department:  dept,
-      RequestedBy:  name,
-      RequesterEmail: currentUser.username,
-      ProjectCode:    document.getElementById('f_kwp').value,
+      Title:            refNo,
+      TypeOfDrawing:    selectedType,
+      ProjectName:      project,
+      Department:       dept,
+      RequestedBy:      name,
+      ProjectCode:      document.getElementById('f_kwp').value,
       ReferenceFile:    document.getElementById('f_location').value,
-      DueDate:     document.getElementById('f_duedate').value || null,
-      Priority:     document.getElementById('f_urgent').value,
-      Description:      document.getElementById('f_detail').value,
-      Status:      'pending',
-      SubmittedDate: now,
+      DueDate:          document.getElementById('f_duedate').value || null,
+      Priority:         document.getElementById('f_urgent').value,
+      Status:           'Pending',
+      RequestDate:      now,
+      SubmittedDate:    now,
+      EmployeeStatus:   'Pending',
+      ManagerStatus:    'Pending',
     });
 
     // 2. อัปโหลดไฟล์แนบไปยัง SharePoint (โฟลเดอร์ตามเลขคำร้อง)
@@ -1036,13 +1037,13 @@ async function buildDashboard() {
 
 function renderStats() {
   const total    = allRequests.length;
-  const pending  = allRequests.filter(r => ['pending','review'].includes(r.Status)).length;
-  const approved = allRequests.filter(r => r.Status === 'approved').length;
-  const lv1      = allRequests.filter(r => r.Status === 'pending').length;
-  const lv2      = allRequests.filter(r => r.Status === 'review').length;
+  const pending  = allRequests.filter(r => ['Pending','In Progress'].includes(r.Status)).length;
+  const approved = allRequests.filter(r => r.Status === 'Approved').length;
+  const lv1      = allRequests.filter(r => r.Status === 'Pending').length;
+  const lv2      = allRequests.filter(r => r.Status === 'In Progress').length;
 
   // คำนวณเฉลี่ยวันทำการ
-  const done = allRequests.filter(r => r.Status === 'approved' && r.SubmittedDate && r.ManagerDate);
+  const done = allRequests.filter(r => r.Status === 'Approved' && r.SubmittedDate && r.ManagerDate);
   const avgDays = done.length ? (done.reduce((a,r) => a + daysBetween(r.SubmittedDate, r.ManagerDate), 0) / done.length).toFixed(1) : '—';
 
   document.getElementById('statsRow').innerHTML = `
@@ -1100,10 +1101,10 @@ function renderWorkload() {
   });
 
   allRequests.forEach(r => {
-    if (!r.AssigneeEmail || !wl[r.AssigneeEmail]) return;
+    const assignedEmail = CONFIG.teamMembers.find(m=>m.name===r.AssignedTo)?.email; if (!assignedEmail || !wl[assignedEmail]) return; const assignedWl = wl[assignedEmail];
     const d = r.DueDate ? new Date(r.DueDate) : null;
     if (d) d.setHours(0,0,0,0);
-    const w = wl[r.AssigneeEmail];
+    const w = assignedWl;
     if      (r.WorkStatus === 'cancel')   w.cancel++;
     else if (d && d < today)              w.overdue++;
     else if (d && d.getTime()===today.getTime()) w.duetoday++;
@@ -1158,14 +1159,14 @@ let currentFilter = 'all';
 function renderTable(items) {
   const filtered = currentFilter === 'all' ? items
     : items.filter(r => {
-        if (currentFilter === 'pending') return ['pending','review'].includes(r.Status);
-        if (currentFilter === 'approved') return r.Status === 'approved';
-        if (currentFilter === 'rejected') return r.Status === 'rejected';
+        if (currentFilter === 'pending') return ['Pending','In Progress'].includes(r.Status);
+        if (currentFilter === 'approved') return r.Status === 'Approved';
+        if (currentFilter === 'rejected') return r.Status === 'Rejected';
         return true;
       });
 
-  const statusLabel = {pending:'รอตรวจสอบ Lv.1',review:'รออนุมัติ Lv.2',approved:'อนุมัติแล้ว',rejected:'ส่งกลับแก้ไข'};
-  const statusClass = {pending:'badge-pending',review:'badge-review',approved:'badge-approved',rejected:'badge-rejected'};
+  const statusLabel = {'Pending':'รอตรวจสอบ','In Progress':'กำลังดำเนินการ','Approved':'อนุมัติแล้ว','Rejected':'ส่งกลับแก้ไข'};
+  const statusClass = {'Pending':'badge-pending','In Progress':'badge-review','Approved':'badge-approved','Rejected':'badge-rejected'};
 
   document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
     <tr>
