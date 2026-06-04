@@ -519,7 +519,7 @@ tr:hover td { background: var(--sky); }
       <div class="page-sub">ดึงข้อมูลสถานะล่าสุดจาก SharePoint</div>
     </div>
     <div class="search-bar">
-      <input type="text" id="trackSearch" placeholder="เลขที่คำร้อง เช่น SDR-2025-0042" style="max-width:320px">
+      <input type="text" id="trackSearch" placeholder="เลขที่คำร้อง เช่น DWG-2569-0001" style="max-width:320px">
       <button class="btn btn-primary" onclick="searchRequest()">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>
         ค้นหา
@@ -551,7 +551,7 @@ tr:hover td { background: var(--sky); }
     <div class="modal-icon">✅</div>
     <h2>ส่งคำร้องสำเร็จ!</h2>
     <p>บันทึกลง SharePoint แล้ว<br>ผู้ตรวจสอบได้รับแจ้งเตือนทาง Teams และ Email</p>
-    <div class="modal-ref" id="refNumber">SDR-2025-0049</div>
+    <div class="modal-ref" id="refNumber">DWG-2569-0001</div>
     <p style="font-size:11px;color:var(--gray-400)">บันทึกเลขที่นี้ไว้เพื่อติดตามสถานะ</p>
     <div style="display:flex;gap:10px;justify-content:center;margin-top:20px">
       <button class="btn btn-secondary" onclick="closeModal('successModal')">ปิด</button>
@@ -804,9 +804,15 @@ async function loadSpIds() {
 
 // ── SHAREPOINT LIST HELPERS ──
 async function spGetItems(filter = '') {
-  const q = filter ? `&$filter=${filter}` : '';
+  const q = filter ? `&$filter=${encodeURIComponent(filter)}` : '';
   const r = await graphGet(`/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=500${q}`);
   return r.value.map(i => i.fields);
+}
+
+async function spSearchByTitle(title) {
+  // ดึงทั้งหมดแล้ว filter ใน JS — หลีกเลี่ยงปัญหา OData encoding
+  const all = await spGetItems();
+  return all.filter(i => i.Title === title);
 }
 
 async function spCreateItem(fields) {
@@ -849,7 +855,7 @@ async function triggerAutomate(payload) {
 function genRefNumber() {
   const yr = new Date().getFullYear() + 543;
   const seq = String(allRequests.length + 1).padStart(4, '0');
-  return `SDR-${yr}-${seq}`;
+  return `DWG-${yr}-${seq}`;
 }
 
 // ── PAGE: SUBMIT ──
@@ -989,7 +995,7 @@ async function searchRequest() {
   const container = document.getElementById('trackResult');
   container.innerHTML = '<div class="empty-state"><div class="empty-state-icon skeleton" style="width:48px;height:48px;border-radius:50%;margin:0 auto 12px">&nbsp;</div><p>กำลังค้นหา...</p></div>';
   try {
-    const items = await spGetItems(`Title eq '${q}'`);
+    const items = await spSearchByTitle(q);
     if (!items.length) {
       container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><p>ไม่พบเลขที่คำร้องนี้</p></div>';
       return;
@@ -1201,8 +1207,10 @@ async function buildAdmin() {
       ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการที่ผ่าน Lv.1 แล้ว'
       : 'สิทธิ์: ผู้ตรวจสอบ Lv.1 — รายการรออนุมัติจากคุณ';
 
-    const filter = isMgr ? "Status eq 'review'" : "Status eq 'pending'";
-    const items  = await spGetItems(filter);
+    const allItems = await spGetItems();
+    const items = isMgr
+      ? allItems.filter(r => r.Status === 'review')
+      : allItems.filter(r => r.Status === 'pending');
     renderAdminList(items);
   } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
 }
