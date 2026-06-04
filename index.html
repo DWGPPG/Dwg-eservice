@@ -807,22 +807,18 @@ async function init() {
 
   try {
     await msalInstance.initialize();
-    const resp = await msalInstance.handleRedirectPromise();
-    if (resp) {
-      currentUser = resp.account;
-      accessToken = resp.accessToken;
-    } else {
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        currentUser = accounts[0];
-        await refreshToken();
-      }
+    // Popup flow — ตรวจสอบ account ที่ login ไว้แล้ว
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      currentUser = accounts[0];
+      await refreshToken();
     }
 
     if (currentUser) {
       if (!currentUser.username.endsWith('@' + CONFIG.allowedDomain)) {
         setBanner('error', `⛔ บัญชีนี้ไม่ได้รับอนุญาต — ใช้ได้เฉพาะ @${CONFIG.allowedDomain}`);
-        await msalInstance.logoutRedirect();
+        try { await msalInstance.logoutPopup(); } catch(e) { console.warn(e); }
+  location.reload();
         return;
       }
       await onSignedIn();
@@ -849,13 +845,21 @@ function showLogin() {
 
 async function signIn() {
   try {
-    await msalInstance.loginRedirect({ scopes: graphScopes });
-  } catch(e) { showToast('❌', 'Login ไม่สำเร็จ: ' + e.message); }
+    const resp = await msalInstance.loginPopup({ scopes: graphScopes });
+    currentUser = resp.account;
+    accessToken = resp.accessToken;
+    await onSignedIn();
+  } catch(e) { 
+    if (e.errorCode !== 'user_cancelled') {
+      showToast('❌', 'Login ไม่สำเร็จ: ' + e.message);
+    }
+  }
 }
 
 async function signOut() {
   if (!confirm('ออกจากระบบ?')) return;
-  await msalInstance.logoutRedirect();
+  try { await msalInstance.logoutPopup(); } catch(e) { console.warn(e); }
+  location.reload();
 }
 
 async function refreshToken() {
@@ -863,7 +867,8 @@ async function refreshToken() {
     const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
     accessToken = r.accessToken;
   } catch {
-    await msalInstance.acquireTokenRedirect({ scopes: graphScopes });
+    const r = await msalInstance.acquireTokenPopup({ scopes: graphScopes });
+    accessToken = r.accessToken;
   }
 }
 
