@@ -507,22 +507,7 @@ tr:hover td { background: var(--sky); }
             </button>
           </div>
         </div>
-        <div class="field">
-          <label>ขนาดระบบโซลาร์ (kWp)</label>
-          <div class="combo-wrap">
-            <select id="f_kwp_select" onchange="onKwpSelect(this.value)">
-              <option value="">-- เลือก --</option>
-              <option>10</option><option>20</option><option>30</option><option>50</option>
-              <option>100</option><option>150</option><option>200</option><option>300</option>
-              <option>500</option><option>1000</option>
-              <option value="custom">กรอกเอง...</option>
-            </select>
-            <button type="button" class="btn-add-sm" onclick="toggleAddKwp()" title="กรอกค่าเอง" style="background:var(--navy-soft)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          </div>
-          <input type="text" id="f_kwp" placeholder="กรอกขนาด kWp" style="margin-top:6px;display:none">
-        </div>
+
         <div class="field">
           <label>ที่ตั้งโครงการ <span style="font-size:11px;color:var(--gray-400)">(วาง Link หรือกด 📍 เพื่อเปิดแผนที่แล้ว copy link)</span></label>
           <div class="map-input-wrap">
@@ -1232,7 +1217,7 @@ async function submitRequest() {
 }
 
 function resetForm() {
-  ['f_kwp','f_location','f_datalink','f_duedate','f_detail'].forEach(id => {
+  ['f_location','f_datalink','f_duedate','f_detail'].forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
