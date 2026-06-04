@@ -1355,16 +1355,17 @@ async function confirmAssign() {
     const isManager = isMgr();
     const newStatus = isManager ? 'approved' : 'review';
 
-    // อัปเดต SharePoint
-    await spUpdateItem(pendingApproveId, {
+    // อัปเดต SharePoint — ส่งเฉพาะ fields ที่มีค่าจริงๆ
+    const updateData = {
       Status:        newStatus,
-      AssignedTo:  selectedAssignee.name,
+      AssigneeName:  selectedAssignee.name,
       AssigneeEmail: selectedAssignee.email,
-      ReviewerLv1:  isManager ? undefined : currentUser.name,
-      ReviewerLv2:  isManager ? currentUser.name : undefined,
-      ApprovedAt:   isManager ? new Date().toISOString() : undefined,
-      EmployeeComment:    note,
-    });
+    };
+    if (!isManager) updateData.ReviewerLv1 = currentUser.name;
+    if (isManager)  updateData.ReviewerLv2 = currentUser.name;
+    if (isManager)  updateData.ApprovedAt  = new Date().toISOString();
+    if (note)       updateData.AssignNote  = note;
+    await spUpdateItem(pendingApproveId, updateData);
 
     // แจ้งเตือน Power Automate
     await triggerAutomate({
@@ -1393,7 +1394,9 @@ async function rejectItem(id) {
   const box  = document.getElementById('comment-'+id);
   const note = box ? box.querySelector('textarea').value : '';
   try {
-    await spUpdateItem(id, { Status:'rejected', ManagerComment: note });
+    const rejectData = { Status: 'rejected' };
+    if (note) rejectData.RejectReason = note;
+    await spUpdateItem(id, rejectData);
     await triggerAutomate({ action:'rejected', itemId:id, reason:note, approverName:currentUser.name });
     const card = document.getElementById('card-'+id);
     if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
