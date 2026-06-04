@@ -809,7 +809,11 @@ async function graphPatch(path, body) {
     headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error(`Graph PATCH ${path} → ${r.status}`);
+  if (!r.ok) {
+    let errDetail = '';
+    try { const e = await r.json(); errDetail = e?.error?.message || JSON.stringify(e); } catch(x) {}
+    throw new Error(`Graph PATCH ${path} → ${r.status}: ${errDetail}`);
+  }
   return r.json();
 }
 
@@ -1355,17 +1359,19 @@ async function confirmAssign() {
     const isManager = isMgr();
     const newStatus = isManager ? 'approved' : 'review';
 
-    // อัปเดต SharePoint — ส่งเฉพาะ fields ที่มีค่าจริงๆ
-    const updateData = {
-      Status:        newStatus,
-      AssigneeName:  selectedAssignee.name,
-      AssigneeEmail: selectedAssignee.email,
-    };
-    if (!isManager) updateData.ReviewerLv1 = currentUser.name;
-    if (isManager)  updateData.ReviewerLv2 = currentUser.name;
-    if (isManager)  updateData.ApprovedAt  = new Date().toISOString();
-    if (note)       updateData.AssignNote  = note;
-    await spUpdateItem(pendingApproveId, updateData);
+    // อัปเดต SharePoint — ส่งทีละ field เพื่อหลีกเลี่ยง error
+    const updateData = { Status: newStatus };
+    try { await spUpdateItem(pendingApproveId, updateData); } catch(e1) {
+      throw new Error('ไม่สามารถอัปเดต Status: ' + e1.message);
+    }
+    // อัปเดต fields เพิ่มเติม
+    const updateData2 = { AssigneeName: selectedAssignee.name };
+    if (!isManager) updateData2.ReviewerLv1 = currentUser.name;
+    if (isManager)  updateData2.ReviewerLv2 = currentUser.name;
+    if (note)       updateData2.AssignNote  = note;
+    try { await spUpdateItem(pendingApproveId, updateData2); } catch(e2) {
+      console.warn('อัปเดต fields เพิ่มเติมไม่สำเร็จ:', e2.message);
+    }
 
     // แจ้งเตือน Power Automate
     await triggerAutomate({
