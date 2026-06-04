@@ -496,7 +496,6 @@ tr:hover td { background: var(--sky); }
           </div>
           <div class="add-item-row" id="addProjectRow">
             <input type="text" id="newProjectName" placeholder="ชื่อโครงการใหม่">
-            <input type="text" id="newProjectKwp" placeholder="kWp" style="max-width:80px">
             <button class="btn-save-sm" onclick="saveNewProject()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
               บันทึก
@@ -721,8 +720,8 @@ function renderProjectSelect() {
   projectListCache.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
-    opt.textContent = p.Title + (p.SolarKwp ? ` (${p.SolarKwp} kWp)` : '');
-    opt.dataset.kwp = p.SolarKwp || '';
+    opt.textContent = p.Title;
+
     sel.appendChild(opt);
   });
   if (current) sel.value = current;
@@ -731,24 +730,7 @@ function renderProjectSelect() {
 function onProjectSelect(val) {
   if (!val) return;
   const proj = projectListCache.find(p => p.id === val);
-  if (proj?.SolarKwp) {
-    const kwpSel = document.getElementById('f_kwp_select');
-    const kwpIn  = document.getElementById('f_kwp');
-    if (kwpSel) kwpSel.value = proj.SolarKwp;
-    if (kwpIn)  kwpIn.value  = proj.SolarKwp;
-  }
-}
 
-function onKwpSelect(val) {
-  const kwpIn = document.getElementById('f_kwp');
-  if (!kwpIn) return;
-  if (val === 'custom' || val === '') {
-    kwpIn.style.display = 'block';
-    kwpIn.focus();
-  } else {
-    kwpIn.style.display = 'none';
-    kwpIn.value = val;
-  }
 }
 
 function toggleAddProject() {
@@ -764,23 +746,13 @@ function toggleAddProject() {
   }
 }
 
-function toggleAddKwp() {
-  const kwpIn = document.getElementById('f_kwp');
-  if (!kwpIn) return;
-  const visible = kwpIn.style.display !== 'none';
-  kwpIn.style.display = visible ? 'none' : 'block';
-  if (!visible) kwpIn.focus();
-}
-
 async function saveNewProject() {
   const nameEl = document.getElementById('newProjectName');
-  const kwpEl  = document.getElementById('newProjectKwp');
   const name   = nameEl?.value.trim();
   if (!name) { showToast('⚠️', 'กรุณาใส่ชื่อโครงการ'); return; }
   if (!spProjectListId) { showToast('⚠️', 'ไม่พบ ProjectList ใน SharePoint'); return; }
   try {
     const fields = { Title: name };
-    if (kwpEl?.value) fields.SolarKwp = kwpEl.value.trim();
     const r = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields });
     projectListCache.push({ id: r.id, ...r.fields });
     renderProjectSelect();
@@ -1153,7 +1125,6 @@ async function submitRequest() {
     //   "RequestType" (display) → InternalName = "ProjectName"
     //   "ProjectName" (display) → InternalName = "ProjectName0"
     const due      = document.getElementById('f_duedate')?.value || '';
-    const kwp      = document.getElementById('f_kwp')?.value || '';
     const location = document.getElementById('f_location')?.value || '';
     const datalink = document.getElementById('f_datalink')?.value || '';
     const urgency  = document.getElementById('f_urgent')?.value || 'ปกติ';
@@ -1165,7 +1136,6 @@ async function submitRequest() {
       Department:   dept,
       SenderName:   name || currentUser.name || currentUser.username.split('@')[0],
       SenderEmail:  currentUser.username,
-      SolarKwp:     kwp,
       Location:     location,
       DataLink:     datalink,
       Urgency:      urgency,
