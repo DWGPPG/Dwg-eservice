@@ -468,11 +468,18 @@ tr:hover td { background: var(--sky); }
         <div class="field">
           <label>ที่ตั้งโครงการ (Google Maps Link)</label>
           <div class="map-input-wrap">
-            <input type="url" id="f_location" placeholder="วาง Link Google Maps" oninput="previewMap(this.value)">
+            <input type="text" id="f_location" placeholder="วาง Link Google Maps" oninput="previewMap(this.value)">
             <span class="map-open-btn" onclick="openMap()">📍 เปิดแผนที่</span>
           </div>
           <div class="map-preview" id="mapPreview">
             🗺️ <a id="mapLink" href="#" target="_blank" style="color:var(--info);font-size:12px;word-break:break-all"></a>
+          </div>
+        </div>
+        <div class="field span2">
+          <label>แนบลิงก์ข้อมูล</label>
+          <input type="text" id="f_datalink" placeholder="เช่น Link Google Drive, OneDrive, SharePoint..." oninput="previewDataLink(this.value)">
+          <div id="datalinkPreview" style="display:none;margin-top:6px;padding:8px 10px;background:var(--sky);border:1px solid #B8D9F0;border-radius:8px;font-size:12px;align-items:center;gap:6px">
+            🔗 <a id="datalinkAnchor" href="#" target="_blank" style="color:var(--info);font-size:12px;word-break:break-all"></a>
           </div>
         </div>
         <div class="field">
@@ -926,9 +933,10 @@ if (dropZone) {
 function previewDataLink(val) {
   const preview = document.getElementById('datalinkPreview');
   const anchor  = document.getElementById('datalinkAnchor');
-  if (val && val.startsWith('http')) {
+  if (!preview || !anchor) return;
+  if (val && (val.startsWith('http') || val.startsWith('https'))) {
     anchor.href = val;
-    anchor.textContent = val.length > 55 ? val.slice(0,55)+'…' : val;
+    anchor.textContent = val.length > 60 ? val.slice(0,60)+'…' : val;
     preview.style.display = 'flex';
   } else {
     preview.style.display = 'none';
@@ -948,10 +956,13 @@ function openMap() {
 }
 
 async function submitRequest() {
-  const name    = document.getElementById('f_name').value.trim();
-  const dept    = document.getElementById('f_dept').value.trim();
-  const project = document.getElementById('f_project').value.trim();
-  if (!name || !dept || !project) { showToast('⚠️', 'กรุณากรอกข้อมูลที่จำเป็นให้ครบ'); return; }
+  const nameEl    = document.getElementById('f_name');
+  const deptEl    = document.getElementById('f_dept');
+  const projectEl = document.getElementById('f_project');
+  const name    = nameEl    ? nameEl.value.trim()    : (currentUser?.name || currentUser?.username?.split('@')[0] || '');
+  const dept    = deptEl    ? deptEl.value.trim()    : '';
+  const project = projectEl ? projectEl.value.trim() : '';
+  if (!name || !project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการให้ครบ'); return; }
 
   const btn = document.getElementById('submitBtn');
   btn.classList.add('btn-loading');
@@ -965,19 +976,24 @@ async function submitRequest() {
     // หมายเหตุ Internal Names จริงจาก SharePoint API:
     //   "RequestType" (display) → InternalName = "ProjectName"
     //   "ProjectName" (display) → InternalName = "ProjectName0"
-    const due = document.getElementById('f_duedate').value;
+    const due      = document.getElementById('f_duedate')?.value || '';
+    const kwp      = document.getElementById('f_kwp')?.value || '';
+    const location = document.getElementById('f_location')?.value || '';
+    const datalink = document.getElementById('f_datalink')?.value || '';
+    const urgency  = document.getElementById('f_urgent')?.value || 'ปกติ';
+    const detail   = document.getElementById('f_detail')?.value || '';
     const createData = {
       Title:        refNo,
-      ProjectName:  selectedType,          // RequestType field
-      ProjectName0: project,               // ProjectName field
+      ProjectName:  selectedType,
+      ProjectName0: project,
       Department:   dept,
-      SenderName:   name,
+      SenderName:   name || currentUser.name || currentUser.username.split('@')[0],
       SenderEmail:  currentUser.username,
-      SolarKwp:     document.getElementById('f_kwp').value || '',
-      Location:     document.getElementById('f_location').value || '',
-      DataLink:     document.getElementById('f_datalink').value || '',
-      Urgency:      document.getElementById('f_urgent').value,
-      Detail:       document.getElementById('f_detail').value || '',
+      SolarKwp:     kwp,
+      Location:     location,
+      DataLink:     datalink,
+      Urgency:      urgency,
+      Detail:       detail,
       Status:       'pending',
       SubmittedAt:  now,
     };
@@ -986,9 +1002,16 @@ async function submitRequest() {
     const item = await spCreateItem(createData);
 
     // 2. อัปโหลดไฟล์แนบไปยัง SharePoint (โฟลเดอร์ตามเลขคำร้อง)
-    for (const file of selectedFiles) {
-      const buf = await file.arrayBuffer();
-      await spUploadFile(`SolarRequests/${refNo}`, file.name, buf);
+    // ไฟล์แนบเป็น optional — ไม่บังคับ
+    if (selectedFiles.length > 0) {
+      for (const file of selectedFiles) {
+        try {
+          const buf = await file.arrayBuffer();
+          await spUploadFile(`DrawingRequests/${refNo}`, file.name, buf);
+        } catch(uploadErr) {
+          console.warn('Upload file failed (non-critical):', uploadErr);
+        }
+      }
     }
 
     // 3. ส่ง webhook → Power Automate → Teams + Email
@@ -999,8 +1022,8 @@ async function submitRequest() {
       project,
       sender:      name,
       senderEmail: currentUser.username,
-      urgency:     document.getElementById('f_urgent').value,
-      detail:      document.getElementById('f_detail').value,
+      urgency:     urgency,
+      detail:      detail,
       submittedAt: now,
     });
 
