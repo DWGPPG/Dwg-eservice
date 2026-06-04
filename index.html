@@ -745,9 +745,20 @@ async function onSignedIn() {
 
   setBanner('connecting', '🔄 กำลังโหลดข้อมูลจาก SharePoint...');
 
-  // Pre-fill email ในฟอร์ม
+  // Pre-fill email และชื่อจาก Microsoft account
   const emailInput = document.getElementById('f_email');
   if (emailInput) emailInput.value = currentUser.username;
+  // ดึงชื่อจาก display name หรือ email prefix
+  const nameInput = document.getElementById('f_name');
+  if (nameInput) {
+    if (currentUser.name) {
+      nameInput.value = currentUser.name; // ใช้ Display Name จาก Microsoft 365
+    } else {
+      // fallback: ใช้ส่วนหน้า @ ของ email
+      nameInput.value = currentUser.username.split('@')[0];
+    }
+    nameInput.readOnly = true; // ล็อกไม่ให้แก้ไข
+  }
 
   // โหลด SharePoint IDs และข้อมูล
   await loadSpIds();
@@ -819,7 +830,7 @@ async function loadSpIds() {
 async function spGetItems(filter = '') {
   const q = filter ? `&$filter=${encodeURIComponent(filter)}` : '';
   const r = await graphGet(`/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=500${q}`);
-  return r.value.map(i => i.fields);
+  return r.value.map(i => ({ ...i.fields, id: i.id }));
 }
 
 async function spSearchByTitle(title) {
@@ -908,6 +919,18 @@ if (dropZone) {
   });
 }
 
+function previewDataLink(val) {
+  const preview = document.getElementById('datalinkPreview');
+  const anchor  = document.getElementById('datalinkAnchor');
+  if (val && val.startsWith('http')) {
+    anchor.href = val;
+    anchor.textContent = val.length > 55 ? val.slice(0,55)+'…' : val;
+    preview.style.display = 'flex';
+  } else {
+    preview.style.display = 'none';
+  }
+}
+
 function previewMap(val) {
   const preview = document.getElementById('mapPreview');
   const link    = document.getElementById('mapLink');
@@ -948,6 +971,7 @@ async function submitRequest() {
       SenderEmail:  currentUser.username,
       SolarKwp:     document.getElementById('f_kwp').value || '',
       Location:     document.getElementById('f_location').value || '',
+      DataLink:     document.getElementById('f_datalink').value || '',
       Urgency:      document.getElementById('f_urgent').value,
       Detail:       document.getElementById('f_detail').value || '',
       Status:       'pending',
@@ -990,7 +1014,7 @@ async function submitRequest() {
 }
 
 function resetForm() {
-  ['f_name','f_dept','f_kwp','f_location','f_duedate','f_detail'].forEach(id => {
+  ['f_dept','f_kwp','f_location','f_datalink','f_duedate','f_detail'].forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
@@ -1214,15 +1238,15 @@ function filterTable(f, btn) {
 // ── PAGE: ADMIN ──
 async function buildAdmin() {
   try {
-    const myEmail = currentUser.username.toLowerCase();
-    const isMgr   = myEmail === CONFIG.approverLv2Email.toLowerCase();
-    document.getElementById('adminRoleText').textContent = isMgr
-      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการที่ผ่าน Lv.1 แล้ว'
+    const isManager = isMgr();
+    document.getElementById('adminRoleText').textContent = isManager
+      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการรออนุมัติทั้งหมด'
       : 'สิทธิ์: ผู้ตรวจสอบ Lv.1 — รายการรออนุมัติจากคุณ';
 
     const allItems = await spGetItems();
-    const items = isMgr
-      ? allItems.filter(r => r.Status === 'review')
+    // Manager เห็นทั้ง pending และ review / ทีมเห็นเฉพาะ pending
+    const items = isManager
+      ? allItems.filter(r => ['pending','review'].includes(r.Status))
       : allItems.filter(r => r.Status === 'pending');
     renderAdminList(items);
   } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
@@ -1248,9 +1272,9 @@ function renderAdminList(items) {
   list.innerHTML = filtered.map(item => `
     <div class="req-card" id="card-${item.id}">
       <div class="req-card-header">
-        <div class="req-card-icon">${(item.ProjectName0||'📁').slice(0,2)}</div>
+        <div class="req-card-icon">${(item.ProjectName||'📁').slice(0,2)}</div>
         <div class="req-card-info">
-          <div class="req-card-title">${item.ProjectName0||'คำร้อง'} — ${item.ProjectName0||'—'}</div>
+          <div class="req-card-title">${item.ProjectName||'คำร้อง'} — ${item.ProjectName0||item.Title}</div>
           <div class="req-card-ref">${item.Title}</div>
         </div>
         ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}">${item.Priority}</span>` : ''}
@@ -1263,7 +1287,7 @@ function renderAdminList(items) {
         </span>
         <span class="req-card-meta" style="margin-left:10px">
           <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          ${fmtDate(item.SubmittedAt)}
+          ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
         </span>
         ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
         <div class="approve-actions">
@@ -1271,7 +1295,7 @@ function renderAdminList(items) {
             <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
             ส่งกลับ
           </button>
-          <button class="btn btn-success" onclick="openAssignModal('${item.id}','${item.ProjectName0||item.Title}')">
+          <button class="btn btn-success" onclick="openAssignModal('${item.id}','${item.ProjectName0||item.ProjectName||item.Title}')">
             <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             อนุมัติ + มอบหมาย
           </button>
