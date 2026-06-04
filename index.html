@@ -627,17 +627,9 @@ const CONFIG = {
 // ═══════════════════════════════════════════════════════════════
 
 // ── MSAL Setup ──
-const msalConfig = {
-  auth: {
-    clientId: CONFIG.clientId,
-    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-    redirectUri: CONFIG.redirectUri,
-  },
-  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
-};
-
-const msalInstance = new msal.PublicClientApplication(msalConfig);
-const graphScopes  = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All'];
+// MSAL instance จะสร้างใน init() หลัง library โหลดเสร็จ
+let msalInstance = null;
+const graphScopes = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All'];
 
 let currentUser  = null;
 let accessToken  = null;
@@ -653,6 +645,17 @@ let spListId     = null;
 // ── INIT ──
 async function init() {
   setBanner('connecting', '⚙️ กำลังเชื่อมต่อ Microsoft 365...');
+
+  // สร้าง MSAL instance หลัง library โหลดเสร็จ
+  const msalConfig = {
+    auth: {
+      clientId: CONFIG.clientId,
+      authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+      redirectUri: CONFIG.redirectUri,
+    },
+    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
+  };
+  msalInstance = new msal.PublicClientApplication(msalConfig);
 
   if (CONFIG.clientId === 'YOUR_CLIENT_ID_HERE') {
     setBanner('error', '⚠️ ยังไม่ได้ตั้งค่า CONFIG — กรุณาใส่ clientId, tenantId และค่าอื่นๆ ก่อนใช้งาน');
