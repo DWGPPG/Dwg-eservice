@@ -833,13 +833,20 @@ function showLogin() {
 
 async function signIn() {
   try {
-    const resp = await msalInstance.loginPopup({ scopes: graphScopes });
+    // ล้าง interaction ที่ค้างอยู่ก่อน
+    await msalInstance.clearCache();
+  } catch(e) {}
+  try {
+    const resp = await msalInstance.loginPopup({ 
+      scopes: graphScopes,
+      prompt: 'select_account'
+    });
     currentUser = resp.account;
     accessToken = resp.accessToken;
     await onSignedIn();
   } catch(e) { 
     if (e.errorCode !== 'user_cancelled') {
-      showToast('❌', 'Login ไม่สำเร็จ: ' + e.message);
+      showToast('❌', 'Login ไม่สำเร็จ: ' + (e.errorMessage || e.message));
     }
   }
 }
@@ -854,9 +861,22 @@ async function refreshToken() {
   try {
     const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
     accessToken = r.accessToken;
-  } catch {
-    const r = await msalInstance.acquireTokenPopup({ scopes: graphScopes });
-    accessToken = r.accessToken;
+  } catch(e) {
+    if (e.errorCode === 'interaction_in_progress') {
+      // รอแล้วลองใหม่
+      await new Promise(r => setTimeout(r, 1000));
+      try {
+        const r2 = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
+        accessToken = r2.accessToken;
+        return;
+      } catch {}
+    }
+    try {
+      const r = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
+      accessToken = r.accessToken;
+    } catch(e2) {
+      console.warn('refreshToken failed:', e2.message);
+    }
   }
 }
 
