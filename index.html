@@ -312,6 +312,52 @@ tr:hover td { background: var(--sky); }
 .divider { height: 1px; background: var(--gray-200); margin: 20px 0; }
 .empty-state { text-align: center; padding: 48px 24px; color: var(--gray-400); }
 .empty-state-icon { font-size: 40px; margin-bottom: 12px; }
+
+/* ── Combo-wrap (select + add button) ── */
+.combo-wrap { display: flex; align-items: center; gap: 8px; }
+.combo-wrap select { flex: 1; }
+
+/* + Add button — styled like map-open-btn */
+.btn-add-sm {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex-shrink: 0;
+  background: var(--sun-light); color: var(--sun-dark);
+  border: 1px solid var(--sun); border-radius: 8px;
+  cursor: pointer; transition: all .15s;
+  padding: 0;
+}
+.btn-add-sm:hover { background: var(--sun); color: var(--navy); }
+.btn-add-sm svg { display: block; }
+
+/* Add-item row (input + save + cancel) */
+.add-item-row {
+  display: none; align-items: center; gap: 8px; margin-top: 8px;
+}
+.add-item-row.show { display: flex; }
+.add-item-row input { flex: 1; }
+
+/* Save button — green pill */
+.btn-save-sm {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; flex-shrink: 0;
+  background: var(--success-bg); color: var(--success);
+  border: 1px solid var(--success); border-radius: 8px;
+  font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.btn-save-sm:hover { background: var(--success); color: #fff; }
+.btn-save-sm svg { flex-shrink: 0; }
+
+/* Cancel button — neutral pill */
+.btn-cancel-sm {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; flex-shrink: 0;
+  background: var(--gray-100); color: var(--gray-600);
+  border: 1px solid var(--gray-200); border-radius: 8px;
+  font-family: var(--font); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.btn-cancel-sm:hover { background: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
 </style>
 </head>
 <body>
@@ -511,6 +557,7 @@ tr:hover td { background: var(--sky); }
           <label>ขนาดกำลังติดตั้งระบบ Solar (kWp)</label>
           <input type="text" id="f_kwp" placeholder="เช่น 50, 100, 500 kWp">
         </div>
+        <div class="field"><!-- spacer --></div>
         <div class="field">
           <label>Drawing Number</label>
           <div class="combo-wrap">
@@ -534,6 +581,10 @@ tr:hover td { background: var(--sky); }
           </div>
         </div>
         <div class="field">
+          <label>Revise Number</label>
+          <input type="text" id="f_revise" placeholder="เช่น 0, 1, A, B">
+        </div>
+        <div class="field span2">
           <label>Drawing Name</label>
           <div class="combo-wrap">
             <select id="f_drawing_name">
@@ -554,10 +605,6 @@ tr:hover td { background: var(--sky); }
               ยกเลิก
             </button>
           </div>
-        </div>
-        <div class="field">
-          <label>Revise Number</label>
-          <input type="text" id="f_revise" placeholder="เช่น 0, 1, A, B">
         </div>
         <div class="field">
           <label>ที่ตั้งโครงการ <span style="font-size:11px;color:var(--gray-400)">(วาง Link หรือกด 📍 เพื่อเปิดแผนที่แล้ว copy link)</span></label>
