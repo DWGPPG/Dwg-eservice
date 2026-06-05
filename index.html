@@ -264,8 +264,45 @@ input:read-only { background: var(--gray-100); color: var(--gray-600); }
 .progress-bar-wrap { background: var(--gray-200); border-radius: 4px; height: 6px; }
 .progress-bar { height: 6px; border-radius: 4px; background: var(--sun); }
 
-/* Table */
-.table-wrap { overflow-x: auto; }
+/* ── Column filters ── */
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--navy); }
+th.sortable .th-inner { display: inline-flex; align-items: center; gap: 5px; }
+th.sortable .sort-icon { font-size: 10px; opacity: .35; transition: opacity .15s; }
+th.sortable.asc .sort-icon::after  { content: '▲'; opacity: 1; }
+th.sortable.desc .sort-icon::after { content: '▼'; opacity: 1; }
+th.sortable:not(.asc):not(.desc) .sort-icon::after { content: '⇅'; }
+
+.col-filter-wrap { position: relative; display: inline-block; margin-left: 4px; vertical-align: middle; }
+.col-filter-btn { background: none; border: none; cursor: pointer; padding: 0; line-height: 1;
+  color: var(--gray-400); font-size: 12px; transition: color .15s; }
+.col-filter-btn:hover, .col-filter-btn.active { color: var(--sun-dark); }
+.col-filter-btn.active { color: var(--sun-dark); }
+
+.col-filter-dropdown {
+  display: none; position: absolute; top: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+  background: var(--white); border: 1px solid var(--gray-200); border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,.12); z-index: 500; min-width: 180px; padding: 6px;
+}
+.col-filter-dropdown.open { display: block; }
+.col-filter-search { width: 100%; padding: 6px 8px; border: 1px solid var(--gray-200); border-radius: 7px;
+  font-size: 12px; font-family: var(--font); margin-bottom: 4px; outline: none; box-sizing: border-box; }
+.col-filter-search:focus { border-color: var(--sun); }
+.col-filter-list { max-height: 200px; overflow-y: auto; }
+.col-filter-option { display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: 6px;
+  font-size: 12px; cursor: pointer; color: var(--navy); }
+.col-filter-option:hover { background: var(--sun-light); }
+.col-filter-option input[type=checkbox] { width: 13px; height: 13px; accent-color: var(--sun-dark); flex-shrink: 0; }
+.col-filter-footer { display: flex; justify-content: space-between; padding: 5px 2px 2px;
+  border-top: 1px solid var(--gray-200); margin-top: 4px; gap: 6px; }
+.cf-btn { flex: 1; padding: 5px 8px; border-radius: 6px; font-size: 11px; font-weight: 500;
+  cursor: pointer; font-family: var(--font); border: 1px solid var(--gray-200); }
+.cf-btn-clear { background: var(--white); color: var(--gray-600); }
+.cf-btn-clear:hover { background: var(--gray-100); }
+.cf-btn-apply { background: var(--sun); color: var(--navy); border-color: var(--sun-dark); }
+.cf-btn-apply:hover { background: var(--sun-dark); color: var(--white); }
+.col-active-badge { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--sun-dark); margin-left: 2px; vertical-align: middle; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--gray-400); text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--gray-200); white-space: nowrap; }
 td { padding: 11px 12px; border-bottom: 1px solid var(--gray-100); vertical-align: middle; }
@@ -485,10 +522,40 @@ tr:hover td { background: var(--sky); }
         <button class="filter-btn" onclick="filterTable('rejected',this)">ส่งกลับ</button>
       </div>
       <div class="table-wrap">
-        <table>
+        <table id="dashTable">
           <thead><tr>
-            <th>เลขที่คำร้อง</th><th>ประเภท</th><th>โครงการ</th>
-            <th>ฝ่าย/แผนก</th><th>วันที่ส่ง</th><th>ผู้รับผิดชอบ</th><th>สถานะ</th>
+            <th class="sortable" onclick="sortTable('Title')"><span class="th-inner">เลขที่คำร้อง<span class="sort-icon"></span></span></th>
+            <th>ประเภท
+              <span class="col-filter-wrap">
+                <button class="col-filter-btn" id="cfbtn-type" onclick="toggleColFilter(event,'cf-type')" title="กรอง">▾</button>
+                <div class="col-filter-dropdown" id="cf-type"></div>
+              </span>
+            </th>
+            <th>โครงการ
+              <span class="col-filter-wrap">
+                <button class="col-filter-btn" id="cfbtn-project" onclick="toggleColFilter(event,'cf-project')" title="กรอง">▾</button>
+                <div class="col-filter-dropdown" id="cf-project"></div>
+              </span>
+            </th>
+            <th>ฝ่าย/แผนก
+              <span class="col-filter-wrap">
+                <button class="col-filter-btn" id="cfbtn-dept" onclick="toggleColFilter(event,'cf-dept')" title="กรอง">▾</button>
+                <div class="col-filter-dropdown" id="cf-dept"></div>
+              </span>
+            </th>
+            <th class="sortable" onclick="sortTable('SubmittedAt')"><span class="th-inner">วันที่ส่ง<span class="sort-icon"></span></span></th>
+            <th>ผู้รับผิดชอบ
+              <span class="col-filter-wrap">
+                <button class="col-filter-btn" id="cfbtn-assignee" onclick="toggleColFilter(event,'cf-assignee')" title="กรอง">▾</button>
+                <div class="col-filter-dropdown" id="cf-assignee"></div>
+              </span>
+            </th>
+            <th>สถานะ
+              <span class="col-filter-wrap">
+                <button class="col-filter-btn" id="cfbtn-status" onclick="toggleColFilter(event,'cf-status')" title="กรอง">▾</button>
+                <div class="col-filter-dropdown" id="cf-status"></div>
+              </span>
+            </th>
           </tr></thead>
           <tbody id="dashTableBody"></tbody>
         </table>
@@ -575,7 +642,25 @@ tr:hover td { background: var(--sky); }
 
         <div class="field">
           <label>ขนาดกำลังติดตั้งระบบ Solar (kWp)</label>
-          <input type="text" id="f_kwp" placeholder="เช่น 50, 100, 500 kWp">
+          <div class="combo-wrap">
+            <select id="f_kwp" style="flex:1">
+              <option value="">-- เลือก kWp --</option>
+            </select>
+            <button type="button" class="btn-add-sm" onclick="toggleAddKwp()" title="เพิ่ม kWp ใหม่">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="add-item-row" id="addKwpRow">
+            <input type="text" id="newKwpValue" placeholder="เช่น 50, 100, 500 kWp">
+            <button class="btn-save-sm" onclick="saveNewKwp()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              บันทึก
+            </button>
+            <button class="btn-cancel-sm" onclick="toggleAddKwp()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              ยกเลิก
+            </button>
+          </div>
         </div>
         <div class="field"><!-- spacer --></div>
         <div class="field">
@@ -775,6 +860,7 @@ const CONFIG = {
   spProjectListName:       'ProjectList',
   spDrawingNumberListName: 'DrawingNumberList',
   spDrawingNameListName:   'DrawingNameList',
+  spKwpListName:           'KwpList',
 
   // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
   teamMembers: [
@@ -823,9 +909,11 @@ let spListId          = null;
 let spProjectListId       = null;
 let spDrawingNumberListId = null;
 let spDrawingNameListId   = null;
+let spKwpListId           = null;
 let projectListCache      = [];
 let drawingNumberCache    = [];
 let drawingNameCache      = [];
+let kwpCache              = [];
 
 // ── INIT ──
 // ── DRAWING NUMBER LIST HELPERS ──
@@ -920,6 +1008,63 @@ function toggleAddDrawingName() {
   row.classList.toggle('show');
   if (row.classList.contains('show')) document.getElementById('newDrawingName')?.focus();
   else if (document.getElementById('newDrawingName')) document.getElementById('newDrawingName').value = '';
+}
+
+// ── KWP LIST HELPERS ──
+async function loadKwpList() {
+  try {
+    if (!spKwpListId) {
+      // fallback: ถ้ายังไม่มี List ใน SharePoint ให้ใช้ค่า default
+      kwpCache = ['50 kWp','100 kWp','250 kWp','500 kWp','1000 kWp'].map((t,i)=>({id:'d'+i,Title:t}));
+      renderKwpSelect(); return;
+    }
+    const r = await graphGet(`/sites/${spSiteId}/lists/${spKwpListId}/items?expand=fields&$top=200`);
+    kwpCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    // เรียงจากน้อยไปมาก (numeric)
+    kwpCache.sort((a,b) => parseFloat(a.Title) - parseFloat(b.Title));
+    renderKwpSelect();
+  } catch(e) { console.warn('loadKwpList:', e); }
+}
+
+function renderKwpSelect() {
+  const sel = document.getElementById('f_kwp');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- เลือก kWp --</option>';
+  kwpCache.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.Title;
+    opt.textContent = p.Title;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+async function saveNewKwp() {
+  const inp = document.getElementById('newKwpValue');
+  const val = inp?.value.trim();
+  if (!val) { showToast('⚠️', 'กรุณาใส่ขนาด kWp'); return; }
+  try {
+    if (spKwpListId) {
+      const r = await graphPost(`/sites/${spSiteId}/lists/${spKwpListId}/items`, { fields: { Title: val } });
+      kwpCache.push({ id: r.id, Title: val });
+    } else {
+      kwpCache.push({ id: 'u'+Date.now(), Title: val });
+    }
+    kwpCache.sort((a,b) => parseFloat(a.Title) - parseFloat(b.Title));
+    renderKwpSelect();
+    document.getElementById('f_kwp').value = val;
+    toggleAddKwp();
+    showToast('✅', `เพิ่ม "${val}" แล้ว`);
+  } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
+}
+
+function toggleAddKwp() {
+  const row = document.getElementById('addKwpRow');
+  if (!row) return;
+  row.classList.toggle('show');
+  if (row.classList.contains('show')) document.getElementById('newKwpValue')?.focus();
+  else if (document.getElementById('newKwpValue')) document.getElementById('newKwpValue').value = '';
 }
 
 // ── PROJECT LIST HELPERS ──
@@ -1213,6 +1358,12 @@ async function loadSpIds() {
       spDrawingNameListId = dnmLists.value[0]?.id || null;
       if (spDrawingNameListId) await loadDrawingNameList();
     } catch(e) { console.warn('DrawingNameList not found:', e.message); }
+    // โหลด KwpList
+    try {
+      const kwpLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spKwpListName}'`);
+      spKwpListId = kwpLists.value[0]?.id || null;
+      await loadKwpList(); // ถ้าไม่มี List จะใช้ค่า default อัตโนมัติ
+    } catch(e) { console.warn('KwpList not found, using defaults:', e.message); await loadKwpList(); }
   } catch(e) {
     setBanner('error', '❌ ' + e.message);
     throw e;
@@ -1674,34 +1825,90 @@ function renderWorkload() {
 }
 
 let currentFilter = 'all';
+let tableSortCol   = 'SubmittedAt';
+let tableSortDir   = 'desc';
+let colFilters     = { type:[], project:[], dept:[], assignee:[], status:[] };
+
+const STATUS_LABEL_TABLE = {
+  pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2',
+  inprogress_lv1:'กำลังดำเนินการ รอผจก.', inprogress:'กำลังดำเนินการ รอผจก.',
+  approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ',
+  done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข'
+};
+const STATUS_CLASS_TABLE = {
+  pending:'badge-pending', review:'badge-review',
+  inprogress_lv1:'badge-inprog-lv1', inprogress:'badge-inprog-lv1',
+  approved:'badge-approved', working:'badge-working',
+  done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected'
+};
+
 function renderTable(items) {
-  const filtered = currentFilter === 'all' ? items
+  // ── Tab filter ──
+  let filtered = currentFilter === 'all' ? items
     : items.filter(r => {
-        if (currentFilter === 'pending') return ['pending','review','inprogress_lv1'].includes(r.Status);
+        if (currentFilter === 'pending')  return ['pending','review','inprogress_lv1','inprogress'].includes(r.Status);
         if (currentFilter === 'approved') return ['approved','working','done'].includes(r.Status);
         if (currentFilter === 'rejected') return r.Status === 'rejected';
         return true;
       });
 
-  const statusLabel = {pending:'รอตรวจสอบ Lv.1',review:'รออนุมัติ Lv.2',inprogress_lv1:'กำลังดำเนินการ รอผจก.',approved:'ตรวจสอบแล้ว กำลังดำเนินการ',working:'กำลังดำเนินการ',done:'เสร็จสิ้น',cancelled:'ยกเลิก',rejected:'ส่งกลับแก้ไข'};
-  const statusClass = {pending:'badge-pending',review:'badge-review',inprogress_lv1:'badge-inprog-lv1',approved:'badge-approved',working:'badge-working',done:'badge-done',cancelled:'badge-cancelled',rejected:'badge-rejected'};
+  // ── Column filters ──
+  if (colFilters.type.length)     filtered = filtered.filter(r => colFilters.type.includes(r.ProjectName0||'—'));
+  if (colFilters.project.length)  filtered = filtered.filter(r => colFilters.project.includes(r.ProjectName||'—'));
+  if (colFilters.dept.length)     filtered = filtered.filter(r => colFilters.dept.includes(r.Department||'—'));
+  if (colFilters.assignee.length) filtered = filtered.filter(r => colFilters.assignee.includes(r.AssigneeName||'—'));
+  if (colFilters.status.length)   filtered = filtered.filter(r => colFilters.status.includes(STATUS_LABEL_TABLE[r.Status]||r.Status));
 
-  const sorted = [...filtered].sort((a, b) => {
-    const da = new Date(a.SubmittedAt || a.Created || 0);
-    const db = new Date(b.SubmittedAt || b.Created || 0);
-    return db - da;
+  // ── Sort ──
+  filtered = [...filtered].sort((a, b) => {
+    let va, vb;
+    if (tableSortCol === 'SubmittedAt') {
+      va = new Date(a.SubmittedAt || a.Created || 0);
+      vb = new Date(b.SubmittedAt || b.Created || 0);
+    } else {
+      va = (a[tableSortCol]||'').toString().toLowerCase();
+      vb = (b[tableSortCol]||'').toString().toLowerCase();
+    }
+    if (va < vb) return tableSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return tableSortDir === 'asc' ? 1 : -1;
+    return 0;
   });
 
-  document.getElementById('dashTableBody').innerHTML = sorted.map(r => `
+  // ── Render rows ──
+  document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
     <tr>
       <td style="font-family:var(--mono);font-size:12px">${r.Title}</td>
       <td>${r.ProjectName0||'—'}</td>
-      <td style="font-weight:500">${r.ProjectName0||'—'}</td>
+      <td style="font-weight:500">${r.ProjectName||'—'}</td>
       <td>${r.Department||'—'}</td>
       <td style="color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
       <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
-      <td><span class="badge ${statusClass[r.Status]||'badge-pending'}">${statusLabel[r.Status]||r.Status}</span></td>
+      <td><span class="badge ${STATUS_CLASS_TABLE[r.Status]||'badge-pending'}">${STATUS_LABEL_TABLE[r.Status]||r.Status}</span></td>
     </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
+
+  // ── Update sort icons ──
+  document.querySelectorAll('#dashTable th.sortable').forEach(th => {
+    th.classList.remove('asc','desc');
+    const col = th.getAttribute('onclick')?.match(/'(\w+)'/)?.[1];
+    if (col === tableSortCol) th.classList.add(tableSortDir);
+  });
+
+  // ── Update filter button active state ──
+  const cfMap = { type:'cfbtn-type', project:'cfbtn-project', dept:'cfbtn-dept', assignee:'cfbtn-assignee', status:'cfbtn-status' };
+  Object.entries(cfMap).forEach(([k, btnId]) => {
+    const btn = document.getElementById(btnId);
+    if (btn) btn.classList.toggle('active', colFilters[k].length > 0);
+  });
+}
+
+function sortTable(col) {
+  if (tableSortCol === col) {
+    tableSortDir = tableSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    tableSortCol = col;
+    tableSortDir = col === 'SubmittedAt' ? 'desc' : 'asc';
+  }
+  renderTable(allRequests);
 }
 
 function filterTable(f, btn) {
@@ -1710,6 +1917,75 @@ function filterTable(f, btn) {
   currentFilter = f;
   renderTable(allRequests);
 }
+
+// ── Column filter dropdown ──
+const COL_KEYS = {
+  'cf-type':     { key:'type',     getValue: r => r.ProjectName0||'—' },
+  'cf-project':  { key:'project',  getValue: r => r.ProjectName||'—' },
+  'cf-dept':     { key:'dept',     getValue: r => r.Department||'—' },
+  'cf-assignee': { key:'assignee', getValue: r => r.AssigneeName||'—' },
+  'cf-status':   { key:'status',   getValue: r => STATUS_LABEL_TABLE[r.Status]||r.Status },
+};
+
+function toggleColFilter(e, dropId) {
+  e.stopPropagation();
+  // close all others
+  document.querySelectorAll('.col-filter-dropdown.open').forEach(d => {
+    if (d.id !== dropId) d.classList.remove('open');
+  });
+  const drop = document.getElementById(dropId);
+  const isOpen = drop.classList.contains('open');
+  if (!isOpen) buildColFilter(dropId);
+  drop.classList.toggle('open', !isOpen);
+}
+
+function buildColFilter(dropId) {
+  const { key, getValue } = COL_KEYS[dropId];
+  const allVals = [...new Set(allRequests.map(getValue))].filter(Boolean).sort();
+  const selected = colFilters[key];
+
+  const drop = document.getElementById(dropId);
+  drop.innerHTML = `
+    <input class="col-filter-search" placeholder="ค้นหา..." oninput="filterColSearch(this,'${dropId}')">
+    <div class="col-filter-list" id="${dropId}-list">
+      ${allVals.map(v => `
+        <label class="col-filter-option">
+          <input type="checkbox" value="${v.replace(/"/g,'&quot;')}" ${selected.includes(v)?'checked':''}>
+          <span>${v}</span>
+        </label>`).join('')}
+    </div>
+    <div class="col-filter-footer">
+      <button class="cf-btn cf-btn-clear" onclick="clearColFilter('${dropId}')">ล้าง</button>
+      <button class="cf-btn cf-btn-apply" onclick="applyColFilter('${dropId}')">ยืนยัน</button>
+    </div>`;
+}
+
+function filterColSearch(input, dropId) {
+  const q = input.value.toLowerCase();
+  document.querySelectorAll(`#${dropId}-list .col-filter-option`).forEach(opt => {
+    opt.style.display = opt.querySelector('span').textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function applyColFilter(dropId) {
+  const { key } = COL_KEYS[dropId];
+  const checked = [...document.querySelectorAll(`#${dropId}-list input:checked`)].map(i => i.value);
+  colFilters[key] = checked;
+  document.getElementById(dropId).classList.remove('open');
+  renderTable(allRequests);
+}
+
+function clearColFilter(dropId) {
+  const { key } = COL_KEYS[dropId];
+  colFilters[key] = [];
+  document.getElementById(dropId).classList.remove('open');
+  renderTable(allRequests);
+}
+
+// close dropdown on outside click
+document.addEventListener('click', () => {
+  document.querySelectorAll('.col-filter-dropdown.open').forEach(d => d.classList.remove('open'));
+});
 
 // ── PAGE: ADMIN ──
 async function buildAdmin() {
