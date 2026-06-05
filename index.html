@@ -312,7 +312,7 @@ tr:hover td { background: var(--sky); }
 .wl-leg-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--gray-600); }
 .wl-leg-dot { width: 10px; height: 10px; border-radius: 3px; }
 .s-inprog   { background: #3B82F6; }
-.s-notdone  { background: #F59E0B; }
+.s-notdone  { background: #22C55E; }
 .s-waitup   { background: #8B5CF6; }
 .s-duetoday { background: #EF4444; }
 .s-overdue  { background: #7F1D1D; }
@@ -1593,45 +1593,52 @@ function renderBarChart() {
 }
 
 function renderWorkload() {
-  // จัดกลุ่มข้อมูลตาม assignee จาก SharePoint
   const today = new Date(); today.setHours(0,0,0,0);
   const wl = {};
   CONFIG.teamMembers.forEach(m => {
-    const k = m.email;
-    wl[k] = { name:m.name, inprog:0, notdone:0, waitup:0, duetoday:0, overdue:0, cancel:0 };
+    wl[m.email] = { name:m.name, inprog:0, done:0, cancel:0, duetoday:0, overdue:0 };
   });
 
   allRequests.forEach(r => {
     try {
-      // หา email จาก AssigneeName หรือ AssigneeEmail
-      const assignedEmail = r.AssigneeEmail || CONFIG.teamMembers.find(m=>m.name===r.AssigneeName)?.email;
+      const assignedEmail = r.AssigneeEmail ||
+        CONFIG.teamMembers.find(m => m.name === r.AssigneeName)?.email;
       if (!assignedEmail || !wl[assignedEmail]) return;
       const w = wl[assignedEmail];
-      if (!w) return;
-      const d = r.DueDate ? new Date(r.DueDate) : null;
-      if (d) d.setHours(0,0,0,0);
-      if      (r.WorkStatus === 'cancel')               w.cancel++;
-      else if (d && d < today)                          w.overdue++;
-      else if (d && d.getTime() === today.getTime())    w.duetoday++;
-      else if (r.WorkStatus === 'waitup')               w.waitup++;
-      else if (r.WorkStatus === 'notdone')              w.notdone++;
-      else                                               w.inprog++;
-    } catch(e) { /* skip this record */ }
+      const due = r.DueDate ? new Date(r.DueDate) : null;
+      if (due) due.setHours(0,0,0,0);
+
+      // สถานะยกเลิก
+      if (['cancelled','cancel'].includes(r.Status)) { w.cancel++; return; }
+      // สถานะเสร็จสิ้น
+      if (r.Status === 'done') { w.done++; return; }
+      // งานที่ยังดำเนินการ: approved, working, inprogress, inprogress_lv1, review
+      const active = ['approved','working','inprogress_lv1','inprogress','review'].includes(r.Status);
+      if (!active) return;
+      // เกินกำหนด
+      if (due && due < today)                        { w.overdue++; return; }
+      // ส่งวันนี้
+      if (due && due.getTime() === today.getTime())  { w.duetoday++; return; }
+      // กำลังดำเนินการปกติ
+      w.inprog++;
+    } catch(e) { /* skip */ }
   });
 
   const segs = [
-    {key:'inprog',cls:'s-inprog',label:'กำลังดำเนินการ'},
-    {key:'notdone',cls:'s-notdone',label:'ยังไม่เสร็จ'},
-    {key:'waitup',cls:'s-waitup',label:'รออัพเดต'},
-    {key:'duetoday',cls:'s-duetoday',label:'ส่งวันนี้'},
-    {key:'overdue',cls:'s-overdue',label:'เกินกำหนด'},
-    {key:'cancel',cls:'s-cancel',label:'ยกเลิก'},
+    {key:'inprog',   cls:'s-inprog',   label:'กำลังดำเนินการ'},
+    {key:'done',     cls:'s-notdone',  label:'เสร็จสิ้น'},
+    {key:'duetoday', cls:'s-duetoday', label:'ส่งวันนี้'},
+    {key:'overdue',  cls:'s-overdue',  label:'เกินกำหนด'},
+    {key:'cancel',   cls:'s-cancel',   label:'ยกเลิก'},
   ];
 
   // summary chips
   const totals = {};
   segs.forEach(s => { totals[s.key] = Object.values(wl).reduce((a,d)=>a+d[s.key],0); });
-  const chipColors = {inprog:'#EFF6FF',notdone:'#FFFBEB',waitup:'#F5F3FF',duetoday:'#FEF2F2',overdue:'#450a0a',cancel:'#F9FAFB'};
+  const chipColors = {
+    inprog:'#EFF6FF', done:'#F0FDF4', duetoday:'#FEF2F2',
+    overdue:'#450a0a', cancel:'#F9FAFB'
+  };
   document.getElementById('wlSummary').innerHTML = segs.map(s => `
     <div class="wl-chip" style="background:${chipColors[s.key]};${s.key==='overdue'?'color:#FEE2E2;border:1.5px solid #7F1D1D':''}">
       <div class="wl-chip-dot ${s.cls}"></div>${s.label} <strong>${totals[s.key]}</strong>
@@ -1659,6 +1666,11 @@ function renderWorkload() {
       </div>
     </div>`;
   }).join('');
+
+  // legend
+  document.getElementById('workloadCard').querySelector('.wl-legend').innerHTML = segs.map(s =>
+    `<div class="wl-leg-item"><div class="wl-leg-dot ${s.cls}"></div>${s.label}</div>`
+  ).join('');
 }
 
 let currentFilter = 'all';
@@ -1674,7 +1686,13 @@ function renderTable(items) {
   const statusLabel = {pending:'รอตรวจสอบ Lv.1',review:'รออนุมัติ Lv.2',inprogress_lv1:'กำลังดำเนินการ รอผจก.',approved:'ตรวจสอบแล้ว กำลังดำเนินการ',working:'กำลังดำเนินการ',done:'เสร็จสิ้น',cancelled:'ยกเลิก',rejected:'ส่งกลับแก้ไข'};
   const statusClass = {pending:'badge-pending',review:'badge-review',inprogress_lv1:'badge-inprog-lv1',approved:'badge-approved',working:'badge-working',done:'badge-done',cancelled:'badge-cancelled',rejected:'badge-rejected'};
 
-  document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
+  const sorted = [...filtered].sort((a, b) => {
+    const da = new Date(a.SubmittedAt || a.Created || 0);
+    const db = new Date(b.SubmittedAt || b.Created || 0);
+    return db - da;
+  });
+
+  document.getElementById('dashTableBody').innerHTML = sorted.map(r => `
     <tr>
       <td style="font-family:var(--mono);font-size:12px">${r.Title}</td>
       <td>${r.ProjectName0||'—'}</td>
