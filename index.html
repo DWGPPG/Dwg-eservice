@@ -508,6 +508,58 @@ tr:hover td { background: var(--sky); }
         </div>
 
         <div class="field">
+          <label>ขนาดกำลังติดตั้งระบบ Solar (kWp)</label>
+          <input type="text" id="f_kwp" placeholder="เช่น 50, 100, 500 kWp">
+        </div>
+        <div class="field">
+          <label>Drawing Number</label>
+          <div class="combo-wrap">
+            <select id="f_drawing_number">
+              <option value="">-- เลือก Drawing Number --</option>
+            </select>
+            <button type="button" class="btn-add-sm" onclick="toggleAddDrawingNumber()" title="เพิ่ม Drawing Number">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="add-item-row" id="addDrawingNumberRow">
+            <input type="text" id="newDrawingNumber" placeholder="Drawing Number ใหม่">
+            <button class="btn-save-sm" onclick="saveNewDrawingNumber()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              บันทึก
+            </button>
+            <button class="btn-cancel-sm" onclick="toggleAddDrawingNumber()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Drawing Name</label>
+          <div class="combo-wrap">
+            <select id="f_drawing_name">
+              <option value="">-- เลือก Drawing Name --</option>
+            </select>
+            <button type="button" class="btn-add-sm" onclick="toggleAddDrawingName()" title="เพิ่ม Drawing Name">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="add-item-row" id="addDrawingNameRow">
+            <input type="text" id="newDrawingName" placeholder="Drawing Name ใหม่">
+            <button class="btn-save-sm" onclick="saveNewDrawingName()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              บันทึก
+            </button>
+            <button class="btn-cancel-sm" onclick="toggleAddDrawingName()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              ยกเลิก
+            </button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Revise Number</label>
+          <input type="text" id="f_revise" placeholder="เช่น 0, 1, A, B">
+        </div>
+        <div class="field">
           <label>ที่ตั้งโครงการ <span style="font-size:11px;color:var(--gray-400)">(วาง Link หรือกด 📍 เพื่อเปิดแผนที่แล้ว copy link)</span></label>
           <div class="map-input-wrap">
             <input type="text" id="f_location" placeholder="วาง Link Google Maps" oninput="previewMap(this.value)">
@@ -653,7 +705,9 @@ const CONFIG = {
 
   // ── ชื่อ SharePoint List ──
   spListName: 'DrawingRequests',
-  spProjectListName: 'ProjectList',   // List เก็บชื่อโครงการ
+  spProjectListName:       'ProjectList',
+  spDrawingNumberListName: 'DrawingNumberList',
+  spDrawingNameListName:   'DrawingNameList',
 
   // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
   teamMembers: [
@@ -698,10 +752,108 @@ let selectedAssignee = null;
 let adminFilter  = 'all';
 let spSiteId          = null;
 let spListId          = null;
-let spProjectListId   = null;
-let projectListCache  = [];
+let spProjectListId       = null;
+let spDrawingNumberListId = null;
+let spDrawingNameListId   = null;
+let projectListCache      = [];
+let drawingNumberCache    = [];
+let drawingNameCache      = [];
 
 // ── INIT ──
+// ── DRAWING NUMBER LIST HELPERS ──
+async function loadDrawingNumberList() {
+  try {
+    if (!spDrawingNumberListId) return;
+    const r = await graphGet(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items?expand=fields&$top=200`);
+    drawingNumberCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    renderDrawingNumberSelect();
+  } catch(e) { console.warn('loadDrawingNumberList:', e); }
+}
+
+function renderDrawingNumberSelect() {
+  const sel = document.getElementById('f_drawing_number');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- เลือก Drawing Number --</option>';
+  drawingNumberCache.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.Title;
+    opt.textContent = p.Title;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+async function saveNewDrawingNumber() {
+  const inp = document.getElementById('newDrawingNumber');
+  const val = inp?.value.trim();
+  if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Number'); return; }
+  if (!spDrawingNumberListId) { showToast('⚠️', 'ไม่พบ DrawingNumberList'); return; }
+  try {
+    const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: { Title: val } });
+    drawingNumberCache.push({ id: r.id, Title: val });
+    renderDrawingNumberSelect();
+    document.getElementById('f_drawing_number').value = val;
+    toggleAddDrawingNumber();
+    showToast('✅', `เพิ่ม Drawing Number "${val}" แล้ว`);
+  } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
+}
+
+function toggleAddDrawingNumber() {
+  const row = document.getElementById('addDrawingNumberRow');
+  if (!row) return;
+  row.classList.toggle('show');
+  if (row.classList.contains('show')) document.getElementById('newDrawingNumber')?.focus();
+  else if (document.getElementById('newDrawingNumber')) document.getElementById('newDrawingNumber').value = '';
+}
+
+// ── DRAWING NAME LIST HELPERS ──
+async function loadDrawingNameList() {
+  try {
+    if (!spDrawingNameListId) return;
+    const r = await graphGet(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items?expand=fields&$top=200`);
+    drawingNameCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    renderDrawingNameSelect();
+  } catch(e) { console.warn('loadDrawingNameList:', e); }
+}
+
+function renderDrawingNameSelect() {
+  const sel = document.getElementById('f_drawing_name');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">-- เลือก Drawing Name --</option>';
+  drawingNameCache.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.Title;
+    opt.textContent = p.Title;
+    sel.appendChild(opt);
+  });
+  if (current) sel.value = current;
+}
+
+async function saveNewDrawingName() {
+  const inp = document.getElementById('newDrawingName');
+  const val = inp?.value.trim();
+  if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Name'); return; }
+  if (!spDrawingNameListId) { showToast('⚠️', 'ไม่พบ DrawingNameList'); return; }
+  try {
+    const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items`, { fields: { Title: val } });
+    drawingNameCache.push({ id: r.id, Title: val });
+    renderDrawingNameSelect();
+    document.getElementById('f_drawing_name').value = val;
+    toggleAddDrawingName();
+    showToast('✅', `เพิ่ม Drawing Name "${val}" แล้ว`);
+  } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
+}
+
+function toggleAddDrawingName() {
+  const row = document.getElementById('addDrawingNameRow');
+  if (!row) return;
+  row.classList.toggle('show');
+  if (row.classList.contains('show')) document.getElementById('newDrawingName')?.focus();
+  else if (document.getElementById('newDrawingName')) document.getElementById('newDrawingName').value = '';
+}
+
 // ── PROJECT LIST HELPERS ──
 async function loadProjectList() {
   try {
@@ -972,12 +1124,24 @@ async function loadSpIds() {
     const lists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spListName}'`);
     spListId = lists.value[0]?.id;
     if (!spListId) throw new Error(`ไม่พบ List "${CONFIG.spListName}" — กรุณาสร้างก่อน`);
-    // โหลด ProjectList (optional — ไม่ error ถ้าไม่มี)
+    // โหลด ProjectList
     try {
       const pLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spProjectListName}'`);
       spProjectListId = pLists.value[0]?.id || null;
       if (spProjectListId) await loadProjectList();
     } catch(e) { console.warn('ProjectList not found:', e.message); }
+    // โหลด DrawingNumberList
+    try {
+      const dnLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spDrawingNumberListName}'`);
+      spDrawingNumberListId = dnLists.value[0]?.id || null;
+      if (spDrawingNumberListId) await loadDrawingNumberList();
+    } catch(e) { console.warn('DrawingNumberList not found:', e.message); }
+    // โหลด DrawingNameList
+    try {
+      const dnmLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spDrawingNameListName}'`);
+      spDrawingNameListId = dnmLists.value[0]?.id || null;
+      if (spDrawingNameListId) await loadDrawingNameList();
+    } catch(e) { console.warn('DrawingNameList not found:', e.message); }
   } catch(e) {
     setBanner('error', '❌ ' + e.message);
     throw e;
@@ -1158,6 +1322,10 @@ async function submitRequest() {
       SenderEmail:  currentUser.username,
       Location:     location,
       DataLink:     datalink,
+      SolarKwp:      document.getElementById('f_kwp')?.value || '',
+      DrawingNumber: document.getElementById('f_drawing_number')?.value || '',
+      DrawingName:   document.getElementById('f_drawing_name')?.value || '',
+      ReviseNumber:  document.getElementById('f_revise')?.value || '',
       Urgency:      urgency,
       Detail:       detail,
       Status:       'pending',
@@ -1207,7 +1375,7 @@ async function submitRequest() {
 }
 
 function resetForm() {
-  ['f_location','f_datalink','f_duedate','f_detail'].forEach(id => {
+  ['f_location','f_datalink','f_duedate','f_detail','f_kwp','f_revise'].forEach(id => {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
