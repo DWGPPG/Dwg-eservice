@@ -178,10 +178,30 @@ input:read-only { background: var(--gray-100); color: var(--gray-600); }
 
 /* Badge */
 .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
-.badge-pending  { background: var(--warning-bg); color: var(--warning); }
-.badge-review   { background: var(--info-bg); color: var(--info); }
-.badge-approved { background: var(--success-bg); color: var(--success); }
-.badge-rejected { background: var(--danger-bg); color: var(--danger); }
+.badge-pending      { background: var(--warning-bg); color: var(--warning); }
+.badge-review       { background: var(--info-bg); color: var(--info); }
+.badge-inprog-lv1   { background: #EDE9FE; color: #5B21B6; }
+.badge-approved     { background: #DCFCE7; color: #166534; }
+.badge-working      { background: #DBEAFE; color: #1E40AF; }
+.badge-done         { background: var(--success-bg); color: var(--success); }
+.badge-cancelled    { background: var(--gray-100); color: var(--gray-600); }
+.badge-rejected     { background: var(--danger-bg); color: var(--danger); }
+
+/* Work-status dropdown */
+.work-status-select {
+  padding: 6px 10px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  border: 1.5px solid var(--sun); background: var(--sun-light); color: var(--navy);
+  cursor: pointer; font-family: var(--font);
+}
+.work-status-select:focus { outline: none; border-color: var(--sun-dark); }
+
+/* Status bar in admin card */
+.card-status-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 8px; margin-bottom: 10px;
+  background: var(--gray-100); font-size: 12px; color: var(--gray-600);
+}
+.card-status-bar .badge { font-size: 11px; }
 
 /* Type grid */
 .type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 6px; }
@@ -710,7 +730,7 @@ tr:hover td { background: var(--sky); }
 
 <div class="modal-overlay" id="assignModal">
   <div class="assign-modal">
-    <h2>ระบุผู้รับผิดชอบในแผนก</h2>
+    <h2 id="assignModalTitle">ระบุผู้รับผิดชอบในแผนก</h2>
     <p class="sub" id="assignSubtitle">เลือกผู้รับงาน — ระบบจะแจ้งเตือนทาง Teams</p>
     <div class="assignee-grid" id="assigneeGrid"></div>
     <div style="margin-bottom:12px">
@@ -795,6 +815,7 @@ let allRequests  = [];
 let selectedType = '📋 เขียนแบบ Proposal';
 let selectedFiles = [];
 let pendingApproveId = null;
+let pendingIsManager = false;
 let selectedAssignee = null;
 let adminFilter  = 'all';
 let spSiteId          = null;
@@ -963,11 +984,14 @@ async function saveNewProject() {
   } catch(e) { showToast('❌', 'เพิ่มโครงการไม่สำเร็จ: ' + e.message); }
 }
 
-// ── WORK STATUS UPDATE (for assignee) ──
+// ── WORK STATUS UPDATE (ผู้รับผิดชอบอัปเดตสถานะงานเอง) ──
 async function updateWorkStatus(itemId, status) {
+  if (!status) return;
+  const statusLabel = { approved:'กำลังดำเนินการ', working:'กำลังดำเนินการ (อัปเดต)', done:'เสร็จสิ้น', cancelled:'ยกเลิก' };
   try {
-    await spUpdateItem(itemId, { WorkStatus: status, Status: status === 'done' ? 'done' : (status === 'cancelled' ? 'cancelled' : 'working') });
-    showToast('✅', `อัปเดตสถานะเป็น "${status}" แล้ว`);
+    await spUpdateItem(itemId, { Status: status });
+    showToast('✅', `อัปเดตสถานะเป็น "${statusLabel[status]||status}" แล้ว`);
+    await buildAdmin();
     await buildDashboard();
   } catch(e) { showToast('❌', 'อัปเดตสถานะไม่สำเร็จ: ' + e.message); }
 }
@@ -1454,14 +1478,30 @@ async function searchRequest() {
 }
 
 function renderTrackResult(r) {
-  const statusLabel = { pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2', approved:'อนุมัติแล้ว', rejected:'ส่งกลับแก้ไข' };
-  const statusClass = { pending:'badge-pending', review:'badge-review', approved:'badge-approved', rejected:'badge-rejected' };
+  const statusLabel = { pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2', inprogress_lv1:'กำลังดำเนินการ รอผจก.', approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ', done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข' };
+  const statusClass = { pending:'badge-pending', review:'badge-review', inprogress_lv1:'badge-inprog-lv1', approved:'badge-approved', working:'badge-working', done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected' };
+  const doneStatuses = ['inprogress_lv1','review','approved','working','done','cancelled'];
+  const passedLv2    = ['approved','working','done','cancelled'];
+  const passedWork   = ['working','done'];
   const steps = [
-    { title:'ส่งคำร้องเข้าระบบ',       meta:r.Title+' · '+fmtDate(r.SubmittedAt),   state:'done' },
-    { title:'ผู้ตรวจสอบ Lv.1 รับเรื่อง', meta:r.ReviewerLv1||'รอมอบหมาย',             state: r.Status==='pending'?'active':'done' },
-    { title:'มอบหมายผู้รับผิดชอบ',        meta:r.AssigneeName||'รอมอบหมาย',             state: r.AssigneeName?'done':'skip' },
-    { title:'ผู้อนุมัติ Lv.2 พิจารณา',   meta:r.ReviewerLv2||'รอ Lv.1',               state: ['review','approved','rejected'].includes(r.Status)?((r.Status==='approved'?'done':'active')):'skip' },
-    { title:'อนุมัติและส่งมอบ',           meta:r.Status==='approved'?'เสร็จสิ้น':'รอดำเนินการ', state: r.Status==='approved'?'done':'skip' },
+    { title:'ส่งคำร้องเข้าระบบ',
+      meta: r.Title+' · '+fmtDate(r.SubmittedAt),
+      state:'done' },
+    { title:'ผู้ตรวจสอบ Lv.1 รับเรื่องและอนุมัติ',
+      meta: r.ReviewerLv1 || 'รอมอบหมาย',
+      state: r.Status==='pending' ? 'active' : (doneStatuses.includes(r.Status) ? 'done' : 'skip') },
+    { title:'กำลังดำเนินการ รอผจก.ตรวจสอบ',
+      meta: r.AssigneeName ? `ผู้รับผิดชอบ: ${r.AssigneeName}` : 'รอมอบหมาย',
+      state: r.Status==='inprogress_lv1' ? 'active' : (passedLv2.includes(r.Status) ? 'done' : 'skip') },
+    { title:'ผู้จัดการ (Lv.2) ตรวจสอบและอนุมัติ',
+      meta: r.ReviewerLv2 || 'รอ Lv.1',
+      state: r.Status==='inprogress_lv1' ? 'skip' : (passedLv2.includes(r.Status) ? 'done' : (r.Status==='review'?'active':'skip')) },
+    { title:'ตรวจสอบแล้ว กำลังดำเนินการ',
+      meta: r.Status==='approved'||r.Status==='working'||r.Status==='done' ? `ผู้รับผิดชอบ: ${r.AssigneeName||'—'}` : 'รออนุมัติ Lv.2',
+      state: r.Status==='approved' ? 'active' : (passedWork.includes(r.Status)||r.Status==='done' ? 'done' : 'skip') },
+    { title:'เสร็จสิ้น',
+      meta: r.Status==='done' ? 'งานเสร็จสมบูรณ์' : (r.Status==='cancelled'?'ยกเลิกแล้ว':'รอดำเนินการ'),
+      state: r.Status==='done'||r.Status==='cancelled' ? 'done' : 'skip' },
   ];
   document.getElementById('trackResult').innerHTML = `
     <div class="card">
@@ -1497,19 +1537,20 @@ async function buildDashboard() {
 
 function renderStats() {
   const total    = allRequests.length;
-  const pending  = allRequests.filter(r => ['pending','review'].includes(r.Status)).length;
-  const approved = allRequests.filter(r => r.Status === 'approved').length;
+  const pending  = allRequests.filter(r => ['pending','review','inprogress_lv1'].includes(r.Status)).length;
+  const inprog   = allRequests.filter(r => ['approved','working'].includes(r.Status)).length;
+  const done     = allRequests.filter(r => r.Status === 'done').length;
   const lv1      = allRequests.filter(r => r.Status === 'pending').length;
-  const lv2      = allRequests.filter(r => r.Status === 'review').length;
+  const lv2      = allRequests.filter(r => r.Status === 'inprogress_lv1').length;
 
   // คำนวณเฉลี่ยวันทำการ
-  const done = allRequests.filter(r => r.Status === 'approved' && r.SubmittedAt && r.ApprovedAt);
-  const avgDays = done.length ? (done.reduce((a,r) => a + daysBetween(r.SubmittedAt, r.ApprovedAt), 0) / done.length).toFixed(1) : '—';
+  const doneItems = allRequests.filter(r => r.Status === 'done' && r.SubmittedAt && r.ApprovedAt);
+  const avgDays = doneItems.length ? (doneItems.reduce((a,r) => a + daysBetween(r.SubmittedAt, r.ApprovedAt), 0) / doneItems.length).toFixed(1) : '—';
 
   document.getElementById('statsRow').innerHTML = `
     <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val">${total}</div><div class="stat-sub">รอ: ${pending} รายการ</div></div>
-    <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val">${pending}</div><div class="stat-sub">Lv.1: ${lv1} · Lv.2: ${lv2}</div></div>
-    <div class="stat-card"><div class="stat-label">อนุมัติแล้ว</div><div class="stat-val">${approved}</div><div class="stat-sub">${total ? (approved/total*100).toFixed(1) : 0}%</div></div>
+    <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val">${pending}</div><div class="stat-sub">Lv.1: ${lv1} · รอผจก.: ${lv2}</div></div>
+    <div class="stat-card"><div class="stat-label">กำลังดำเนินการ</div><div class="stat-val">${inprog}</div><div class="stat-sub">เสร็จแล้ว: ${done} รายการ</div></div>
     <div class="stat-card"><div class="stat-label">เฉลี่ยวันทำการ</div><div class="stat-val">${avgDays}</div><div class="stat-sub">วัน/คำร้อง</div></div>`;
 }
 
@@ -1624,14 +1665,14 @@ let currentFilter = 'all';
 function renderTable(items) {
   const filtered = currentFilter === 'all' ? items
     : items.filter(r => {
-        if (currentFilter === 'pending') return ['pending','review'].includes(r.Status);
-        if (currentFilter === 'approved') return r.Status === 'approved';
+        if (currentFilter === 'pending') return ['pending','review','inprogress_lv1'].includes(r.Status);
+        if (currentFilter === 'approved') return ['approved','working','done'].includes(r.Status);
         if (currentFilter === 'rejected') return r.Status === 'rejected';
         return true;
       });
 
-  const statusLabel = {pending:'รอตรวจสอบ Lv.1',review:'รออนุมัติ Lv.2',approved:'อนุมัติแล้ว',rejected:'ส่งกลับแก้ไข'};
-  const statusClass = {pending:'badge-pending',review:'badge-review',approved:'badge-approved',rejected:'badge-rejected'};
+  const statusLabel = {pending:'รอตรวจสอบ Lv.1',review:'รออนุมัติ Lv.2',inprogress_lv1:'กำลังดำเนินการ รอผจก.',approved:'ตรวจสอบแล้ว กำลังดำเนินการ',working:'กำลังดำเนินการ',done:'เสร็จสิ้น',cancelled:'ยกเลิก',rejected:'ส่งกลับแก้ไข'};
+  const statusClass = {pending:'badge-pending',review:'badge-review',inprogress_lv1:'badge-inprog-lv1',approved:'badge-approved',working:'badge-working',done:'badge-done',cancelled:'badge-cancelled',rejected:'badge-rejected'};
 
   document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
     <tr>
@@ -1657,83 +1698,158 @@ async function buildAdmin() {
   try {
     const isManager = isMgr();
     document.getElementById('adminRoleText').textContent = isManager
-      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการรออนุมัติทั้งหมด'
-      : 'สิทธิ์: ผู้ตรวจสอบ Lv.1 — รายการรออนุมัติจากคุณ';
+      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการรอผจก.ตรวจสอบ'
+      : 'สิทธิ์: ผู้ตรวจสอบ Lv.1 — รายการรอตรวจสอบ';
 
     const allItems = await spGetItems();
-    // Manager เห็นทั้ง pending และ review / ทีมเห็นเฉพาะ pending
-    const items = isManager
-      ? allItems.filter(r => ['pending','inprogress','review'].includes(r.Status))
+    const myEmail  = (currentUser?.username || '').toLowerCase();
+
+    // รายการรออนุมัติตาม Role
+    const approvalItems = isManager
+      ? allItems.filter(r => r.Status === 'inprogress_lv1')
       : allItems.filter(r => r.Status === 'pending');
-    renderAdminList(items);
+
+    // รายการที่ฉันเป็น assignee และกำลังดำเนินการ
+    const myWorkItems = allItems.filter(r =>
+      (r.AssigneeEmail||'').toLowerCase() === myEmail &&
+      ['approved','working'].includes(r.Status)
+    );
+
+    renderAdminList(approvalItems, myWorkItems, isManager);
   } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
 }
 
-function renderAdminList(items) {
-  const filtered = adminFilter === 'all' ? items
-    : items.filter(r => {
-        const t = (r.ProjectName||'').toLowerCase();
-        if (adminFilter==='proposal')     return t.includes('proposal');
-        if (adminFilter==='construction') return t.includes('ก่อสร้าง');
-        if (adminFilter==='permit')       return t.includes('ขออนุญาต');
-        if (adminFilter==='revision')     return t.includes('revision');
-        return true;
-      });
-
-  const list = document.getElementById('adminList');
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>ไม่มีรายการในหมวดนี้</p></div>';
-    return;
+function renderAdminList(approvalItems, myWorkItems, isManager) {
+  // กรองตาม type filter
+  function applyTypeFilter(items) {
+    if (adminFilter === 'all') return items;
+    return items.filter(r => {
+      const t = (r.RequestType||r.ProjectName||'').toLowerCase();
+      if (adminFilter==='proposal')     return t.includes('proposal');
+      if (adminFilter==='construction') return t.includes('ก่อสร้าง');
+      if (adminFilter==='permit')       return t.includes('ขออนุญาต');
+      if (adminFilter==='revision')     return t.includes('revision');
+      return true;
+    });
   }
+
+  const filtered     = applyTypeFilter(approvalItems);
+  const filteredWork = applyTypeFilter(myWorkItems || []);
+  const list = document.getElementById('adminList');
+
+  let html = '';
+
+  // ── ส่วนที่ 1: รออนุมัติ ──
+  const sectionTitle = isManager
+    ? '🔍 รายการรอผู้จัดการตรวจสอบ (Lv.2)'
+    : '📋 รายการรอตรวจสอบ (Lv.1)';
+  html += `<div class="card-title" style="margin-bottom:12px">${sectionTitle}</div>`;
+
+  if (!filtered.length) {
+    html += '<div class="empty-state" style="padding:24px"><div class="empty-state-icon">📭</div><p>ไม่มีรายการรออนุมัติ</p></div>';
+  } else {
+    html += filtered.map(item => renderApprovalCard(item, isManager)).join('');
+  }
+
+  // ── ส่วนที่ 2: งานของฉัน (assignee) ──
+  if (filteredWork.length > 0) {
+    html += `<div class="card-title" style="margin:20px 0 12px">🛠️ งานที่ฉันรับผิดชอบ — อัปเดตสถานะ</div>`;
+    html += filteredWork.map(item => renderWorkCard(item)).join('');
+  }
+
+  list.innerHTML = html;
+}
+
+const STATUS_LABEL = {
+  pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'กำลังดำเนินการ รอผจก.',
+  review:'รออนุมัติ Lv.2', approved:'ตรวจสอบแล้ว กำลังดำเนินการ',
+  working:'กำลังดำเนินการ', done:'เสร็จสิ้น',
+  cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข'
+};
+const STATUS_CLASS = {
+  pending:'badge-pending', inprogress_lv1:'badge-inprog-lv1',
+  review:'badge-review', approved:'badge-approved',
+  working:'badge-working', done:'badge-done',
+  cancelled:'badge-cancelled', rejected:'badge-rejected'
+};
+
+function renderApprovalCard(item, isManager) {
   const urgentClass = { 'เร่งด่วน':'badge-pending', 'เร่งด่วนมาก':'badge-rejected' };
-  list.innerHTML = filtered.map(item => `
-    <div class="req-card" id="card-${item.id}">
-      <div class="req-card-header">
-        <div class="req-card-icon">${(item.ProjectName||'📁').slice(0,2)}</div>
-        <div class="req-card-info">
-          <div class="req-card-title">${item.ProjectName||'คำร้อง'} — ${item.ProjectName0||item.Title}</div>
-          <div class="req-card-ref">${item.Title}</div>
-        </div>
-        ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}">${item.Priority}</span>` : ''}
+  const statusBadge = `<span class="badge ${STATUS_CLASS[item.Status]||'badge-pending'}">${STATUS_LABEL[item.Status]||item.Status}</span>`;
+  const approveLabel = isManager ? 'อนุมัติ Lv.2 + มอบหมาย' : 'อนุมัติ Lv.1 + มอบหมาย';
+  return `
+  <div class="req-card" id="card-${item.id}">
+    <div class="req-card-header">
+      <div class="req-card-icon">${(item.RequestType||'📁').slice(0,2)}</div>
+      <div class="req-card-info">
+        <div class="req-card-title">${item.ProjectName||'คำร้อง'} ${item.DrawingName ? '— '+item.DrawingName : ''}</div>
+        <div class="req-card-ref">${item.Title}</div>
       </div>
-      <div class="req-card-body">${item.Detail||'—'}</div>
-      <div class="req-card-footer">
-        <span class="req-card-meta">
-          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          ${item.Department||'—'}
-        </span>
-        <span class="req-card-meta" style="margin-left:10px">
-          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
-        </span>
-        ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
-        ${item.AssigneeEmail === (currentUser?.username||'').toLowerCase() ? `
-        <select class="work-status-select" style="margin-left:10px" onchange="updateWorkStatus('${item.id}',this.value)">
-          <option value="">📋 อัปเดตสถานะงาน</option>
-          <option value="working" ${item.WorkStatus==='working'?'selected':''}>🔵 กำลังดำเนินการ</option>
-          <option value="done"    ${item.WorkStatus==='done'?'selected':''}>✅ เสร็จสิ้น</option>
-          <option value="cancelled" ${item.WorkStatus==='cancelled'?'selected':''}>❌ ยกเลิก</option>
-        </select>` : ''}
-        <div class="approve-actions">
-          <button class="btn btn-secondary" onclick="toggleComment('${item.id}','return')">
-            <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
-            ส่งกลับ
-          </button>
-          <button class="btn btn-success" onclick="openAssignModal('${item.id}','${item.ProjectName0||item.ProjectName||item.Title}')">
-            <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            อนุมัติ + มอบหมาย
-          </button>
-        </div>
+      ${statusBadge}
+      ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}">${item.Priority}</span>` : ''}
+    </div>
+    <div class="req-card-body">${item.Detail||'—'}</div>
+    <div class="req-card-footer">
+      <span class="req-card-meta">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        ${item.Department||'—'}
+      </span>
+      <span class="req-card-meta" style="margin-left:10px">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
+      </span>
+      ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
+      <div class="approve-actions">
+        <button class="btn btn-secondary" onclick="toggleComment('${item.id}','return')">
+          <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
+          ส่งกลับ
+        </button>
+        <button class="btn btn-success" onclick="openAssignModal('${item.id}','${(item.ProjectName||item.Title).replace(/'/g,"\\'")}','${isManager}')">
+          <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ${approveLabel}
+        </button>
       </div>
-      <div class="comment-box" id="comment-${item.id}">
-        <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:500;color:var(--gray-600)">หมายเหตุการส่งกลับ</label>
-        <textarea placeholder="ระบุเหตุผลและสิ่งที่ต้องแก้ไข..." rows="3"></textarea>
-        <div class="comment-actions">
-          <button class="btn btn-secondary" onclick="toggleComment('${item.id}','cancel')">ยกเลิก</button>
-          <button class="btn btn-danger" onclick="rejectItem('${item.id}')">ยืนยันส่งกลับ</button>
-        </div>
+    </div>
+    <div class="comment-box" id="comment-${item.id}">
+      <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:500;color:var(--gray-600)">หมายเหตุการส่งกลับ</label>
+      <textarea placeholder="ระบุเหตุผลและสิ่งที่ต้องแก้ไข..." rows="3"></textarea>
+      <div class="comment-actions">
+        <button class="btn btn-secondary" onclick="toggleComment('${item.id}','cancel')">ยกเลิก</button>
+        <button class="btn btn-danger" onclick="rejectItem('${item.id}')">ยืนยันส่งกลับ</button>
       </div>
-    </div>`).join('');
+    </div>
+  </div>`;
+}
+
+function renderWorkCard(item) {
+  const statusBadge = `<span class="badge ${STATUS_CLASS[item.Status]||'badge-approved'}">${STATUS_LABEL[item.Status]||item.Status}</span>`;
+  return `
+  <div class="req-card" id="card-work-${item.id}">
+    <div class="req-card-header">
+      <div class="req-card-icon">🛠️</div>
+      <div class="req-card-info">
+        <div class="req-card-title">${item.ProjectName||'คำร้อง'} ${item.DrawingName ? '— '+item.DrawingName : ''}</div>
+        <div class="req-card-ref">${item.Title}</div>
+      </div>
+      ${statusBadge}
+    </div>
+    <div class="req-card-body">${item.Detail||'—'}</div>
+    <div class="req-card-footer">
+      <span class="req-card-meta">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        กำหนดส่ง: ${item.DueDate ? fmtDate(item.DueDate) : '—'}
+      </span>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--gray-600)">อัปเดตสถานะ:</span>
+        <select class="work-status-select" onchange="updateWorkStatus('${item.id}',this.value)">
+          <option value="approved" ${item.Status==='approved'?'selected':''}>🔵 กำลังดำเนินการ</option>
+          <option value="working"  ${item.Status==='working'?'selected':''}>⚙️ กำลังดำเนินการ (อัปเดต)</option>
+          <option value="done"     ${item.Status==='done'?'selected':''}>✅ เสร็จสิ้น</option>
+          <option value="cancelled" ${item.Status==='cancelled'?'selected':''}>❌ ยกเลิก</option>
+        </select>
+      </div>
+    </div>
+  </div>`;
 }
 
 function filterAdmin(f, btn) {
@@ -1751,10 +1867,14 @@ function toggleComment(id, mode) {
 }
 
 // ── ASSIGN MODAL ──
-function openAssignModal(id, project) {
+function openAssignModal(id, project, isManagerStr) {
   pendingApproveId = id;
+  pendingIsManager = (isManagerStr === 'true');
   selectedAssignee = null;
   document.getElementById('assignSubtitle').textContent = 'โครงการ: ' + project;
+  document.getElementById('assignModalTitle').textContent = pendingIsManager
+    ? 'อนุมัติ Lv.2 — ระบุผู้รับผิดชอบในแผนก'
+    : 'อนุมัติ Lv.1 — มอบหมายงานเบื้องต้น';
   const _an = document.getElementById('assignNote'); if(_an) _an.value = '';
   document.getElementById('assigneeGrid').innerHTML = CONFIG.teamMembers.map(m => `
     <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
@@ -1775,19 +1895,18 @@ async function confirmAssign() {
   const btn = document.getElementById('confirmAssignBtn');
   btn.classList.add('btn-loading'); btn.disabled = true;
   try {
-    const note   = document.getElementById('assignNote')?.value;
-    const isManager = isMgr();
-    // Lv1 → 'inprogress' (กำลังดำเนินการ รอผจก.)
-    // Lv2 → 'approved' (ตรวจสอบแล้ว กำลังดำเนินการ)
-    const newStatus = isManager ? 'approved' : 'inprogress';
+    const note      = document.getElementById('assignNote')?.value;
+    const isManager = pendingIsManager;
+    // Lv.1 อนุมัติ → 'inprogress_lv1' (กำลังดำเนินการ รอผจก.ตรวจสอบ)
+    // Lv.2 อนุมัติ → 'approved'       (ตรวจสอบแล้ว กำลังดำเนินการ)
+    const newStatus = isManager ? 'approved' : 'inprogress_lv1';
 
-    // อัปเดต SharePoint — ส่งทีละ field เพื่อหลีกเลี่ยง error
     const updateData = { Status: newStatus };
     try { await spUpdateItem(pendingApproveId, updateData); } catch(e1) {
       throw new Error('ไม่สามารถอัปเดต Status: ' + e1.message);
     }
-    // อัปเดต fields เพิ่มเติม
-    const updateData2 = { AssigneeName: selectedAssignee.name };
+
+    const updateData2 = { AssigneeName: selectedAssignee.name, AssigneeEmail: selectedAssignee.email };
     if (!isManager) updateData2.ReviewerLv1 = currentUser.name;
     if (isManager)  updateData2.ReviewerLv2 = currentUser.name;
     if (note)       updateData2.AssignNote  = note;
@@ -1808,8 +1927,11 @@ async function confirmAssign() {
     closeModal('assignModal');
     const card = document.getElementById('card-'+pendingApproveId);
     if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
-    showToast('✅', `อนุมัติแล้ว — มอบหมายให้ ${selectedAssignee.name} แจ้งเตือนทาง Teams แล้ว`);
+    const lvLabel = isManager ? 'Lv.2' : 'Lv.1';
+    const newStatusLabel = isManager ? 'ตรวจสอบแล้ว กำลังดำเนินการ' : 'กำลังดำเนินการ รอผจก.ตรวจสอบ';
+    showToast('✅', `อนุมัติ ${lvLabel} แล้ว (${newStatusLabel}) — มอบหมายให้ ${selectedAssignee.name}`);
     setTimeout(() => { if(card) card.remove(); }, 1800);
+    await buildAdmin();
     await buildDashboard();
   } catch(e) {
     showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
