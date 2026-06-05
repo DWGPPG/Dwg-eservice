@@ -1705,15 +1705,18 @@ async function buildAdmin() {
     const myEmail  = (currentUser?.username || '').toLowerCase();
 
     // รายการรออนุมัติตาม Role
+    // รองรับทั้ง status ใหม่ (inprogress_lv1) และเก่า (inprogress, review)
     const approvalItems = isManager
-      ? allItems.filter(r => r.Status === 'inprogress_lv1')
-      : allItems.filter(r => r.Status === 'pending');
+      ? allItems.filter(r => ['inprogress_lv1','inprogress','review'].includes(r.Status))
+      : allItems.filter(r => ['pending'].includes(r.Status));
 
     // รายการที่ฉันเป็น assignee และกำลังดำเนินการ
-    const myWorkItems = allItems.filter(r =>
-      (r.AssigneeEmail||'').toLowerCase() === myEmail &&
-      ['approved','working'].includes(r.Status)
-    );
+    const myName  = (currentUser?.name  || '').toLowerCase();
+    const myWorkItems = allItems.filter(r => {
+      const emailMatch = myEmail && (r.AssigneeEmail||'').toLowerCase() === myEmail;
+      const nameMatch  = myName  && (r.AssigneeName ||'').toLowerCase().includes(myName.split(' ')[0].toLowerCase());
+      return (emailMatch || nameMatch) && ['approved','working','inprogress_lv1','inprogress','review'].includes(r.Status);
+    });
 
     renderAdminList(approvalItems, myWorkItems, isManager);
   } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
@@ -1762,13 +1765,17 @@ function renderAdminList(approvalItems, myWorkItems, isManager) {
 
 const STATUS_LABEL = {
   pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'กำลังดำเนินการ รอผจก.',
-  review:'รออนุมัติ Lv.2', approved:'ตรวจสอบแล้ว กำลังดำเนินการ',
+  inprogress:'กำลังดำเนินการ รอผจก.',   // backward compat
+  review:'รออนุมัติ Lv.2',              // backward compat
+  approved:'ตรวจสอบแล้ว กำลังดำเนินการ',
   working:'กำลังดำเนินการ', done:'เสร็จสิ้น',
   cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข'
 };
 const STATUS_CLASS = {
   pending:'badge-pending', inprogress_lv1:'badge-inprog-lv1',
-  review:'badge-review', approved:'badge-approved',
+  inprogress:'badge-inprog-lv1',   // backward compat
+  review:'badge-review',           // backward compat
+  approved:'badge-approved',
   working:'badge-working', done:'badge-done',
   cancelled:'badge-cancelled', rejected:'badge-rejected'
 };
