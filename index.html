@@ -759,7 +759,7 @@ tr:hover td { background: var(--sky); }
       <div class="file-drop" id="fileDrop" onclick="triggerFileInput()">
         <div style="font-size:28px;margin-bottom:8px">📎</div>
         <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
-        <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 50MB</p>
+        <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 1GB</p>
       </div>
       <input type="file" id="fileInput" multiple accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.dwf,.ifc,.rvt" style="display:none" onchange="handleFiles(this.files)">
       <div class="file-list" id="fileList"></div>
@@ -796,33 +796,65 @@ tr:hover td { background: var(--sky); }
       <div class="page-sub">ส่งงานแล้วเสร็จกลับไปยังผู้ร้องขอ พร้อมแจ้งเตือนใน Microsoft Teams</div>
     </div>
 
+    <!-- Search box -->
+    <div class="card">
+      <div class="card-title">ค้นหาคำร้อง</div>
+      <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label style="font-size:12px;font-weight:500;color:var(--gray-600);display:block;margin-bottom:6px">เลขคำขอ</label>
+          <input type="text" id="sw_search_input" placeholder="พิมพ์เลขคำขอ เช่น DWG-2569-0001"
+            oninput="swFilterDropdown(this.value)"
+            onkeydown="if(event.key==='Enter')swLookup(this.value)"
+            style="width:100%">
+          <div id="sw_dropdown" style="display:none;position:relative;z-index:50;background:var(--white);border:1px solid var(--gray-200);border-radius:var(--radius);margin-top:2px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.08)"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:22px;white-space:nowrap" onclick="swLookup(document.getElementById('sw_search_input').value)">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>
+          ค้นหา
+        </button>
+      </div>
+      <p id="sw_search_hint" style="font-size:12px;color:var(--gray-400);margin-top:8px">กรอกเลขคำขอแล้วกด Enter หรือ ค้นหา — ข้อมูลจะถูกเติมอัตโนมัติ</p>
+    </div>
+
     <!-- Info card -->
     <div class="card" id="sw-info-card">
-      <div class="card-title">ข้อมูลคำร้อง</div>
+      <div class="card-title">ข้อมูลคำร้อง <span id="sw_autofill_badge" style="display:none;font-size:10px;font-weight:500;background:var(--success-bg);color:var(--success);padding:2px 8px;border-radius:10px;margin-left:6px">✓ เติมข้อมูลอัตโนมัติ</span></div>
       <div class="form-grid">
         <div class="field">
           <label>เลขคำขอ</label>
-          <input type="text" id="sw_req_id" readonly>
+          <input type="text" id="sw_req_id" placeholder="—">
         </div>
         <div class="field">
           <label>ผู้ร้องขอ (Email)</label>
-          <input type="email" id="sw_requester_email" readonly>
+          <input type="email" id="sw_requester_email" placeholder="—">
         </div>
         <div class="field">
           <label>ระบบงาน</label>
-          <input type="text" id="sw_req_type" readonly>
+          <input type="text" id="sw_req_type" placeholder="—">
         </div>
         <div class="field">
           <label>ชื่อโครงการ</label>
-          <input type="text" id="sw_project" readonly>
+          <input type="text" id="sw_project" placeholder="—">
+        </div>
+        <div class="field">
+          <label>Drawing Number</label>
+          <input type="text" id="sw_drawing_number" placeholder="—">
+        </div>
+        <div class="field">
+          <label>Revise Number</label>
+          <input type="text" id="sw_revise_number" placeholder="—">
+        </div>
+        <div class="field span2">
+          <label>Drawing Name</label>
+          <input type="text" id="sw_drawing_name" placeholder="—">
         </div>
         <div class="field">
           <label>ฝ่าย / แผนก</label>
-          <input type="text" id="sw_dept" readonly>
+          <input type="text" id="sw_dept" placeholder="—">
         </div>
         <div class="field">
           <label>วันที่รับงาน</label>
-          <input type="text" id="sw_received_date" readonly>
+          <input type="text" id="sw_received_date" placeholder="—">
         </div>
       </div>
     </div>
@@ -851,7 +883,7 @@ tr:hover td { background: var(--sky); }
              ondrop="swHandleDrop(event)">
           <div style="font-size:28px;margin-bottom:8px">📎</div>
           <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
-          <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ DWG, DXF, PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, ZIP ไม่เกิน 100MB</p>
+          <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ DWG, DXF, PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, ZIP ไม่เกิน 1GB</p>
         </div>
         <input type="file" id="swFileInput" multiple
           accept=".dwg,.dxf,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar"
@@ -908,6 +940,8 @@ tr:hover td { background: var(--sky); }
     </div>
   </div>
 
+  <!-- ADMIN -->
+  <div class="page" id="page-admin">
     <div class="page-header">
       <div class="page-title">หน้าอนุมัติคำร้อง</div>
       <div class="page-sub" id="adminRoleText">ดึงรายการจาก SharePoint ที่รออนุมัติจากคุณ</div>
@@ -2389,10 +2423,12 @@ async function rejectItem(id) {
 function showPage(name, tab) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('page-'+name).classList.add('active');
+  const pg = document.getElementById('page-'+name);
+  if (pg) pg.classList.add('active');
   if (tab) tab.classList.add('active');
   if (name==='dashboard') buildDashboard();
   if (name==='admin')     buildAdmin();
+  if (name==='sendwork')  swLoadRequests();
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -2532,39 +2568,101 @@ function swClearAll() {
   const banner = document.getElementById('sw_success_banner'); if(banner) banner.style.display='none';
 }
 
-function swPopulateFromRequest(item) {
-  const set = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
-  set('sw_req_id',          item.Title        || '');
-  set('sw_requester_email', item.RequesterEmail|| item.AuthorEmail || '');
-  set('sw_req_type',        item.Type         || '');
-  set('sw_project',         item.Project      || '');
-  set('sw_dept',            item.Department   || '');
-  set('sw_received_date',   item.SubmittedAt ? fmtDate(item.SubmittedAt) : '');
+// ── SEND WORK: SEARCH & AUTO-FILL ──
+let swAllRequests = [];
+
+async function swLoadRequests() {
+  try {
+    if (!spSiteId) return;
+    const listId = await getListId(CONFIG.spListName);
+    if (!listId) return;
+    const r = await graphGet(`/sites/${spSiteId}/lists/${listId}/items?expand=fields&$top=500&$select=id,fields`);
+    swAllRequests = (r.value || []).map(i => i.fields).filter(f =>
+      f.Status && !['rejected','cancelled'].includes(f.Status)
+    );
+  } catch(e) { console.warn('swLoadRequests:', e); }
 }
 
-// ── SHOW PAGE ── (override เพื่อรองรับ sendwork)
-const _origShowPage = showPage;
-function showPage(name, tab) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  const pg = document.getElementById('page-'+name);
-  if (pg) pg.classList.add('active');
-  if (tab) tab.classList.add('active');
-  if (name==='dashboard') buildDashboard();
-  if (name==='admin')     buildAdmin();
+function swFilterDropdown(val) {
+  const dd = document.getElementById('sw_dropdown');
+  if (!val || val.length < 2) { dd.style.display = 'none'; return; }
+  const q = val.toLowerCase();
+  const matches = swAllRequests.filter(r => (r.Title||'').toLowerCase().includes(q)).slice(0, 10);
+  if (!matches.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = matches.map(r => `
+    <div onclick="swSelectRequest('${r.Title}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:0.5px solid var(--gray-200)"
+      onmouseover="this.style.background='var(--sky)'" onmouseout="this.style.background=''">
+      <span style="font-weight:500;color:var(--navy)">${r.Title}</span>
+      <span style="color:var(--gray-400);margin-left:8px;font-size:11px">${r.Project||''}</span>
+    </div>`).join('');
+  dd.style.display = 'block';
+}
+
+function swSelectRequest(title) {
+  document.getElementById('sw_search_input').value = title;
+  document.getElementById('sw_dropdown').style.display = 'none';
+  swLookup(title);
+}
+
+async function swLookup(val) {
+  const q = (val||'').trim().toUpperCase();
+  document.getElementById('sw_dropdown').style.display = 'none';
+  if (!q) return;
+  const hint = document.getElementById('sw_search_hint');
+
+  // ค้นหาจาก cache ก่อน
+  let item = swAllRequests.find(r => (r.Title||'').toUpperCase() === q);
+
+  // ถ้าไม่เจอใน cache ลอง query SharePoint โดยตรง
+  if (!item && spSiteId) {
+    try {
+      const listId = await getListId(CONFIG.spListName);
+      const r = await graphGet(`/sites/${spSiteId}/lists/${listId}/items?expand=fields&$filter=fields/Title eq '${encodeURIComponent(q)}'`);
+      if (r.value && r.value.length) item = r.value[0].fields;
+    } catch(e) { console.warn('swLookup query:', e); }
+  }
+
+  if (item) {
+    swPopulateFromRequest(item);
+    hint.textContent = '✓ พบข้อมูลและเติมแบบฟอร์มอัตโนมัติแล้ว';
+    hint.style.color = 'var(--success)';
+  } else {
+    hint.textContent = `ไม่พบเลขคำขอ "${q}" — กรุณาตรวจสอบอีกครั้ง`;
+    hint.style.color = 'var(--danger)';
+  }
+}
+
+function swPopulateFromRequest(item) {
+  const set = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
+  set('sw_req_id',          item.Title            || '');
+  set('sw_requester_email', item.RequesterEmail   || item.AuthorEmail || '');
+  set('sw_req_type',        item.Type             || '');
+  set('sw_project',         item.Project          || '');
+  set('sw_drawing_number',  item.DrawingNumber    || '');
+  set('sw_drawing_name',    item.DrawingName      || '');
+  set('sw_revise_number',   item.ReviseNumber     || item.Revise || '');
+  set('sw_dept',            item.Department       || '');
+  set('sw_received_date',   item.SubmittedAt ? fmtDate(item.SubmittedAt) : '');
+  const badge = document.getElementById('sw_autofill_badge');
+  if (badge) badge.style.display = 'inline';
+  swCheckReady();
 }
 
 // ── SHOW SENDWORK TAB FOR DRAWING TEAM MEMBERS ──
-// เรียกหลัง login สำเร็จ ถ้า email อยู่ใน teamMembers → แสดง tab นำส่งงาน
 function maybeShowSendworkTab(email) {
   const isMember = CONFIG.teamMembers.some(m => m.email.toLowerCase() === (email||'').toLowerCase());
   const tab = document.getElementById('sendworkTab');
   if (tab && isMember) tab.style.display = '';
 }
 
-// ── HOOK ── เรียก maybeShowSendworkTab หลัง login
-const _origAfterLogin = typeof afterLogin === 'function' ? afterLogin : null;
-// patch: เพิ่ม call ใน section ที่ set currentUser
+// ── START ──
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('sw_dropdown');
+  if (dd && !dd.contains(e.target) && e.target.id !== 'sw_search_input') {
+    dd.style.display = 'none';
+  }
+});
 
 </script>
 </body>
