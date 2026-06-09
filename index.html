@@ -1306,11 +1306,12 @@ async function init() {
   // สร้าง MSAL instance หลัง library โหลดเสร็จ
   const msalConfig = {
     auth: {
-      clientId: CONFIG.clientId,
-      authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-      redirectUri: CONFIG.redirectUri,
+      clientId:     CONFIG.clientId,
+      authority:    `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+      redirectUri:  CONFIG.redirectUri,
+      knownAuthorities: [`login.microsoftonline.com`],
     },
-    cache: { cacheReferenceFile: 'localStorage', storeAuthStateInCookie: true }
+    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
   };
   msalInstance = new msal.PublicClientApplication(msalConfig);
 
@@ -1322,6 +1323,10 @@ async function init() {
 
   try {
     await msalInstance.initialize();
+
+    // ล้าง interaction ที่ค้างจาก redirect ก่อนทำอะไรทั้งหมด
+    try { await msalInstance.handleRedirectPromise(); } catch(e) { console.warn('handleRedirect:', e); }
+
     // Popup flow — ตรวจสอบ account ที่ login ไว้แล้ว
     const accounts = msalInstance.getAllAccounts();
     if (accounts.length > 0) {
@@ -1358,11 +1363,10 @@ function showLogin() {
   document.getElementById('mainApp').classList.remove('show');
 }
 
+let _signingIn = false;
 async function signIn() {
-  try {
-    // ล้าง interaction ที่ค้างอยู่ก่อน
-    await msalInstance.clearCache();
-  } catch(e) {}
+  if (_signingIn) return; // ป้องกันกดซ้ำ
+  _signingIn = true;
   try {
     const resp = await msalInstance.loginPopup({ 
       scopes: graphScopes,
@@ -1375,6 +1379,8 @@ async function signIn() {
     if (e.errorCode !== 'user_cancelled') {
       showToast('❌', 'Login ไม่สำเร็จ: ' + (e.errorMessage || e.message));
     }
+  } finally {
+    _signingIn = false;
   }
 }
 
@@ -1385,26 +1391,30 @@ async function signOut() {
 }
 
 async function refreshToken() {
-  try {
-    const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
-    accessToken = r.accessToken;
-  } catch(e) {
-    if (e.errorCode === 'interaction_in_progress') {
-      // รอแล้วลองใหม่
-      await new Promise(r => setTimeout(r, 1000));
-      try {
-        const r2 = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
-        accessToken = r2.accessToken;
-        return;
-      } catch {}
-    }
+  if (!currentUser) return;
+  // ลอง silent ก่อนเสมอ
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const r = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
+      const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
       accessToken = r.accessToken;
-    } catch(e2) {
-      console.warn('refreshToken failed:', e2.message);
+      return;
+    } catch(e) {
+      if (e.errorCode === 'interaction_in_progress') {
+        // มี popup อื่นเปิดอยู่ — รอแล้วลองใหม่
+        await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
+        continue;
+      }
+      // token หมดอายุหรือ consent ต้องการ popup
+      if (!_signingIn) {
+        try {
+          const r2 = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
+          accessToken = r2.accessToken;
+        } catch(e2) { console.warn('refreshToken popup failed:', e2.message); }
+      }
+      return;
     }
   }
+  console.warn('refreshToken: interaction_in_progress หลังลอง 3 ครั้ง');
 }
 
 async function onSignedIn() {
@@ -1527,12 +1537,23 @@ async function loadSpIds() {
       await loadKwpList(); // ถ้าไม่มี List จะใช้ค่า default อัตโนมัติ
     } catch(e) { console.warn('KwpList not found, using defaults:', e.message); await loadKwpList(); }
   } catch(e) {
-    setBanner('error', '❌ ' + e.message);
-    throw e;
+    setBanner('error', '❌ เชื่อมต่อ SharePoint ไม่สำเร็จ: ' + e.message);
+    console.error('loadSpIds:', e);
+    // ไม่ throw — ให้ buildAdmin แสดง error ของตัวเองแทน
   }
 }
 
 // ── SHAREPOINT LIST HELPERS ──
+
+// helper: ดึง List ID จากชื่อ — ถ้า spListId มีแล้วใช้เลย
+async function getListId(listName) {
+  if (listName === CONFIG.spListName && spListId) return spListId;
+  try {
+    const r = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${listName}'`);
+    return r.value[0]?.id || null;
+  } catch(e) { console.warn('getListId:', e); return null; }
+}
+
 async function spGetItems(filter = '') {
   const q = filter ? `&$filter=${encodeURIComponent(filter)}` : '';
   const r = await graphGet(`/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=500${q}`);
@@ -2151,7 +2172,13 @@ document.addEventListener('click', () => {
 
 // ── PAGE: ADMIN ──
 async function buildAdmin() {
+  const list = document.getElementById('adminList');
+  if (list) list.innerHTML = '<div style="padding:20px;color:var(--gray-400);font-size:13px">⏳ กำลังโหลด...</div>';
   try {
+    if (!spSiteId || !spListId) {
+      if (list) list.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-state-icon">⚠️</div><p style="color:var(--danger)">ยังไม่ได้เชื่อมต่อ SharePoint — กรุณา Login ใหม่</p></div>';
+      return;
+    }
     const isManager = isMgr();
     document.getElementById('adminRoleText').textContent = isManager
       ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการรอผจก.ตรวจสอบ'
@@ -2161,7 +2188,6 @@ async function buildAdmin() {
     const myEmail  = (currentUser?.username || '').toLowerCase();
 
     // รายการรออนุมัติตาม Role
-    // รองรับทั้ง status ใหม่ (inprogress_lv1) และเก่า (inprogress, review)
     // Manager (Lv.2) เห็นทุก status ที่ยังรออนุมัติ รวมถึง pending ที่ยังไม่มีใครรับ
     const approvalItems = isManager
       ? allItems.filter(r => ['pending','inprogress_lv1','inprogress','review'].includes(r.Status))
@@ -2176,7 +2202,11 @@ async function buildAdmin() {
     });
 
     renderAdminList(approvalItems, myWorkItems, isManager);
-  } catch(e) { showToast('❌', 'โหลด Admin ไม่สำเร็จ: ' + e.message); }
+  } catch(e) {
+    const msg = e.message || String(e);
+    if (list) list.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-state-icon">❌</div><p style="color:var(--danger);font-size:13px">โหลดไม่สำเร็จ: ${msg}</p></div>`;
+    console.error('buildAdmin error:', e);
+  }
 }
 
 function renderAdminList(approvalItems, myWorkItems, isManager) {
