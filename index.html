@@ -2162,8 +2162,9 @@ async function buildAdmin() {
 
     // รายการรออนุมัติตาม Role
     // รองรับทั้ง status ใหม่ (inprogress_lv1) และเก่า (inprogress, review)
+    // Manager (Lv.2) เห็นทุก status ที่ยังรออนุมัติ รวมถึง pending ที่ยังไม่มีใครรับ
     const approvalItems = isManager
-      ? allItems.filter(r => ['inprogress_lv1','inprogress','review'].includes(r.Status))
+      ? allItems.filter(r => ['pending','inprogress_lv1','inprogress','review'].includes(r.Status))
       : allItems.filter(r => ['pending'].includes(r.Status));
 
     // รายการที่ฉันเป็น assignee และกำลังดำเนินการ
@@ -2183,7 +2184,7 @@ function renderAdminList(approvalItems, myWorkItems, isManager) {
   function applyTypeFilter(items) {
     if (adminFilter === 'all') return items;
     return items.filter(r => {
-      const t = (r.RequestType||r.ProjectName||'').toLowerCase();
+      const t = (r.Type||r.RequestType||r.ProjectName||'').toLowerCase();
       if (adminFilter==='proposal')     return t.includes('proposal');
       if (adminFilter==='construction') return t.includes('ก่อสร้าง');
       if (adminFilter==='permit')       return t.includes('ขออนุญาต');
