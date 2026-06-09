@@ -2569,18 +2569,77 @@ function swPreviewLink(val) {
   }
 }
 
-function swSubmitWork() {
+async function swSubmitWork() {
   const btn = document.getElementById('sw_send_btn');
   btn.disabled = true;
   btn.classList.add('btn-loading');
-  setTimeout(() => {
+
+  // ตรวจสอบว่า webhook URL ตั้งค่าแล้ว
+  if (!CONFIG.automateWebhookUrl || CONFIG.automateWebhookUrl === 'YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL') {
+    showToast('⚠️', 'ยังไม่ได้ตั้งค่า automateWebhookUrl ใน CONFIG');
+    btn.disabled = false;
+    btn.classList.remove('btn-loading');
+    return;
+  }
+
+  try {
+    // helper: แปลงไฟล์เป็น base64
+    const toBase64 = file => new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+
+    const activeTab = document.getElementById('sw-tab-upload').classList.contains('sw-tab-active') ? 'upload' : 'link';
+    const dwg = swFiles.find(f => f.name.toLowerCase().endsWith('.dwg'));
+    const pdf = swFiles.find(f => f.name.toLowerCase().endsWith('.pdf'));
+    const spLink = document.getElementById('sw_sp_link')?.value || '';
+    const revRaw = document.getElementById('sw_revise_number')?.value || '0';
+    // strip "R" prefix ถ้ามี เพื่อให้ Flow คำนวณ reviseTag เอง
+    const revNum = revRaw.replace(/^[Rr]/, '') || '0';
+
+    const payload = {
+      requestId:        document.getElementById('sw_req_id').value,
+      requesterEmail:   document.getElementById('sw_requester_email').value,
+      projectName:      document.getElementById('sw_project').value,
+      requestType:      document.getElementById('sw_req_type').value,
+      drawingNumber:    document.getElementById('sw_drawing_number').value,
+      drawingName:      document.getElementById('sw_drawing_name').value,
+      reviseNumber:     revNum,
+      noteFromDrawing:  document.getElementById('sw_note').value,
+      assigneeName:     currentUser?.name  || '',
+      assigneeEmail:    currentUser?.username || '',
+      spLink:           activeTab === 'link' ? spLink : '',
+      dwgFileName:      dwg ? dwg.name : '',
+      pdfFileName:      pdf ? pdf.name : '',
+      dwgFileBase64:    (activeTab === 'upload' && dwg) ? await toBase64(dwg) : '',
+      pdfFileBase64:    (activeTab === 'upload' && pdf) ? await toBase64(pdf) : ''
+    };
+
+    const resp = await fetch(CONFIG.automateWebhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) throw new Error('Flow ตอบกลับ HTTP ' + resp.status);
+
+    // สำเร็จ
     btn.classList.remove('btn-loading');
     btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งแล้ว';
     const banner = document.getElementById('sw_success_banner');
-    if (banner) { banner.style.display = 'flex'; }
-    const email = document.getElementById('sw_requester_email')?.value || 'ผู้ร้องขอ';
-    if (banner) banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนไปยัง ' + email + ' ใน Microsoft Teams แล้ว';
-  }, 1200);
+    if (banner) {
+      banner.style.display = 'flex';
+      banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนไปยัง ' + payload.requesterEmail + ' ใน Microsoft Teams แล้ว';
+    }
+
+  } catch(e) {
+    showToast('❌', 'ส่งงานไม่สำเร็จ: ' + e.message);
+    btn.disabled = false;
+    btn.classList.remove('btn-loading');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งงาน';
+  }
 }
 
 function swClearAll() {
