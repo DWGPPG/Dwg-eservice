@@ -84,7 +84,11 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--gray-100); color: var(--navy); min-height: 100vh; font-size: 14px; line-height: 1.6; }
 
-/* ── CONFIG BANNER ── */
+/* Send-work tab buttons */
+.sw-tab { display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--gray-600);font-family:var(--font);transition:all .15s; }
+.sw-tab-active { background:var(--white);color:var(--navy);border-color:var(--gray-200); }
+.sw-tab:not(.sw-tab-active):hover { background:var(--white); }
+
 .config-banner { background: #003d7a; color: #93c5fd; padding: 10px 20px; font-size: 12px; font-family: var(--mono); display: flex; align-items: center; gap: 10px; }
 .config-banner.ready { background: #14532d; color: #86efac; }
 .config-banner.error { background: #7f1d1d; color: #fca5a5; }
@@ -469,6 +473,10 @@ tr:hover td { background: var(--sky); }
         <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></svg>
         อนุมัติ (Admin)
       </div>
+      <div class="nav-tab" id="sendworkTab" onclick="showPage('sendwork',this)" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        นำส่งงาน
+      </div>
     </div>
     <div class="nav-right">
       <div class="nav-user" onclick="signOut()">
@@ -753,7 +761,7 @@ tr:hover td { background: var(--sky); }
         <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
         <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 50MB</p>
       </div>
-      <input type="file" id="fileInput" multiple accept=".pdf,.dwg,.dxf,.jpg,.jpeg,.png" style="display:none" onchange="handleFiles(this.files)">
+      <input type="file" id="fileInput" multiple accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.dwf,.ifc,.rvt" style="display:none" onchange="handleFiles(this.files)">
       <div class="file-list" id="fileList"></div>
       <div class="form-actions" style="margin-top:16px">
         <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
@@ -781,8 +789,125 @@ tr:hover td { background: var(--sky); }
     <div id="trackResult"></div>
   </div>
 
-  <!-- ADMIN -->
-  <div class="page" id="page-admin">
+  <!-- SENDWORK -->
+  <div class="page" id="page-sendwork">
+    <div class="page-header">
+      <div class="page-title">ระบบนำส่งงาน ฝ่ายเขียนแบบ</div>
+      <div class="page-sub">ส่งงานแล้วเสร็จกลับไปยังผู้ร้องขอ พร้อมแจ้งเตือนใน Microsoft Teams</div>
+    </div>
+
+    <!-- Info card -->
+    <div class="card" id="sw-info-card">
+      <div class="card-title">ข้อมูลคำร้อง</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>เลขคำขอ</label>
+          <input type="text" id="sw_req_id" readonly>
+        </div>
+        <div class="field">
+          <label>ผู้ร้องขอ (Email)</label>
+          <input type="email" id="sw_requester_email" readonly>
+        </div>
+        <div class="field">
+          <label>ระบบงาน</label>
+          <input type="text" id="sw_req_type" readonly>
+        </div>
+        <div class="field">
+          <label>ชื่อโครงการ</label>
+          <input type="text" id="sw_project" readonly>
+        </div>
+        <div class="field">
+          <label>ฝ่าย / แผนก</label>
+          <input type="text" id="sw_dept" readonly>
+        </div>
+        <div class="field">
+          <label>วันที่รับงาน</label>
+          <input type="text" id="sw_received_date" readonly>
+        </div>
+      </div>
+    </div>
+
+    <!-- File card -->
+    <div class="card">
+      <div class="card-title">แนบไฟล์งาน</div>
+
+      <!-- Tab row -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;background:var(--gray-100);padding:4px;border-radius:var(--radius);width:fit-content">
+        <button id="sw-tab-upload" class="sw-tab sw-tab-active" onclick="swSwitchTab('upload')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          อัปโหลดไฟล์
+        </button>
+        <button id="sw-tab-link" class="sw-tab" onclick="swSwitchTab('link')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          เลือกจาก SharePoint
+        </button>
+      </div>
+
+      <!-- Upload panel -->
+      <div id="sw-panel-upload">
+        <div class="file-drop" id="swFileDrop" onclick="swTriggerFile()"
+             ondragover="event.preventDefault();this.style.borderColor='var(--sun)';this.style.background='var(--sun-light)'"
+             ondragleave="this.style.borderColor='';this.style.background=''"
+             ondrop="swHandleDrop(event)">
+          <div style="font-size:28px;margin-bottom:8px">📎</div>
+          <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
+          <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ DWG, DXF, PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, ZIP ไม่เกิน 100MB</p>
+        </div>
+        <input type="file" id="swFileInput" multiple
+          accept=".dwg,.dxf,.pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar"
+          style="display:none" onchange="swHandleFiles(this.files)">
+        <div class="file-list" id="swFileList"></div>
+      </div>
+
+      <!-- SharePoint link panel -->
+      <div id="sw-panel-link" style="display:none">
+        <div style="display:flex;gap:8px;align-items:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--navy)" stroke-width="1.8" stroke-linecap="round" style="flex-shrink:0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <input type="text" id="sw_sp_link" placeholder="วาง SharePoint link ของไฟล์ที่นี่..." oninput="swCheckReady()" style="flex:1">
+          <button class="btn btn-secondary" style="white-space:nowrap" onclick="alert('เปิด SharePoint file picker')">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            เลือก
+          </button>
+        </div>
+        <p style="font-size:11px;color:var(--gray-400);margin-top:6px">ลิงก์จะถูกแนบใน Teams card โดยอัตโนมัติ</p>
+      </div>
+    </div>
+
+    <!-- Optional link card -->
+    <div class="card">
+      <div class="card-title">แนบลิงก์ (ถ้ามี)</div>
+      <div class="field">
+        <label>ลิงก์อ้างอิง <span style="font-size:11px;color:var(--gray-400)">(ไม่บังคับ)</span></label>
+        <input type="text" id="sw_ext_link" placeholder="เช่น Google Drive, OneDrive, SharePoint, ลิงก์เอกสารอ้างอิง..." oninput="swPreviewLink(this.value)">
+        <div id="sw_link_preview" style="display:none;margin-top:6px;padding:8px 10px;background:var(--sky);border:1px solid #B8D9F0;border-radius:8px;font-size:12px;align-items:center;gap:6px">
+          🔗 <a id="sw_link_anchor" href="#" target="_blank" style="color:var(--info);font-size:12px;word-break:break-all"></a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Note card -->
+    <div class="card">
+      <div class="card-title">หมายเหตุถึงผู้ร้องขอ</div>
+      <div class="field">
+        <label>บันทึก <span style="font-size:11px;color:var(--gray-400)">(ไม่บังคับ)</span></label>
+        <textarea id="sw_note" placeholder="เช่น แบบ Revision 2 แก้ตามความต้องการของลูกค้า, สังเกต sheet 3 มีการปรับ layout..."></textarea>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+        <span id="sw_file_summary" style="font-size:12px;color:var(--gray-400)">ยังไม่มีไฟล์</span>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-secondary" onclick="swClearAll()">ล้างข้อมูล</button>
+          <button class="btn btn-primary" id="sw_send_btn" disabled onclick="swSubmitWork()">
+            <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ส่งงาน
+          </button>
+        </div>
+      </div>
+      <div id="sw_success_banner" style="display:none;margin-top:12px;padding:10px 14px;background:var(--success-bg);border:1px solid #6dba96;border-radius:var(--radius);font-size:13px;color:var(--success);align-items:center;gap:8px">
+        ✅ ส่งงานสำเร็จ! แจ้งเตือนไปยังผู้ร้องขอใน Microsoft Teams แล้ว
+      </div>
+    </div>
+  </div>
+
     <div class="page-header">
       <div class="page-title">หน้าอนุมัติคำร้อง</div>
       <div class="page-sub" id="adminRoleText">ดึงรายการจาก SharePoint ที่รออนุมัติจากคุณ</div>
@@ -1258,6 +1383,9 @@ async function onSignedIn() {
 
   // แสดง Admin tab ถ้าเป็น approver
   document.getElementById('adminTab').style.display = 'flex'; // ทุกคนในทีมเห็น Admin tab
+
+  // แสดง นำส่งงาน tab สำหรับสมาชิกในทีมเขียนแบบ
+  maybeShowSendworkTab(currentUser.username);
 
   setBanner('connecting', '🔄 กำลังโหลดข้อมูลจาก SharePoint...');
 
@@ -2295,7 +2423,149 @@ function daysBetween(a, b) {
   return Math.abs(new Date(b) - new Date(a)) / 86400000;
 }
 
-// ── START ── (init() ถูกเรียกจาก MSAL onload ด้านบนแล้ว)
+// ── SEND WORK TAB ──
+let swActiveTab = 'upload';
+let swFiles = [];
+
+function swSwitchTab(t) {
+  swActiveTab = t;
+  document.getElementById('sw-tab-upload').className = 'sw-tab' + (t==='upload' ? ' sw-tab-active' : '');
+  document.getElementById('sw-tab-link').className   = 'sw-tab' + (t==='link'   ? ' sw-tab-active' : '');
+  document.getElementById('sw-panel-upload').style.display = t==='upload' ? 'block' : 'none';
+  document.getElementById('sw-panel-link').style.display   = t==='link'   ? 'block' : 'none';
+  swCheckReady();
+}
+
+function swTriggerFile() { document.getElementById('swFileInput').click(); }
+
+function swHandleFiles(fileList) {
+  const allowed = /\.(dwg|dxf|pdf|doc|docx|xls|xlsx|jpg|jpeg|png|zip|rar|dwf|ifc|rvt)$/i;
+  for (const f of fileList) {
+    if (!allowed.test(f.name)) continue;
+    if (swFiles.find(x => x.name === f.name)) continue;
+    swFiles.push(f);
+  }
+  swRenderFiles();
+  swCheckReady();
+}
+
+function swHandleDrop(e) {
+  e.preventDefault();
+  const drop = document.getElementById('swFileDrop');
+  drop.style.borderColor = '';
+  drop.style.background  = '';
+  swHandleFiles(e.dataTransfer.files);
+}
+
+const swExtIcons = { dwg:'📐', dxf:'📐', pdf:'📄', doc:'📝', docx:'📝', xls:'📊', xlsx:'📊', jpg:'🖼️', jpeg:'🖼️', png:'🖼️', zip:'🗜️', rar:'🗜️', dwf:'📐', ifc:'🏗️', rvt:'🏗️' };
+
+function swRenderFiles() {
+  const el = document.getElementById('swFileList');
+  el.innerHTML = '';
+  swFiles.forEach((f, i) => {
+    const ext  = f.name.split('.').pop().toLowerCase();
+    const icon = swExtIcons[ext] || '📎';
+    const kb   = f.size > 1048576 ? (f.size/1048576).toFixed(1)+' MB' : Math.round(f.size/1024)+' KB';
+    const div  = document.createElement('div');
+    div.className = 'file-item';
+    div.innerHTML = `<span style="font-size:16px">${icon}</span>
+      <span style="flex:1;font-size:13px">${f.name}</span>
+      <span style="font-size:11px;color:var(--gray-400);margin-right:4px">${kb}</span>
+      <span class="badge" style="background:var(--sky);color:var(--info);font-size:10px;margin-right:4px">.${ext.toUpperCase()}</span>
+      <span class="file-remove" onclick="swRemoveFile(${i})" title="ลบ">✕</span>`;
+    el.appendChild(div);
+  });
+  const total = swFiles.length;
+  document.getElementById('sw_file_summary').textContent = total
+    ? `${total} ไฟล์แนบ`
+    : 'ยังไม่มีไฟล์';
+}
+
+function swRemoveFile(i) { swFiles.splice(i, 1); swRenderFiles(); swCheckReady(); }
+
+function swCheckReady() {
+  const hasUpload = swActiveTab === 'upload' && swFiles.length > 0;
+  const hasLink   = swActiveTab === 'link'   && (document.getElementById('sw_sp_link')?.value||'').trim().length > 0;
+  const btn = document.getElementById('sw_send_btn');
+  if (btn) btn.disabled = !(hasUpload || hasLink);
+}
+
+function swPreviewLink(val) {
+  const prev = document.getElementById('sw_link_preview');
+  const anch = document.getElementById('sw_link_anchor');
+  if (val && val.startsWith('http')) {
+    prev.style.display = 'flex';
+    anch.href = val;
+    anch.textContent = val;
+  } else {
+    prev.style.display = 'none';
+  }
+}
+
+function swSubmitWork() {
+  const btn = document.getElementById('sw_send_btn');
+  btn.disabled = true;
+  btn.classList.add('btn-loading');
+  setTimeout(() => {
+    btn.classList.remove('btn-loading');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งแล้ว';
+    const banner = document.getElementById('sw_success_banner');
+    if (banner) { banner.style.display = 'flex'; }
+    const email = document.getElementById('sw_requester_email')?.value || 'ผู้ร้องขอ';
+    if (banner) banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนไปยัง ' + email + ' ใน Microsoft Teams แล้ว';
+  }, 1200);
+}
+
+function swClearAll() {
+  swFiles = [];
+  document.getElementById('swFileList').innerHTML = '';
+  const sp = document.getElementById('sw_sp_link'); if(sp) sp.value = '';
+  const note = document.getElementById('sw_note'); if(note) note.value = '';
+  const lnk = document.getElementById('sw_ext_link'); if(lnk) lnk.value = '';
+  const prev = document.getElementById('sw_link_preview'); if(prev) prev.style.display='none';
+  document.getElementById('sw_file_summary').textContent = 'ยังไม่มีไฟล์';
+  const btn = document.getElementById('sw_send_btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งงาน';
+  }
+  const banner = document.getElementById('sw_success_banner'); if(banner) banner.style.display='none';
+}
+
+function swPopulateFromRequest(item) {
+  const set = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
+  set('sw_req_id',          item.Title        || '');
+  set('sw_requester_email', item.RequesterEmail|| item.AuthorEmail || '');
+  set('sw_req_type',        item.Type         || '');
+  set('sw_project',         item.Project      || '');
+  set('sw_dept',            item.Department   || '');
+  set('sw_received_date',   item.SubmittedAt ? fmtDate(item.SubmittedAt) : '');
+}
+
+// ── SHOW PAGE ── (override เพื่อรองรับ sendwork)
+const _origShowPage = showPage;
+function showPage(name, tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  const pg = document.getElementById('page-'+name);
+  if (pg) pg.classList.add('active');
+  if (tab) tab.classList.add('active');
+  if (name==='dashboard') buildDashboard();
+  if (name==='admin')     buildAdmin();
+}
+
+// ── SHOW SENDWORK TAB FOR DRAWING TEAM MEMBERS ──
+// เรียกหลัง login สำเร็จ ถ้า email อยู่ใน teamMembers → แสดง tab นำส่งงาน
+function maybeShowSendworkTab(email) {
+  const isMember = CONFIG.teamMembers.some(m => m.email.toLowerCase() === (email||'').toLowerCase());
+  const tab = document.getElementById('sendworkTab');
+  if (tab && isMember) tab.style.display = '';
+}
+
+// ── HOOK ── เรียก maybeShowSendworkTab หลัง login
+const _origAfterLogin = typeof afterLogin === 'function' ? afterLogin : null;
+// patch: เพิ่ม call ใน section ที่ set currentUser
+
 </script>
 </body>
 </html>
