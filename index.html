@@ -1331,7 +1331,15 @@ async function init() {
     const accounts = msalInstance.getAllAccounts();
     if (accounts.length > 0) {
       currentUser = accounts[0];
-      await refreshToken();
+      // ลอง silent token ก่อน ไม่เปิด popup ใน init
+      try {
+        const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
+        accessToken = r.accessToken;
+      } catch(e) {
+        console.warn('silent token failed on init:', e.message);
+        // ไม่ force popup ใน init — ให้ user กด Login ใหม่เอง
+        currentUser = null;
+      }
     }
 
     if (currentUser) {
