@@ -1052,7 +1052,7 @@ const CONFIG = {
 // ── MSAL Setup ──
 // MSAL instance จะสร้างใน init() หลัง library โหลดเสร็จ
 let msalInstance = null;
-const graphScopes = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All'];
+const graphScopes = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All', 'Chat.ReadWrite'];
 
 let currentUser  = null;
 let accessToken  = null;
@@ -1370,7 +1370,7 @@ async function signIn() {
   try {
     const resp = await msalInstance.loginPopup({ 
       scopes: graphScopes,
-      prompt: 'select_account'
+      prompt: 'consent'
     });
     currentUser = resp.account;
     accessToken = resp.accessToken;
