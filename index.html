@@ -2653,8 +2653,9 @@ async function swSubmitWork() {
     // ── 2. อัปเดต SharePoint List item ──
     const listId = await getListId(CONFIG.spListName);
     if (listId && siteId) {
-      const items = await graphGet(`/sites/${siteId}/lists/${listId}/items?expand=fields&$filter=fields/Title eq '${requestId}'&$top=1`);
-      const item  = items?.value?.[0];
+      // ดึงทุก item แล้ว filter ใน JS แทน เพราะ OData filter มีปัญหากับบาง field
+      const items = await graphGet(`/sites/${siteId}/lists/${listId}/items?expand=fields&$top=500&$select=id,fields`);
+      const item  = items?.value?.find(i => i.fields?.Title === requestId);
       if (item) {
         const fields = {
           Status:          'delivered',
