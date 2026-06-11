@@ -1348,7 +1348,7 @@ async function init() {
       if (!currentUser.username.endsWith('@' + CONFIG.allowedDomain)) {
         setBanner('error', `⛔ บัญชีนี้ไม่ได้รับอนุญาต — ใช้ได้เฉพาะ @${CONFIG.allowedDomain}`);
         try { await msalInstance.logoutPopup(); } catch(e) { console.warn(e); }
-  location.reload();
+        location.reload();
         return;
       }
       await onSignedIn();
@@ -2595,70 +2595,186 @@ async function swSubmitWork() {
   btn.disabled = true;
   btn.classList.add('btn-loading');
 
-  // ตรวจสอบว่า webhook URL ตั้งค่าแล้ว
-  if (!CONFIG.automateWebhookUrl || CONFIG.automateWebhookUrl === 'YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL') {
-    showToast('⚠️', 'ยังไม่ได้ตั้งค่า automateWebhookUrl ใน CONFIG');
-    btn.disabled = false;
-    btn.classList.remove('btn-loading');
-    return;
-  }
-
   try {
-    // helper: แปลงไฟล์เป็น base64
-    const toBase64 = file => new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(',')[1]);
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
+    await refreshToken();
 
-    const activeTab = document.getElementById('sw-tab-upload').classList.contains('sw-tab-active') ? 'upload' : 'link';
-    const dwg = swFiles.find(f => f.name.toLowerCase().endsWith('.dwg'));
-    const pdf = swFiles.find(f => f.name.toLowerCase().endsWith('.pdf'));
-    const spLink = document.getElementById('sw_sp_link')?.value || '';
-    const revRaw = document.getElementById('sw_revise_number')?.value || '0';
-    // strip "R" prefix ถ้ามี เพื่อให้ Flow คำนวณ reviseTag เอง
-    const revNum = revRaw.replace(/^[Rr]/, '') || '0';
+    const activeTab      = document.getElementById('sw-tab-upload').classList.contains('sw-tab-active') ? 'upload' : 'link';
+    const requestId      = document.getElementById('sw_req_id').value.trim();
+    const requesterEmail = document.getElementById('sw_requester_email').value.trim();
+    const projectName    = document.getElementById('sw_project').value.trim();
+    const requestType    = document.getElementById('sw_req_type').value.trim();
+    const drawingNumber  = document.getElementById('sw_drawing_number').value.trim();
+    const drawingName    = document.getElementById('sw_drawing_name').value.trim();
+    const revRaw         = document.getElementById('sw_revise_number')?.value || '0';
+    const revNum         = revRaw.replace(/^[Rr]/, '') || '0';
+    const reviseTag      = 'R' + revNum;
+    const note           = document.getElementById('sw_note').value.trim();
+    const spLink         = document.getElementById('sw_sp_link')?.value || '';
 
-    const payload = {
-      requestId:        document.getElementById('sw_req_id').value,
-      requesterEmail:   document.getElementById('sw_requester_email').value,
-      projectName:      document.getElementById('sw_project').value,
-      requestType:      document.getElementById('sw_req_type').value,
-      drawingNumber:    document.getElementById('sw_drawing_number').value,
-      drawingName:      document.getElementById('sw_drawing_name').value,
-      reviseNumber:     revNum,
-      noteFromDrawing:  document.getElementById('sw_note').value,
-      assigneeName:     currentUser?.name  || '',
-      assigneeEmail:    currentUser?.username || '',
-      spLink:           activeTab === 'link' ? spLink : '',
-      dwgFileName:      dwg ? dwg.name : '',
-      pdfFileName:      pdf ? pdf.name : '',
-      dwgFileBase64:    (activeTab === 'upload' && dwg) ? await toBase64(dwg) : '',
-      pdfFileBase64:    (activeTab === 'upload' && pdf) ? await toBase64(pdf) : ''
-    };
+    if (!requestId || !requesterEmail) throw new Error('กรุณากรอกเลขคำขอและ Email ผู้ร้องขอ');
 
-    // ดึง Power Platform token สำหรับเรียก Flow
-    await getFlowToken();
+    // ── 1. อัปโหลดไฟล์ขึ้น SharePoint ──
+    let dwgUrl = '', pdfUrl = '';
+    const siteId = spSiteId;
 
-    const resp = await fetch(CONFIG.automateWebhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (flowToken || accessToken)
-      },
-      body: JSON.stringify(payload)
-    });
+    if (activeTab === 'upload' && swFiles.length > 0) {
+      const folderPath = `/sites/${siteId}/drive/root:/DrawingRequests/${requestId}`;
 
-    if (!resp.ok) throw new Error('Flow ตอบกลับ HTTP ' + resp.status);
+      for (const file of swFiles) {
+        const ext  = file.name.split('.').pop().toLowerCase();
+        const fname = `${requestId}_${reviseTag}.${ext}`;
 
-    // สำเร็จ
+        // อัปโหลดไฟล์ผ่าน Graph API
+        const uploadResp = await fetch(
+          `https://graph.microsoft.com/v1.0${folderPath}/${encodeURIComponent(fname)}:/content`,
+          {
+            method: 'PUT',
+            headers: {
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'application/octet-stream'
+            },
+            body: file
+          }
+        );
+        if (!uploadResp.ok) throw new Error(`อัปโหลด ${fname} ไม่สำเร็จ: ${uploadResp.status}`);
+        const uploadData = await uploadResp.json();
+
+        // สร้าง sharing link
+        const shareResp = await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/drive/items/${uploadData.id}/createLink`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ type: 'view', scope: 'organization' })
+          }
+        );
+        if (shareResp.ok) {
+          const shareData = await shareResp.json();
+          const link = shareData.link?.webUrl || '';
+          if (ext === 'dwg') dwgUrl = link;
+          if (ext === 'pdf') pdfUrl = link;
+        }
+      }
+    } else if (activeTab === 'link' && spLink) {
+      dwgUrl = spLink;
+      pdfUrl = spLink;
+    }
+
+    // ── 2. อัปเดต SharePoint List item ──
+    const listId = await getListId(CONFIG.spListName);
+    if (listId && siteId) {
+      const items = await graphGet(`/sites/${siteId}/lists/${listId}/items?expand=fields&$filter=fields/Title eq '${requestId}'&$top=1`);
+      const item  = items?.value?.[0];
+      if (item) {
+        const fields = {
+          Status:          'delivered',
+          DeliveredAt:     new Date().toISOString(),
+          CurrentRevise:   reviseTag,
+          NoteFromDrawing: note
+        };
+        if (dwgUrl) fields.DwgFileUrl = dwgUrl;
+        if (pdfUrl) fields.PdfFileUrl = pdfUrl;
+        await fetch(
+          `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}/fields`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': 'Bearer ' + accessToken,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(fields)
+          }
+        );
+      }
+    }
+
+    // ── 3. ส่ง Teams Chat message หาผู้ร้องขอ ──
+    // หา user ID จาก email ก่อน
+    const userResp = await graphGet(`/users/${encodeURIComponent(requesterEmail)}`);
+    const userId   = userResp?.id;
+
+    if (userId) {
+      // สร้างหรือหา 1:1 chat
+      const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          chatType: 'oneOnOne',
+          members: [
+            {
+              '@odata.type': '#microsoft.graph.aadUserConversationMember',
+              roles: ['owner'],
+              'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${userId}`
+            },
+            {
+              '@odata.type': '#microsoft.graph.aadUserConversationMember',
+              roles: ['owner'],
+              'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${currentUser.localAccountId || currentUser.homeAccountId?.split('.')[0]}`
+            }
+          ]
+        })
+      });
+
+      let chatId = null;
+      if (chatResp.ok) {
+        const chatData = await chatResp.json();
+        chatId = chatData.id;
+      } else if (chatResp.status === 409) {
+        // Chat มีอยู่แล้ว — ดึง ID
+        const existing = await chatResp.json();
+        chatId = existing?.error?.innerError?.id || null;
+        if (!chatId) {
+          const listChats = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+          const found = listChats?.value?.find(c => c.members?.some(m => m.userId === userId));
+          chatId = found?.id || null;
+        }
+      }
+
+      if (chatId) {
+        // สร้าง message พร้อมข้อมูลครบ
+        const msgLines = [
+          `📐 <b>PPG Drawing e-Service — งานแล้วเสร็จพร้อมตรวจรับ</b>`,
+          ``,
+          `📋 <b>เลขคำขอ:</b> ${requestId}`,
+          `🏗️ <b>ระบบงาน:</b> ${requestType}`,
+          `📁 <b>โครงการ:</b> ${projectName}`,
+          `📄 <b>Drawing No.:</b> ${drawingNumber}`,
+          `📝 <b>Drawing Name:</b> ${drawingName}`,
+          `🔄 <b>Revise:</b> ${reviseTag}`,
+          `👤 <b>ผู้ดำเนินการ:</b> ${currentUser?.name || ''}`,
+          `📅 <b>วันที่ส่ง:</b> ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`,
+        ];
+        if (note) msgLines.push(`📌 <b>หมายเหตุ:</b> ${note}`);
+        if (dwgUrl) msgLines.push(`📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>`);
+        if (pdfUrl) msgLines.push(`📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>`);
+        msgLines.push(``, `กรุณาตรวจสอบและแจ้งผลกลับ: <b>✅ อนุมัติ / ✏️ แก้ไข / ❌ Reject</b>`);
+
+        await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            body: { contentType: 'html', content: msgLines.join('<br>') }
+          })
+        });
+      }
+    }
+
+    // ── สำเร็จ ──
     btn.classList.remove('btn-loading');
     btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งแล้ว';
     const banner = document.getElementById('sw_success_banner');
     if (banner) {
       banner.style.display = 'flex';
-      banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนไปยัง ' + payload.requesterEmail + ' ใน Microsoft Teams แล้ว';
+      banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนไปยัง ' + requesterEmail + ' ใน Microsoft Teams แล้ว';
     }
 
   } catch(e) {
