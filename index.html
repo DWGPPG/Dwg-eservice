@@ -2704,12 +2704,8 @@ async function swSubmitWork() {
     // ถ้าผู้ร้องขอเป็นคนเดียวกับผู้ส่ง ข้ามการส่ง chat
     const isSameUser = myEmail.toLowerCase() === requesterEmail.toLowerCase();
 
-    const userResp = await graphGet(`/users/${encodeURIComponent(requesterEmail)}`);
-    const userId   = userResp?.id;
-
-    if (userId && myUserId && !isSameUser) {
-
-      // สร้างหรือหา 1:1 chat
+    if (myUserId && !isSameUser) {
+      // สร้าง 1:1 chat โดยใช้ email โดยตรง ไม่ต้องดึง user ID
       const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
         method: 'POST',
         headers: {
@@ -2722,7 +2718,7 @@ async function swSubmitWork() {
             {
               '@odata.type': '#microsoft.graph.aadUserConversationMember',
               roles: ['owner'],
-              'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${userId}`
+              'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${requesterEmail}')`
             },
             {
               '@odata.type': '#microsoft.graph.aadUserConversationMember',
@@ -2744,7 +2740,9 @@ async function swSubmitWork() {
           chatId = chatErr?.error?.innerError?.id || null;
           if (!chatId) {
             const listChats = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
-            const found = listChats?.value?.find(c => c.members?.some(m => m.userId === userId));
+            const found = listChats?.value?.find(c =>
+              c.members?.some(m => m.email?.toLowerCase() === requesterEmail.toLowerCase())
+            );
             chatId = found?.id || null;
           }
         }
