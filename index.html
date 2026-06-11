@@ -2657,15 +2657,16 @@ async function swSubmitWork() {
       const items = await graphGet(`/sites/${siteId}/lists/${listId}/items?expand=fields&$top=500&$select=id,fields`);
       const item  = items?.value?.find(i => i.fields?.Title === requestId);
       if (item) {
-        const fields = {
-          Status:          'delivered',
-          DeliveredAt:     new Date().toISOString(),
-          CurrentRevise:   reviseTag,
-          NoteFromDrawing: note
-        };
-        if (dwgUrl) fields.DwgFileUrl = dwgUrl;
-        if (pdfUrl) fields.PdfFileUrl = pdfUrl;
-        await fetch(
+        const fields = {};
+        // ใช้ internal name ของ SharePoint field
+        try { fields['Status'] = 'delivered'; } catch(e){}
+        try { fields['DeliveredAt'] = new Date().toISOString(); } catch(e){}
+        try { fields['CurrentRevise'] = reviseTag; } catch(e){}
+        try { fields['NoteFromDrawing'] = note; } catch(e){}
+        if (dwgUrl) { try { fields['DwgFileUrl'] = dwgUrl; } catch(e){} }
+        if (pdfUrl) { try { fields['PdfFileUrl'] = pdfUrl; } catch(e){} }
+
+        const patchResp = await fetch(
           `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}/fields`,
           {
             method: 'PATCH',
@@ -2676,6 +2677,7 @@ async function swSubmitWork() {
             body: JSON.stringify(fields)
           }
         );
+        if (!patchResp.ok) console.warn('Update list item:', patchResp.status, await patchResp.text());
       }
     }
 
@@ -2685,6 +2687,10 @@ async function swSubmitWork() {
     const userId   = userResp?.id;
 
     if (userId) {
+      // หา myUserId จาก /me ก่อน
+      const meResp = await graphGet('/me');
+      const myUserId = meResp?.id;
+
       // สร้างหรือหา 1:1 chat
       const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
         method: 'POST',
@@ -2703,7 +2709,7 @@ async function swSubmitWork() {
             {
               '@odata.type': '#microsoft.graph.aadUserConversationMember',
               roles: ['owner'],
-              'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${currentUser.localAccountId || currentUser.homeAccountId?.split('.')[0]}`
+              'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myUserId}`
             }
           ]
         })
