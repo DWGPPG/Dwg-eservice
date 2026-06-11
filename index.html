@@ -477,6 +477,11 @@ tr:hover td { background: var(--sky); }
         <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
         นำส่งงาน
       </div>
+      <div class="nav-tab" id="reviewTab" onclick="showPage('review',this)" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+        ตรวจรับงาน
+        <span id="reviewBadge" style="display:none;background:#e53e3e;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-left:4px">0</span>
+      </div>
     </div>
     <div class="nav-right">
       <div class="nav-user" onclick="signOut()">
@@ -940,8 +945,15 @@ tr:hover td { background: var(--sky); }
     </div>
   </div>
 
-  <!-- ADMIN -->
-  <div class="page" id="page-admin">
+  <!-- REVIEW -->
+  <div class="page" id="page-review">
+    <div class="page-header">
+      <div class="page-title">ตรวจรับงาน</div>
+      <div class="page-sub">งานที่ส่งมาให้คุณตรวจรับ — กรุณาตรวจสอบและแจ้งผล</div>
+    </div>
+    <div id="reviewList"></div>
+  </div>
+</div>
     <div class="page-header">
       <div class="page-title">หน้าอนุมัติคำร้อง</div>
       <div class="page-sub" id="adminRoleText">ดึงรายการจาก SharePoint ที่รออนุมัติจากคุณ</div>
@@ -1438,6 +1450,16 @@ async function onSignedIn() {
 
   // แสดง นำส่งงาน tab สำหรับสมาชิกในทีมเขียนแบบ
   maybeShowSendworkTab(currentUser.username);
+  // แสดง ตรวจรับงาน tab สำหรับทุกคน
+  maybeShowReviewTab();
+
+  // เช็ค URL param ?review=DWG-XXXX
+  const urlParams = new URLSearchParams(window.location.search);
+  const reviewId  = urlParams.get('review');
+  if (reviewId) {
+    _pendingReviewId = reviewId;
+    showPage('review', document.getElementById('reviewTab'));
+  }
 
   setBanner('connecting', '🔄 กำลังโหลดข้อมูลจาก SharePoint...');
 
@@ -2468,6 +2490,7 @@ function showPage(name, tab) {
   if (name==='dashboard') buildDashboard();
   if (name==='admin')     buildAdmin();
   if (name==='sendwork')  swLoadRequests();
+  if (name==='review')    buildReview(_pendingReviewId);
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -2499,6 +2522,7 @@ function daysBetween(a, b) {
 }
 
 // ── SEND WORK TAB ──
+let _pendingReviewId = null;
 let swActiveTab = 'upload';
 let swFiles = [];
 
@@ -2750,6 +2774,7 @@ async function swSubmitWork() {
 
       if (chatId) {
         // สร้าง message พร้อมข้อมูลครบ
+        const reviewUrl = `https://dwgppg.github.io/Dwg-eservice/?review=${requestId}`;
         const msgLines = [
           `📐 <b>PPG Drawing e-Service — งานแล้วเสร็จพร้อมตรวจรับ</b>`,
           ``,
@@ -2765,7 +2790,7 @@ async function swSubmitWork() {
         if (note) msgLines.push(`📌 <b>หมายเหตุ:</b> ${note}`);
         if (dwgUrl) msgLines.push(`📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>`);
         if (pdfUrl) msgLines.push(`📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>`);
-        msgLines.push(``, `กรุณาตรวจสอบและแจ้งผลกลับ: <b>✅ อนุมัติ / ✏️ แก้ไข / ❌ Reject</b>`);
+        msgLines.push(``, `👉 <a href="${reviewUrl}"><b>คลิกเพื่อตรวจรับงาน (อนุมัติ / แก้ไข / Reject)</b></a>`);
 
         await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
           method: 'POST',
@@ -2894,7 +2919,147 @@ function swPopulateFromRequest(item) {
   swCheckReady();
 }
 
-// ── SHOW SENDWORK TAB FOR DRAWING TEAM MEMBERS ──
+// ── REVIEW TAB ──
+async function buildReview(highlightId) {
+  const el = document.getElementById('reviewList');
+  if (el) el.innerHTML = '<div style="padding:20px;color:var(--gray-400);font-size:13px">⏳ กำลังโหลด...</div>';
+  try {
+    if (!spSiteId || !spListId) return;
+    const myEmail = currentUser?.username?.toLowerCase() || '';
+    const all = await spGetItems();
+    // แสดงเฉพาะงานที่ส่งมาหา user คนนี้ และยังรอตรวจรับ
+    const items = all.filter(r =>
+      r.Status === 'delivered' &&
+      (r.RequesterEmail || '').toLowerCase() === myEmail
+    );
+
+    // อัปเดต badge
+    const badge = document.getElementById('reviewBadge');
+    if (badge) {
+      badge.textContent = items.length;
+      badge.style.display = items.length > 0 ? 'inline-flex' : 'none';
+    }
+
+    if (!items.length) {
+      if (el) el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>ไม่มีงานรอตรวจรับ</p></div>';
+      return;
+    }
+
+    if (el) el.innerHTML = items.map(r => `
+      <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}" >
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div>
+            <span style="font-size:16px;font-weight:500;color:var(--navy)">${r.Title}</span>
+            <span class="badge" style="background:var(--sky);color:var(--info);margin-left:8px">รอตรวจรับ</span>
+          </div>
+          <span style="font-size:12px;color:var(--gray-400)">${r.DeliveredAt ? fmtDate(r.DeliveredAt) : ''}</span>
+        </div>
+        <div class="form-grid" style="margin-bottom:12px">
+          <div class="field"><label>ระบบงาน</label><div class="field-value">${r.Type||r.RequestType||'-'}</div></div>
+          <div class="field"><label>โครงการ</label><div class="field-value">${r.Project||'-'}</div></div>
+          <div class="field"><label>Drawing No.</label><div class="field-value">${r.DrawingNumber||'-'}</div></div>
+          <div class="field"><label>Revise</label><div class="field-value">${r.CurrentRevise||'-'}</div></div>
+          ${r.NoteFromDrawing ? `<div class="field span2"><label>หมายเหตุจากผู้เขียนแบบ</label><div class="field-value">${r.NoteFromDrawing}</div></div>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          ${r.DwgFileUrl ? `<a href="${r.DwgFileUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📐 เปิดไฟล์ DWG</a>` : ''}
+          ${r.PdfFileUrl ? `<a href="${r.PdfFileUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📄 เปิดไฟล์ PDF</a>` : ''}
+        </div>
+        <div id="review-action-${r.Title}">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-primary" style="background:#27a06a" onclick="reviewApprove('${r.Title}')">✅ อนุมัติรับงาน</button>
+            <button class="btn btn-secondary" onclick="toggleReviewInput('${r.Title}','revise')">✏️ แก้ไข</button>
+            <button class="btn btn-secondary" style="color:var(--danger);border-color:var(--danger)" onclick="toggleReviewInput('${r.Title}','reject')">❌ Reject</button>
+          </div>
+          <div id="review-input-${r.Title}" style="display:none;margin-top:10px">
+            <textarea id="review-text-${r.Title}" class="textarea" placeholder="ระบุรายละเอียด..." style="min-height:70px;width:100%"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-primary" id="review-submit-${r.Title}" onclick="reviewSubmit('${r.Title}')">ยืนยัน</button>
+              <button class="btn btn-secondary" onclick="document.getElementById('review-input-${r.Title}').style.display='none'">ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // scroll ไปที่ highlighted item
+    if (highlightId) {
+      setTimeout(() => {
+        const el2 = document.getElementById(`review-${highlightId}`);
+        if (el2) el2.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
+    }
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">โหลดไม่สำเร็จ: ${e.message}</p></div>`;
+  }
+}
+
+let _reviewAction = {};
+function toggleReviewInput(id, action) {
+  _reviewAction[id] = action;
+  const inp = document.getElementById(`review-input-${id}`);
+  const txt = document.getElementById(`review-text-${id}`);
+  const btn = document.getElementById(`review-submit-${id}`);
+  if (inp) inp.style.display = 'block';
+  if (txt) txt.placeholder = action === 'revise' ? 'ระบุรายละเอียดที่ต้องการแก้ไข...' : 'ระบุเหตุผลที่ Reject...';
+  if (btn) btn.textContent = action === 'revise' ? '📨 ส่งกลับให้แก้ไข' : '🚫 ยืนยัน Reject';
+  if (txt) txt.focus();
+}
+
+async function reviewApprove(requestId) {
+  await reviewUpdate(requestId, 'approve', '');
+}
+
+async function reviewSubmit(requestId) {
+  const action  = _reviewAction[requestId] || 'revise';
+  const comment = document.getElementById(`review-text-${requestId}`)?.value?.trim() || '';
+  if (!comment) { showToast('⚠️', 'กรุณาระบุรายละเอียด'); return; }
+  await reviewUpdate(requestId, action, comment);
+}
+
+async function reviewUpdate(requestId, action, comment) {
+  try {
+    await refreshToken();
+    const listId = await getListId(CONFIG.spListName);
+    const all    = await spGetItems();
+    const item   = all.find(r => r.Title === requestId);
+    if (!item || !item.id) { showToast('❌', 'หาข้อมูลไม่พบ'); return; }
+
+    const fields = { ReviewedAt: new Date().toISOString() };
+    if (action === 'approve') {
+      fields.Status = 'done';
+      fields.ReviewResult = 'approved';
+    } else if (action === 'revise') {
+      fields.Status = 'approved';
+      fields.ReviewResult = 'revise';
+      fields.ReviseComment = comment;
+    } else {
+      fields.Status = 'rejected';
+      fields.ReviewResult = 'reject';
+      fields.DeliveryRejectReason = comment;
+    }
+
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${listId}/items/${item.id}/fields`,
+      {
+        method: 'PATCH',
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields)
+      }
+    );
+
+    const msg = action === 'approve' ? '✅ อนุมัติรับงานแล้ว' : action === 'revise' ? '✏️ ส่งกลับให้แก้ไขแล้ว' : '❌ Reject แล้ว';
+    showToast('✅', `${msg} — ${requestId}`);
+    buildReview();
+  } catch(e) { showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message); }
+}
+
+// แสดง review tab สำหรับทุกคน (ไม่ใช่แค่ drawing team)
+function maybeShowReviewTab() {
+  const tab = document.getElementById('reviewTab');
+  if (tab) tab.style.display = '';
+}
+
 function maybeShowSendworkTab(email) {
   const isMember = CONFIG.teamMembers.some(m => m.email.toLowerCase() === (email||'').toLowerCase());
   const tab = document.getElementById('sendworkTab');
