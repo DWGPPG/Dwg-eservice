@@ -2694,15 +2694,12 @@ async function swSubmitWork() {
       const item  = items?.value?.find(i => i.fields?.Title === requestId);
       if (item) {
         const fields = {};
-        try { fields['Status'] = 'delivered'; } catch(e){}
-        // ลอง field name หลายรูปแบบ
-        const now = new Date().toISOString();
-        fields['DeliveredAt']   = now;   // ลองตรงๆ ก่อน
-        fields['Delivered_x0041_t'] = now; // URL-encoded version
-        try { fields['CurrentRevise'] = reviseTag; } catch(e){}
-        try { fields['NoteFromDrawing'] = note; } catch(e){}
-        if (dwgUrl) fields['DwgFileUrl'] = dwgUrl;
-        if (pdfUrl) fields['PdfFileUrl'] = pdfUrl;
+        fields['Status0']        = 'delivered';   // Choice field ชื่อจริง Status0
+        fields['eliveredAt']     = new Date().toISOString();  // InternalName ขาด D
+        fields['CurrentRevise']  = reviseTag;
+        fields['NoteFromDrawing']= note;
+        if (dwgUrl) fields['DwgFileUrl'] = { Url: dwgUrl, Description: 'DWG File' };
+        if (pdfUrl) fields['PdfFileUrl'] = { Url: pdfUrl, Description: 'PDF File' };
 
         const patchResp = await fetch(
           `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}/fields`,
@@ -2732,30 +2729,31 @@ async function swSubmitWork() {
     const isSameUser = myEmail.toLowerCase() === requesterEmail.toLowerCase();
     console.log('isSameUser:', isSameUser, '| will send chat:', !isSameUser && !!requesterEmail);
 
-    if (myUserId && !isSameUser) {
-      // สร้าง 1:1 chat โดยใช้ email โดยตรง ไม่ต้องดึง user ID
-      const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + accessToken,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          chatType: 'oneOnOne',
-          members: [
-            {
-              '@odata.type': '#microsoft.graph.aadUserConversationMember',
-              roles: ['owner'],
-              'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${requesterEmail}')`
-            },
-            {
-              '@odata.type': '#microsoft.graph.aadUserConversationMember',
-              roles: ['owner'],
-              'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myUserId}`
-            }
-          ]
-        })
-      });
+    if (myUserId && !isSameUser && requesterEmail) {
+      try {
+        // สร้าง 1:1 chat
+        const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            chatType: 'oneOnOne',
+            members: [
+              {
+                '@odata.type': '#microsoft.graph.aadUserConversationMember',
+                roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${requesterEmail}')`
+              },
+              {
+                '@odata.type': '#microsoft.graph.aadUserConversationMember',
+                roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myUserId}`
+              }
+            ]
+          })
+        });
 
       let chatId = null;
       if (chatResp.ok) {
@@ -2808,6 +2806,10 @@ async function swSubmitWork() {
             body: { contentType: 'html', content: msgLines.join('<br>') }
           })
         });
+        console.log('✅ Teams message sent to', requesterEmail);
+      }
+      } catch(teamsErr) {
+        console.warn('Teams chat ไม่สำเร็จ (non-critical):', teamsErr.message);
       }
     }
 
@@ -2935,7 +2937,7 @@ async function buildReview(highlightId) {
     const all = await spGetItems();
     // แสดงเฉพาะงานที่ส่งมาหา user คนนี้ และยังรอตรวจรับ
     const items = all.filter(r => {
-      if (r.Status !== 'delivered') return false;
+      if (r.Status0 !== 'delivered' && r.Status !== 'delivered') return false;
       const rEmail = (r.SenderEmail || r.RequesterEmail || r.Email || '').toLowerCase();
       return !rEmail || rEmail === myEmail;
     });
@@ -3034,16 +3036,16 @@ async function reviewUpdate(requestId, action, comment) {
 
     const fields = { ReviewedAt: new Date().toISOString() };
     if (action === 'approve') {
-      fields.Status = 'done';
-      fields.ReviewResult = 'approved';
+      fields['Status0'] = 'done';
+      fields['ReviewResult'] = 'approved';
     } else if (action === 'revise') {
-      fields.Status = 'approved';
-      fields.ReviewResult = 'revise';
-      fields.ReviseComment = comment;
+      fields['Status0'] = 'approved';
+      fields['ReviewResult'] = 'revise';
+      fields['ReviseComment'] = comment;
     } else {
-      fields.Status = 'rejected';
-      fields.ReviewResult = 'reject';
-      fields.DeliveryRejectReason = comment;
+      fields['Status0'] = 'rejected';
+      fields['ReviewResult'] = 'reject';
+      fields['DeliveryRejectReason'] = comment;
     }
 
     await fetch(
