@@ -2668,13 +2668,15 @@ async function swSubmitWork() {
       const item  = items?.value?.find(i => i.fields?.Title === requestId);
       if (item) {
         const fields = {};
-        // ใช้ internal name ของ SharePoint field
         try { fields['Status'] = 'delivered'; } catch(e){}
-        try { fields['DeliveredAt'] = new Date().toISOString(); } catch(e){}
+        // ลอง field name หลายรูปแบบ
+        const now = new Date().toISOString();
+        fields['DeliveredAt']   = now;   // ลองตรงๆ ก่อน
+        fields['Delivered_x0041_t'] = now; // URL-encoded version
         try { fields['CurrentRevise'] = reviseTag; } catch(e){}
         try { fields['NoteFromDrawing'] = note; } catch(e){}
-        if (dwgUrl) { try { fields['DwgFileUrl'] = dwgUrl; } catch(e){} }
-        if (pdfUrl) { try { fields['PdfFileUrl'] = pdfUrl; } catch(e){} }
+        if (dwgUrl) fields['DwgFileUrl'] = dwgUrl;
+        if (pdfUrl) fields['PdfFileUrl'] = pdfUrl;
 
         const patchResp = await fetch(
           `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${item.id}/fields`,
@@ -2695,14 +2697,17 @@ async function swSubmitWork() {
     }
 
     // ── 3. ส่ง Teams Chat message หาผู้ร้องขอ ──
-    // หา user ID จาก email ก่อน
+    const meResp = await graphGet('/me');
+    const myUserId = meResp?.id;
+    const myEmail  = meResp?.mail || meResp?.userPrincipalName || '';
+
+    // ถ้าผู้ร้องขอเป็นคนเดียวกับผู้ส่ง ข้ามการส่ง chat
+    const isSameUser = myEmail.toLowerCase() === requesterEmail.toLowerCase();
+
     const userResp = await graphGet(`/users/${encodeURIComponent(requesterEmail)}`);
     const userId   = userResp?.id;
 
-    if (userId) {
-      // หา myUserId จาก /me ก่อน
-      const meResp = await graphGet('/me');
-      const myUserId = meResp?.id;
+    if (userId && myUserId && !isSameUser) {
 
       // สร้างหรือหา 1:1 chat
       const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
