@@ -1053,11 +1053,9 @@ const CONFIG = {
 // MSAL instance จะสร้างใน init() หลัง library โหลดเสร็จ
 let msalInstance = null;
 const graphScopes = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All', 'Chat.ReadWrite'];
-const flowScopes  = ['https://service.flow.microsoft.com//.default'];
 
 let currentUser  = null;
 let accessToken  = null;
-let flowToken    = null;
 let allRequests  = [];
 let selectedType = '📋 เขียนแบบ Proposal';
 let selectedFiles = [];
@@ -1400,18 +1398,7 @@ async function signOut() {
   location.reload();
 }
 
-async function getFlowToken() {
-  try {
-    const r = await msalInstance.acquireTokenSilent({ scopes: flowScopes, account: currentUser });
-    flowToken = r.accessToken;
-  } catch(e) {
-    try {
-      const r2 = await msalInstance.acquireTokenPopup({ scopes: flowScopes, account: currentUser });
-      flowToken = r2.accessToken;
-    } catch(e2) { console.warn('getFlowToken failed:', e2.message); }
-  }
-  return flowToken;
-}
+async function refreshToken() {
   if (!currentUser) return;
   // ลอง silent ก่อนเสมอ
   for (let attempt = 0; attempt < 3; attempt++) {
