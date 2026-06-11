@@ -2726,9 +2726,11 @@ async function swSubmitWork() {
     const meResp = await graphGet('/me');
     const myUserId = meResp?.id;
     const myEmail  = meResp?.mail || meResp?.userPrincipalName || '';
+    console.log('Teams chat → requesterEmail:', requesterEmail, '| myEmail:', myEmail);
 
     // ถ้าผู้ร้องขอเป็นคนเดียวกับผู้ส่ง ข้ามการส่ง chat
     const isSameUser = myEmail.toLowerCase() === requesterEmail.toLowerCase();
+    console.log('isSameUser:', isSameUser, '| will send chat:', !isSameUser && !!requesterEmail);
 
     if (myUserId && !isSameUser) {
       // สร้าง 1:1 chat โดยใช้ email โดยตรง ไม่ต้องดึง user ID
@@ -2776,7 +2778,8 @@ async function swSubmitWork() {
 
       if (chatId) {
         // สร้าง message พร้อมข้อมูลครบ
-        const reviewUrl = `https://dwgppg.github.io/Dwg-eservice/?review=${requestId}`;
+        const reviewUrl   = `https://dwgppg.github.io/Dwg-eservice/?review=${requestId}`;
+        const attachUrl   = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${requestId}`;
         const msgLines = [
           `📐 <b>PPG Drawing e-Service — งานแล้วเสร็จพร้อมตรวจรับ</b>`,
           ``,
@@ -2792,6 +2795,7 @@ async function swSubmitWork() {
         if (note) msgLines.push(`📌 <b>หมายเหตุ:</b> ${note}`);
         if (dwgUrl) msgLines.push(`📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>`);
         if (pdfUrl) msgLines.push(`📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>`);
+        msgLines.push(`📎 <a href="${attachUrl}">โฟลเดอร์เอกสารแนบทั้งหมด</a>`);
         msgLines.push(``, `👉 <a href="${reviewUrl}"><b>คลิกเพื่อตรวจรับงาน (อนุมัติ / แก้ไข / Reject)</b></a>`);
 
         await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
@@ -2932,9 +2936,8 @@ async function buildReview(highlightId) {
     // แสดงเฉพาะงานที่ส่งมาหา user คนนี้ และยังรอตรวจรับ
     const items = all.filter(r => {
       if (r.Status !== 'delivered') return false;
-      // ลอง field name หลายรูปแบบ
-      const rEmail = (r.RequesterEmail || r.Requester || r.Email || r.UserEmail || '').toLowerCase();
-      return rEmail === myEmail || rEmail === '' ; // ถ้า field ไม่มีให้แสดงทั้งหมดที่ delivered
+      const rEmail = (r.SenderEmail || r.RequesterEmail || r.Email || '').toLowerCase();
+      return !rEmail || rEmail === myEmail;
     });
 
     // อัปเดต badge
