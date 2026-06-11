@@ -1378,7 +1378,7 @@ async function signIn() {
   try {
     const resp = await msalInstance.loginPopup({ 
       scopes: graphScopes,
-      prompt: 'consent'
+      prompt: 'select_account'
     });
     currentUser = resp.account;
     accessToken = resp.accessToken;
