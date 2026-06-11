@@ -337,6 +337,9 @@ tr:hover td { background: var(--sky); }
 .comment-box.show { display: block; }
 .comment-box textarea { width: 100%; margin-bottom: 8px; }
 .comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.field-value { padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: var(--gray-100); color: var(--navy); min-height: 38px; }
+.review-action-box { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.review-input-box { display:none; margin-top:10px; padding:12px; background:var(--gray-100); border-radius:var(--radius); }
 
 /* Workload */
 .wl-wrap { display: flex; flex-direction: column; }
@@ -953,7 +956,9 @@ tr:hover td { background: var(--sky); }
     </div>
     <div id="reviewList"></div>
   </div>
-</div>
+
+  <!-- ADMIN APPROVAL -->
+  <div class="page" id="page-admin">
     <div class="page-header">
       <div class="page-title">หน้าอนุมัติคำร้อง</div>
       <div class="page-sub" id="adminRoleText">ดึงรายการจาก SharePoint ที่รออนุมัติจากคุณ</div>
