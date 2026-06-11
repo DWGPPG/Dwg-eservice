@@ -2585,6 +2585,16 @@ async function swSubmitWork() {
   try {
     await refreshToken();
 
+    // ตรวจสอบว่ามี token จริงๆ
+    if (!accessToken) {
+      // ลอง popup อีกครั้ง
+      try {
+        const r = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
+        accessToken = r.accessToken;
+      } catch(e) { throw new Error('ไม่สามารถดึง token ได้ กรุณา Login ใหม่'); }
+    }
+    if (!accessToken) throw new Error('กรุณา Login ก่อนส่งงาน');
+
     const activeTab      = document.getElementById('sw-tab-upload').classList.contains('sw-tab-active') ? 'upload' : 'link';
     const requestId      = document.getElementById('sw_req_id').value.trim();
     const requesterEmail = document.getElementById('sw_requester_email').value.trim();
@@ -2677,7 +2687,10 @@ async function swSubmitWork() {
             body: JSON.stringify(fields)
           }
         );
-        if (!patchResp.ok) console.warn('Update list item:', patchResp.status, await patchResp.text());
+        if (!patchResp.ok) {
+          const errText = await patchResp.text();
+          console.error('Update list item error:', patchResp.status, errText);
+        }
       }
     }
 
@@ -2719,14 +2732,16 @@ async function swSubmitWork() {
       if (chatResp.ok) {
         const chatData = await chatResp.json();
         chatId = chatData.id;
-      } else if (chatResp.status === 409) {
-        // Chat มีอยู่แล้ว — ดึง ID
-        const existing = await chatResp.json();
-        chatId = existing?.error?.innerError?.id || null;
-        if (!chatId) {
-          const listChats = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
-          const found = listChats?.value?.find(c => c.members?.some(m => m.userId === userId));
-          chatId = found?.id || null;
+      } else {
+        const chatErr = await chatResp.json();
+        console.error('Create chat error:', chatResp.status, JSON.stringify(chatErr));
+        if (chatResp.status === 409) {
+          chatId = chatErr?.error?.innerError?.id || null;
+          if (!chatId) {
+            const listChats = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+            const found = listChats?.value?.find(c => c.members?.some(m => m.userId === userId));
+            chatId = found?.id || null;
+          }
         }
       }
 
