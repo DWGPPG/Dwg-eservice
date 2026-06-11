@@ -337,9 +337,6 @@ tr:hover td { background: var(--sky); }
 .comment-box.show { display: block; }
 .comment-box textarea { width: 100%; margin-bottom: 8px; }
 .comment-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.field-value { padding: 9px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius); background: var(--gray-100); color: var(--navy); min-height: 38px; }
-.review-action-box { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
-.review-input-box { display:none; margin-top:10px; padding:12px; background:var(--gray-100); border-radius:var(--radius); }
 
 /* Workload */
 .wl-wrap { display: flex; flex-direction: column; }
@@ -957,7 +954,7 @@ tr:hover td { background: var(--sky); }
     <div id="reviewList"></div>
   </div>
 
-  <!-- ADMIN APPROVAL -->
+  <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="page-header">
       <div class="page-title">หน้าอนุมัติคำร้อง</div>
@@ -2933,10 +2930,12 @@ async function buildReview(highlightId) {
     const myEmail = currentUser?.username?.toLowerCase() || '';
     const all = await spGetItems();
     // แสดงเฉพาะงานที่ส่งมาหา user คนนี้ และยังรอตรวจรับ
-    const items = all.filter(r =>
-      r.Status === 'delivered' &&
-      (r.RequesterEmail || '').toLowerCase() === myEmail
-    );
+    const items = all.filter(r => {
+      if (r.Status !== 'delivered') return false;
+      // ลอง field name หลายรูปแบบ
+      const rEmail = (r.RequesterEmail || r.Requester || r.Email || r.UserEmail || '').toLowerCase();
+      return rEmail === myEmail || rEmail === '' ; // ถ้า field ไม่มีให้แสดงทั้งหมดที่ delivered
+    });
 
     // อัปเดต badge
     const badge = document.getElementById('reviewBadge');
