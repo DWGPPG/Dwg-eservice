@@ -3142,14 +3142,14 @@ function swPopulateFromRequest(item) {
 
 // ── REPORT TAB ──
 function maybeShowReportTab() {
-  const isDrawing = CONFIG.drawingTeam.some(m => m.email.toLowerCase() === currentUser?.username?.toLowerCase());
+  const isDrawing = CONFIG.teamMembers.some(m => m.email.toLowerCase() === currentUser?.username?.toLowerCase());
   const tab = document.getElementById('reportTab');
   if (tab && isDrawing) {
     tab.style.display = '';
     // populate member dropdown
     const sel = document.getElementById('rpt_member');
     if (sel && sel.options.length === 1) {
-      CONFIG.drawingTeam.forEach(m => {
+      CONFIG.teamMembers.forEach(m => {
         const opt = document.createElement('option');
         opt.value = m.email;
         opt.textContent = m.name;
@@ -3200,8 +3200,8 @@ async function buildReport() {
 
     // filter ตาม member
     const members = memberEmail === 'all'
-      ? CONFIG.drawingTeam
-      : CONFIG.drawingTeam.filter(m => m.email.toLowerCase() === memberEmail.toLowerCase());
+      ? CONFIG.teamMembers
+      : CONFIG.teamMembers.filter(m => m.email.toLowerCase() === memberEmail.toLowerCase());
 
     const sections = members.map(m => {
       const items = inRange.filter(r => (r.AssigneeEmail||'').toLowerCase() === m.email.toLowerCase());
