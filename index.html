@@ -484,10 +484,14 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
     <div class="nav-right">
-      <div class="nav-user" onclick="signOut()">
+      <div class="nav-user" onclick="signOut()" title="คลิกเพื่อออกจากระบบ" style="cursor:pointer">
         <div class="avatar" id="navAvatar">?</div>
         <span id="navName">...</span>
       </div>
+      <button onclick="signOut()" style="background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:12px;display:flex;align-items:center;gap:5px" title="ออกจากระบบ">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        ออกจากระบบ
+      </button>
     </div>
   </nav>
 
@@ -569,6 +573,7 @@ tr:hover td { background: var(--sky); }
                 <div class="col-filter-dropdown" id="cf-status"></div>
               </span>
             </th>
+            <th>ผลตรวจรับ</th>
           </tr></thead>
           <tbody id="dashTableBody"></tbody>
         </table>
@@ -636,7 +641,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_project" onchange="onProjectSelect(this.value)">
               <option value="">-- เลือกหรือเพิ่มโครงการใหม่ --</option>
             </select>
-            <button type="button" class="btn-add-sm" onclick="document.getElementById('f_project').selectedIndex=0" title="ล้างค่า" style="background:var(--gray-200);color:var(--gray-600)">✕</button>
+            <button type="button" class="btn-add-sm" onclick="openManageProjects()" title="จัดการรายการ" style="background:var(--gray-200);color:var(--gray-600);font-size:11px">⚙️</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
@@ -957,6 +962,17 @@ tr:hover td { background: var(--sky); }
     <div id="reviewList"></div>
   </div>
 
+  <!-- MANAGE PROJECTS MODAL -->
+  <div id="manageProjectsModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:12px;padding:24px;width:420px;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-weight:600;font-size:16px">จัดการรายการโครงการ</div>
+        <button onclick="document.getElementById('manageProjectsModal').style.display='none'" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400)">✕</button>
+      </div>
+      <div id="manageProjectsList"></div>
+    </div>
+  </div>
+
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="page-header">
@@ -1258,20 +1274,69 @@ function renderProjectSelect() {
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- เลือกหรือเพิ่มโครงการ --</option>';
-  projectListCache.forEach(p => {
+  // กรองเฉพาะรายการที่ไม่ได้ซ่อน
+  projectListCache.filter(p => !p.IsHidden).forEach(p => {
     const opt = document.createElement('option');
     opt.value = p.id;
     opt.textContent = p.Title;
-
     sel.appendChild(opt);
   });
   if (current) sel.value = current;
 }
 
+async function hideProjectItem(id) {
+  if (!confirm('ซ่อนรายการนี้จากระบบ?')) return;
+  try {
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spProjectListId}/items/${id}/fields`,
+      { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ IsHidden: true }) }
+    );
+    // อัปเดต cache
+    const item = projectListCache.find(p => p.id === id);
+    if (item) item.IsHidden = true;
+    renderProjectSelect();
+    showToast('✅', 'ซ่อนรายการแล้ว');
+  } catch(e) { showToast('❌', 'ซ่อนไม่สำเร็จ: ' + e.message); }
+}
+
+function openManageProjects() {
+  const modal = document.getElementById('manageProjectsModal');
+  const list  = document.getElementById('manageProjectsList');
+  modal.style.display = 'flex';
+  list.innerHTML = projectListCache.map(p => {
+    const hidden = p.IsHidden;
+    const titleStyle = hidden ? 'color:var(--gray-400);text-decoration:line-through' : '';
+    const btnBg    = hidden ? 'var(--gray-100)' : '#fff0f0';
+    const btnBorder= hidden ? 'var(--gray-300)' : '#fca5a5';
+    const btnColor = hidden ? 'var(--gray-500)' : 'var(--danger)';
+    const btnLabel = hidden ? '👁️ แสดง' : '🙈 ซ่อน';
+    const btnFn    = hidden ? `unhideProject('${p.id}')` : `hideProjectItem('${p.id}')`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+      <span style="font-size:14px;${titleStyle}">${p.Title}</span>
+      <button onclick="${btnFn}" style="background:${btnBg};border:1px solid ${btnBorder};color:${btnColor};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px">${btnLabel}</button>
+    </div>`;
+  }).join('');
+}
+
+async function unhideProject(id) {
+  try {
+    await fetch(
+      `https://graph.microsoft.com/v1.0/sites/${spSiteId}/lists/${spProjectListId}/items/${id}/fields`,
+      { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ IsHidden: false }) }
+    );
+    const item = projectListCache.find(p => p.id === id);
+    if (item) item.IsHidden = false;
+    renderProjectSelect();
+    openManageProjects();
+    showToast('✅', 'แสดงรายการแล้ว');
+  } catch(e) { showToast('❌', 'แก้ไขไม่สำเร็จ: ' + e.message); }
+}
+
 function onProjectSelect(val) {
   if (!val) return;
   const proj = projectListCache.find(p => p.id === val);
-
 }
 
 function toggleAddProject() {
@@ -2116,7 +2181,8 @@ function renderTable(items) {
       <td style="color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
       <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
       <td><span class="badge ${STATUS_CLASS_TABLE[r.Status]||'badge-pending'}">${STATUS_LABEL_TABLE[r.Status]||r.Status}</span></td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
+      <td>${r.ReviewResult ? `<span class="badge ${r.ReviewResult==='approved'?'badge-done':r.ReviewResult==='revise'?'badge-pending':'badge-rejected'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ แก้ไข':'❌ Reject'}</span>${r.ReviseComment?`<div style="font-size:11px;color:var(--gray-500);margin-top:2px">${r.ReviseComment}</div>`:r.DeliveryRejectReason?`<div style="font-size:11px;color:var(--danger);margin-top:2px">${r.DeliveryRejectReason}</div>`:''}` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
 
   // ── Update sort icons ──
   document.querySelectorAll('#dashTable th.sortable').forEach(th => {
@@ -2181,8 +2247,8 @@ function buildColFilter(dropId) {
     <input class="col-filter-search" placeholder="ค้นหา..." oninput="filterColSearch(this,'${dropId}')">
     <div class="col-filter-list" id="${dropId}-list">
       ${allVals.map(v => `
-        <label class="col-filter-option">
-          <input type="checkbox" value="${v.replace(/"/g,'&quot;')}" ${selected.includes(v)?'checked':''}>
+        <label class="col-filter-option" style="cursor:pointer;display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px" onmouseenter="this.style.background='var(--gray-100)'" onmouseleave="this.style.background=''">
+          <input type="checkbox" value="${v.replace(/"/g,'&quot;')}" ${selected.includes(v)?'checked':''} style="cursor:pointer;width:15px;height:15px">
           <span>${v}</span>
         </label>`).join('')}
     </div>
@@ -2190,6 +2256,9 @@ function buildColFilter(dropId) {
       <button class="cf-btn cf-btn-clear" onclick="clearColFilter('${dropId}')">ล้าง</button>
       <button class="cf-btn cf-btn-apply" onclick="applyColFilter('${dropId}')">ยืนยัน</button>
     </div>`;
+
+  // หยุดไม่ให้ click ใน dropdown ปิด dropdown
+  drop.addEventListener('click', e => e.stopPropagation());
 }
 
 function filterColSearch(input, dropId) {
