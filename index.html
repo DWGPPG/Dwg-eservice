@@ -1488,7 +1488,8 @@ async function init() {
       setBanner('ready', '✅ พร้อมเชื่อมต่อ — กด Sign in ด้วยบัญชี Microsoft 365');
     }
   } catch (e) {
-    setBanner('error', '❌ เกิดข้อผิดพลาด: ' + e.message);
+    console.error('init error:', e);
+    setBanner('error', '❌ เกิดข้อผิดพลาด: ' + e.message + ' | ' + e.stack?.split('\n')[1]);
     showLogin();
   }
 }
@@ -3142,11 +3143,11 @@ function swPopulateFromRequest(item) {
 
 // ── REPORT TAB ──
 function maybeShowReportTab() {
+  if (!CONFIG.teamMembers || !currentUser) return;
   const isDrawing = CONFIG.teamMembers.some(m => m.email.toLowerCase() === currentUser?.username?.toLowerCase());
   const tab = document.getElementById('reportTab');
   if (tab && isDrawing) {
     tab.style.display = '';
-    // populate member dropdown
     const sel = document.getElementById('rpt_member');
     if (sel && sel.options.length === 1) {
       CONFIG.teamMembers.forEach(m => {
@@ -3558,6 +3559,7 @@ function maybeShowReviewTab() {
 }
 
 function maybeShowSendworkTab(email) {
+  if (!CONFIG.teamMembers) return;
   const isMember = CONFIG.teamMembers.some(m => m.email.toLowerCase() === (email||'').toLowerCase());
   const tab = document.getElementById('sendworkTab');
   if (tab && isMember) tab.style.display = '';
