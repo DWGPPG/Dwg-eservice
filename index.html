@@ -636,6 +636,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_project" onchange="onProjectSelect(this.value)">
               <option value="">-- เลือกหรือเพิ่มโครงการใหม่ --</option>
             </select>
+            <button type="button" class="btn-add-sm" onclick="document.getElementById('f_project').selectedIndex=0" title="ล้างค่า" style="background:var(--gray-200);color:var(--gray-600)">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
@@ -682,6 +683,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_drawing_number">
               <option value="">-- เลือก Drawing Number --</option>
             </select>
+            <button type="button" class="btn-add-sm" onclick="document.getElementById('f_drawing_number').selectedIndex=0" title="ล้างค่า" style="background:var(--gray-200);color:var(--gray-600)">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddDrawingNumber()" title="เพิ่ม Drawing Number">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
@@ -708,6 +710,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_drawing_name">
               <option value="">-- เลือก Drawing Name --</option>
             </select>
+            <button type="button" class="btn-add-sm" onclick="document.getElementById('f_drawing_name').selectedIndex=0" title="ล้างค่า" style="background:var(--gray-200);color:var(--gray-600)">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddDrawingName()" title="เพิ่ม Drawing Name">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
