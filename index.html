@@ -963,7 +963,22 @@ tr:hover td { background: var(--sky); }
       <div class="page-title">ตรวจรับงาน</div>
       <div class="page-sub">งานที่ส่งมาให้คุณตรวจรับ — กรุณาตรวจสอบและแจ้งผล</div>
     </div>
+
+    <!-- ช่องค้นหา -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:500;color:var(--gray-600);margin-bottom:8px">🔍 ค้นหาคำขอย้อนหลัง (สำหรับ Export PDF)</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="review_search_input" placeholder="พิมพ์เลขคำขอ เช่น DWG-2569-0001..." style="flex:1;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px" oninput="reviewSearch(this.value)">
+        <button class="btn btn-secondary" onclick="reviewSearch(document.getElementById('review_search_input').value)">ค้นหา</button>
+      </div>
+      <div id="review_search_result" style="margin-top:10px"></div>
+    </div>
+
+    <!-- รอตรวจรับ -->
     <div id="reviewList"></div>
+
+    <!-- ประวัติล่าสุด -->
+    <div id="reviewHistory"></div>
   </div>
 
   <!-- MANAGE PROJECTS MODAL -->
@@ -3496,12 +3511,21 @@ async function buildReview(highlightId) {
     if (!spSiteId || !spListId) return;
     const myEmail = currentUser?.username?.toLowerCase() || '';
     const all = await spGetItems();
-    // แสดงเฉพาะงานที่ส่งมาหา user คนนี้ และยังรอตรวจรับ
+
+    // งานรอตรวจรับ
     const items = all.filter(r => {
       if (r.Status0 !== 'delivered' && r.Status !== 'delivered') return false;
       const rEmail = (r.SenderEmail || r.RequesterEmail || r.Email || '').toLowerCase();
       return !rEmail || rEmail === myEmail;
     });
+
+    // ประวัติล่าสุด (done/approved/rejected + SenderEmail ตรง)
+    const history = all.filter(r => {
+      if (!['done','approved','rejected'].includes(r.Status0||r.Status||'')) return false;
+      if (!r.ReviewResult) return false;
+      const rEmail = (r.SenderEmail || '').toLowerCase();
+      return !rEmail || rEmail === myEmail;
+    }).sort((a,b) => new Date(b.ReviewedAt||b.Modified||0) - new Date(a.ReviewedAt||a.Modified||0)).slice(0, 10);
 
     // อัปเดต badge
     const badge = document.getElementById('reviewBadge');
@@ -3512,17 +3536,122 @@ async function buildReview(highlightId) {
 
     if (!items.length) {
       if (el) el.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><p>ไม่มีงานรอตรวจรับ</p></div>';
-      return;
+    } else {
+      if (el) el.innerHTML = items.map(r => renderReviewCard(r, highlightId)).join('');
     }
 
-    if (el) el.innerHTML = items.map(r => {
-      // Hyperlink field ใน SharePoint ส่งมาเป็น object {Url, Description} หรือ string
-      const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
-      const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
-      const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${r.Title}`;
-      const dataLink  = r.DataLink || '';
-      const detail    = r.Detail || '';
-      return `
+    // แสดงประวัติล่าสุด
+    const histEl = document.getElementById('reviewHistory');
+    if (histEl) {
+      if (history.length > 0) {
+        histEl.innerHTML = `
+          <div style="margin-top:24px">
+            <div style="font-size:14px;font-weight:600;color:var(--gray-600);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--gray-200)">📋 ประวัติการตรวจรับล่าสุด</div>
+            ${history.map(r => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff;border-radius:8px;border:1px solid var(--gray-200);margin-bottom:8px">
+                <div style="display:flex;align-items:center;gap:12px">
+                  <span style="font-family:var(--mono);font-size:12px;color:var(--navy);font-weight:500">${r.Title}</span>
+                  <span style="font-size:11px;color:var(--gray-400)">${r.DrawingNumber||''} ${r.DrawingName?'· '+r.DrawingName:''}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:11px;color:var(--gray-400)">${r.ReviewedAt ? fmtDate(r.ReviewedAt) : ''}</span>
+                  <span style="font-size:12px;font-weight:500;color:${r.ReviewResult==='approved'?'#27a06a':r.ReviewResult==='revise'?'#f59e0b':'#ef4444'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ แก้ไข':'❌ Reject'}</span>
+                  <button onclick="exportReviewPDF('${r.Title}')" style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;color:var(--gray-600)">📥 PDF</button>
+                </div>
+              </div>`).join('')}
+          </div>`;
+      } else {
+        histEl.innerHTML = '';
+      }
+    }
+
+    // scroll ไปที่ highlighted item
+    if (highlightId) {
+      setTimeout(() => {
+        const el2 = document.getElementById(`review-${highlightId}`);
+        if (el2) el2.scrollIntoView({ behavior:'smooth', block:'center' });
+      }, 300);
+    }
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">โหลดไม่สำเร็จ: ${e.message}</p></div>`;
+  }
+}
+
+function renderReviewCard(r, highlightId) {
+  const dwgUrl   = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
+  const pdfUrl   = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+  const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${r.Title}`;
+  const dataLink = r.DataLink || '';
+  const detail   = r.Detail   || '';
+  return `
+    <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div>
+          <span style="font-size:16px;font-weight:500;color:var(--navy)">${r.Title}</span>
+          <span class="badge" style="background:var(--sky);color:var(--info);margin-left:8px">รอตรวจรับ</span>
+        </div>
+        <span style="font-size:12px;color:var(--gray-400)">${r.eliveredAt ? fmtDate(r.eliveredAt) : r.DeliveredAt ? fmtDate(r.DeliveredAt) : ''}</span>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px">
+        <div class="field"><label>ระบบงาน</label><div class="field-value">${r.ProjectName||r.Type||r.RequestType||'-'}</div></div>
+        <div class="field"><label>โครงการ</label><div class="field-value">${r.ProjectName0||r.Project||'-'}</div></div>
+        <div class="field"><label>Drawing No.</label><div class="field-value">${r.DrawingNumber||'-'}</div></div>
+        <div class="field"><label>Revise</label><div class="field-value">${r.CurrentRevise||r.ReviseNumber||'-'}</div></div>
+        <div class="field"><label>ผู้เขียนแบบ</label><div class="field-value">${r.AssigneeName||'-'}</div></div>
+        <div class="field"><label>วันที่ส่ง</label><div class="field-value">${r.eliveredAt ? fmtDate(r.eliveredAt) : '-'}</div></div>
+        ${r.NoteFromDrawing ? `<div class="field span2"><label>หมายเหตุจากผู้เขียนแบบ</label><div class="field-value">${r.NoteFromDrawing}</div></div>` : ''}
+        ${detail    ? `<div class="field span2"><label>รายละเอียดคำขอ</label><div class="field-value">${detail}</div></div>` : ''}
+        ${dataLink  ? `<div class="field span2"><label>ลิงก์แนบ</label><div class="field-value"><a href="${dataLink}" target="_blank">${dataLink}</a></div></div>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        ${dwgUrl ? `<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📐 เปิดไฟล์ DWG</a>` : ''}
+        ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📄 เปิดไฟล์ PDF</a>` : ''}
+        <a href="${folderUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📁 โฟลเดอร์เอกสารทั้งหมด</a>
+      </div>
+      <div id="review-action-${r.Title}">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-primary" style="background:#27a06a" onclick="reviewApprove('${r.Title}')">✅ อนุมัติรับงาน</button>
+          <button class="btn btn-secondary" onclick="toggleReviewInput('${r.Title}','revise')">✏️ แก้ไข</button>
+          <button class="btn btn-secondary" style="color:var(--danger);border-color:var(--danger)" onclick="toggleReviewInput('${r.Title}','reject')">❌ Reject</button>
+          <button class="btn btn-secondary" onclick="exportReviewPDF('${r.Title}')" style="margin-left:auto">📥 Export PDF</button>
+        </div>
+        <div id="review-input-${r.Title}" style="display:none;margin-top:10px">
+          <textarea id="review-text-${r.Title}" class="textarea" placeholder="ระบุรายละเอียด..." style="min-height:70px;width:100%"></textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-primary" id="review-submit-${r.Title}" onclick="reviewSubmit('${r.Title}')">ยืนยัน</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('review-input-${r.Title}').style.display='none'">ยกเลิก</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function reviewSearch(val) {
+  const resultEl = document.getElementById('review_search_result');
+  if (!val || val.trim().length < 3) { resultEl.innerHTML = ''; return; }
+  resultEl.innerHTML = '<div style="font-size:12px;color:var(--gray-400)">⏳ กำลังค้นหา...</div>';
+  try {
+    const all   = await spGetItems();
+    const found = all.filter(r => (r.Title||'').toLowerCase().includes(val.toLowerCase()));
+    if (!found.length) {
+      resultEl.innerHTML = '<div style="font-size:13px;color:var(--gray-400);padding:8px">ไม่พบคำขอที่ค้นหา</div>';
+      return;
+    }
+    resultEl.innerHTML = found.map(r => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--gray-50);border-radius:8px;border:1px solid var(--gray-200);margin-bottom:6px">
+        <div>
+          <span style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--navy)">${r.Title}</span>
+          <span style="font-size:11px;color:var(--gray-400);margin-left:8px">${r.ProjectName0||''} ${r.DrawingNumber?'· '+r.DrawingNumber:''}</span>
+          <span class="badge ${STATUS_CLASS_TABLE[r.Status0||r.Status]||'badge-pending'}" style="margin-left:8px">${STATUS_LABEL_TABLE[r.Status0||r.Status]||r.Status0||r.Status}</span>
+        </div>
+        <button onclick="exportReviewPDF('${r.Title}')" class="btn btn-secondary" style="font-size:12px">📥 Export PDF</button>
+      </div>`).join('');
+  } catch(e) {
+    resultEl.innerHTML = `<div style="font-size:12px;color:var(--danger)">ค้นหาไม่สำเร็จ: ${e.message}</div>`;
+  }
+}
+
+let _reviewAction = {};
       <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
           <div>
@@ -3563,18 +3692,6 @@ async function buildReview(highlightId) {
           </div>
         </div>
       </div>`;
-    }).join('');
-
-    // scroll ไปที่ highlighted item
-    if (highlightId) {
-      setTimeout(() => {
-        const el2 = document.getElementById(`review-${highlightId}`);
-        if (el2) el2.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 300);
-    }
-  } catch(e) {
-    if (el) el.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">โหลดไม่สำเร็จ: ${e.message}</p></div>`;
-  }
 }
 
 let _reviewAction = {};
