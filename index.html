@@ -2788,6 +2788,9 @@ async function swSubmitWork() {
         // สร้าง message พร้อมข้อมูลครบ
         const reviewUrl   = `https://dwgppg.github.io/Dwg-eservice/?review=${requestId}`;
         const attachUrl   = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${requestId}`;
+        // ดึง DataLink และ Detail จาก SharePoint item
+        const dataLink    = spItem?.DataLink || '';
+        const detail      = spItem?.Detail || '';
         const msgLines = [
           `📐 <b>PPG Drawing e-Service — งานแล้วเสร็จพร้อมตรวจรับ</b>`,
           ``,
@@ -2800,9 +2803,11 @@ async function swSubmitWork() {
           `👤 <b>ผู้ดำเนินการ:</b> ${currentUser?.name || ''}`,
           `📅 <b>วันที่ส่ง:</b> ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`,
         ];
-        if (note) msgLines.push(`📌 <b>หมายเหตุ:</b> ${note}`);
-        if (dwgUrl) msgLines.push(`📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>`);
-        if (pdfUrl) msgLines.push(`📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>`);
+        if (detail)   msgLines.push(`💬 <b>รายละเอียดคำขอ:</b> ${detail}`);
+        if (dataLink) msgLines.push(`🔗 <b>ลิงก์แนบ:</b> <a href="${dataLink}">${dataLink}</a>`);
+        if (note)     msgLines.push(`📌 <b>หมายเหตุจากผู้เขียนแบบ:</b> ${note}`);
+        if (dwgUrl)   msgLines.push(`📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>`);
+        if (pdfUrl)   msgLines.push(`📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>`);
         msgLines.push(`📎 <a href="${attachUrl}">โฟลเดอร์เอกสารแนบทั้งหมด</a>`);
         msgLines.push(``, `👉 <a href="${reviewUrl}"><b>คลิกเพื่อตรวจรับงาน (อนุมัติ / แก้ไข / Reject)</b></a>`);
 
@@ -2985,6 +2990,8 @@ async function buildReview(highlightId) {
       const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
       const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
       const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${r.Title}`;
+      const dataLink  = r.DataLink || '';
+      const detail    = r.Detail || '';
       return `
       <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -3002,6 +3009,8 @@ async function buildReview(highlightId) {
           <div class="field"><label>ผู้เขียนแบบ</label><div class="field-value">${r.AssigneeName||'-'}</div></div>
           <div class="field"><label>วันที่ส่ง</label><div class="field-value">${r.eliveredAt ? fmtDate(r.eliveredAt) : '-'}</div></div>
           ${r.NoteFromDrawing ? `<div class="field span2"><label>หมายเหตุจากผู้เขียนแบบ</label><div class="field-value">${r.NoteFromDrawing}</div></div>` : ''}
+          ${detail    ? `<div class="field span2"><label>รายละเอียดคำขอ</label><div class="field-value">${detail}</div></div>` : ''}
+          ${dataLink  ? `<div class="field span2"><label>ลิงก์แนบ</label><div class="field-value"><a href="${dataLink}" target="_blank">${dataLink}</a></div></div>` : ''}
         </div>
         <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
           ${dwgUrl ? `<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📐 เปิดไฟล์ DWG</a>` : ''}
