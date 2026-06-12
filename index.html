@@ -3297,59 +3297,80 @@ async function buildReport() {
 }
 
 async function exportReportPDF() {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const memberEmail = document.getElementById('rpt_member').value;
-  const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[document.getElementById('rpt_period').value];
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('PPG Drawing e-Service - รายงานสรุปงานฝ่ายเขียนแบบ', 14, 18);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`ช่วงเวลา: ${periodLabel} | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}`, 14, 26);
-
-  let y = 34;
-  const sections = document.querySelectorAll('.rpt-section');
-  sections.forEach((sec, si) => {
-    const name = sec.querySelector('[style*="font-weight:600"]')?.textContent || '';
-    const rows = sec.querySelectorAll('tbody tr');
-    if (!rows.length) return;
-
-    if (y > 170) { doc.addPage(); y = 14; }
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text(name, 14, y); y += 7;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-
-    // header
-    const headers = ['เลขคำขอ','ประเภท','โครงการ','Drawing No.','วันที่รับ','สถานะ','ผลตรวจรับ'];
-    const widths  = [32, 40, 40, 28, 24, 30, 30];
-    let x = 14;
-    doc.setFillColor(245, 247, 250);
-    doc.rect(14, y-4, 224, 7, 'F');
-    headers.forEach((h, i) => { doc.text(h, x+1, y); x += widths[i]; });
-    y += 5;
-
-    rows.forEach(row => {
-      if (y > 190) { doc.addPage(); y = 14; }
-      const cells = row.querySelectorAll('td');
-      x = 14;
-      cells.forEach((cell, i) => {
-        const text = cell.textContent.trim().slice(0, 25);
-        doc.text(text, x+1, y);
-        x += widths[i];
+  const btn = document.getElementById('rpt_export_btn');
+  btn.textContent = '⏳ กำลัง Export...';
+  btn.disabled = true;
+  try {
+    // โหลด html2canvas ถ้ายังไม่มี
+    if (!window.html2canvas) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
       });
-      doc.setDrawColor(230,230,230);
-      doc.line(14, y+2, 238, y+2);
-      y += 7;
-    });
-    y += 5;
-  });
+    }
 
-  const periodMap = { week:'weekly', month:'monthly', year:'yearly', custom:'custom' };
-  doc.save(`PPG-DrawingReport-${periodMap[document.getElementById('rpt_period').value]}-${new Date().toISOString().slice(0,10)}.pdf`);
+    const el = document.getElementById('reportContent');
+
+    // เพิ่ม heading ชั่วคราวก่อน screenshot
+    const header = document.createElement('div');
+    const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[document.getElementById('rpt_period').value];
+    header.innerHTML = `
+      <div style="padding:16px 0 8px;border-bottom:2px solid #1a365d;margin-bottom:16px">
+        <div style="font-size:18px;font-weight:700;color:#1a365d">PPG Drawing e-Service — รายงานสรุปงานฝ่ายเขียนแบบ</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">ช่วงเวลา: ${periodLabel} | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'})}</div>
+      </div>`;
+    el.insertBefore(header, el.firstChild);
+
+    const canvas = await html2canvas(el, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false
+    });
+
+    el.removeChild(header);
+
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW  = pageW - 20;
+    const imgH  = canvas.height * imgW / canvas.width;
+
+    let y = 10;
+    let remaining = imgH;
+    const pageContentH = pageH - 20;
+
+    // ถ้าสูงกว่า 1 หน้า ต้องแบ่งหน้า
+    if (imgH <= pageContentH) {
+      pdf.addImage(imgData, 'PNG', 10, y, imgW, imgH);
+    } else {
+      let srcY = 0;
+      while (remaining > 0) {
+        const sliceH = Math.min(remaining, pageContentH);
+        const sliceCanvas = document.createElement('canvas');
+        sliceCanvas.width  = canvas.width;
+        sliceCanvas.height = (sliceH / imgH) * canvas.height;
+        const ctx = sliceCanvas.getContext('2d');
+        ctx.drawImage(canvas, 0, srcY * canvas.height / imgH, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
+        pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 10, y, imgW, sliceH);
+        remaining -= sliceH;
+        srcY     += sliceH;
+        if (remaining > 0) { pdf.addPage(); y = 10; }
+      }
+    }
+
+    const periodMap = { week:'weekly', month:'monthly', year:'yearly', custom:'custom' };
+    pdf.save(`PPG-DrawingReport-${periodMap[document.getElementById('rpt_period').value]}-${new Date().toISOString().slice(0,10)}.pdf`);
+  } catch(e) {
+    showToast('❌', 'Export ไม่สำเร็จ: ' + e.message);
+  } finally {
+    btn.textContent = '📥 Export PDF';
+    btn.disabled = false;
+  }
 }
 
 async function buildReview(highlightId) {
