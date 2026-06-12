@@ -1821,13 +1821,15 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
-  // reset dropdowns
+  // reset dropdowns โดยตรง ไม่เรียก onProjectSelect
   const projEl = document.getElementById('f_project');
-  if (projEl) { projEl.selectedIndex = 0; onProjectSelect(''); }
+  if (projEl) projEl.selectedIndex = 0;
   const dnEl = document.getElementById('f_drawing_number');
   if (dnEl) { dnEl.innerHTML = '<option value="">-- เลือก Drawing Number --</option>'; }
   const dnameEl = document.getElementById('f_drawing_name');
   if (dnameEl) { dnameEl.innerHTML = '<option value="">-- เลือก Drawing Name --</option>'; }
+  const kwpEl = document.getElementById('f_kwp_select');
+  if (kwpEl) { kwpEl.innerHTML = '<option value="">-- เลือก kWp --</option>'; }
   const urgEl = document.getElementById('f_urgent'); if(urgEl) urgEl.value = 'ปกติ';
   const deptEl2 = document.getElementById('f_dept'); if(deptEl2) deptEl2.selectedIndex = 0;
   const deptOther = document.getElementById('deptOtherWrap'); if(deptOther) deptOther.style.display = 'none';
