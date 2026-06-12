@@ -2836,17 +2836,31 @@ async function swSubmitWork() {
 }
 
 function swClearAll() {
+  // ล้าง form fields ทั้งหมด
+  ['sw_req_id','sw_requester_email','sw_req_type','sw_project',
+   'sw_drawing_number','sw_drawing_name','sw_revise_number',
+   'sw_dept','sw_received_date','sw_note','sw_sp_link','sw_ext_link'
+  ].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+
+  // ล้างไฟล์
   swFiles = [];
-  document.getElementById('swFileList').innerHTML = '';
-  const sp = document.getElementById('sw_sp_link'); if(sp) sp.value = '';
-  const note = document.getElementById('sw_note'); if(note) note.value = '';
-  const lnk = document.getElementById('sw_ext_link'); if(lnk) lnk.value = '';
+  const fileList = document.getElementById('swFileList'); if(fileList) fileList.innerHTML = '';
+  const fileSummary = document.getElementById('sw_file_summary'); if(fileSummary) fileSummary.textContent = 'ยังไม่มีไฟล์';
+
+  // ล้าง link preview
   const prev = document.getElementById('sw_link_preview'); if(prev) prev.style.display='none';
-  document.getElementById('sw_file_summary').textContent = 'ยังไม่มีไฟล์';
+
+  // ล้าง autofill badge
+  const badge = document.getElementById('sw_autofill_badge'); if(badge) badge.style.display='none';
+
+  // ล้าง search hint
+  const hint = document.getElementById('sw_search_hint'); if(hint) hint.textContent='';
+
+  // reset ปุ่ม
   const btn = document.getElementById('sw_send_btn');
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งงาน';
+    btn.innerHTML = '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg> ส่งงาน';
   }
   const banner = document.getElementById('sw_success_banner'); if(banner) banner.style.display='none';
 }
@@ -2919,9 +2933,11 @@ async function swLookup(val) {
 function swPopulateFromRequest(item) {
   const set = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
   set('sw_req_id',          item.Title            || '');
-  set('sw_requester_email', item.RequesterEmail   || item.AuthorEmail || '');
-  set('sw_req_type',        item.Type             || '');
-  set('sw_project',         item.Project          || '');
+  // SenderEmail คือ field จริงใน SharePoint
+  set('sw_requester_email', item.SenderEmail      || item.RequesterEmail || item.AuthorEmail || '');
+  // ProjectName = RequestType (ระบบงาน), ProjectName0 = ชื่อโครงการ
+  set('sw_req_type',        item.ProjectName      || item.Type || item.RequestType || '');
+  set('sw_project',         item.ProjectName0     || item.Project || item.ProjectName1 || '');
   set('sw_drawing_number',  item.DrawingNumber    || '');
   set('sw_drawing_name',    item.DrawingName      || '');
   set('sw_revise_number',   item.ReviseNumber     || item.Revise || '');
@@ -2959,25 +2975,33 @@ async function buildReview(highlightId) {
       return;
     }
 
-    if (el) el.innerHTML = items.map(r => `
-      <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}" >
+    if (el) el.innerHTML = items.map(r => {
+      // Hyperlink field ใน SharePoint ส่งมาเป็น object {Url, Description} หรือ string
+      const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
+      const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+      const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${r.Title}`;
+      return `
+      <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
           <div>
             <span style="font-size:16px;font-weight:500;color:var(--navy)">${r.Title}</span>
             <span class="badge" style="background:var(--sky);color:var(--info);margin-left:8px">รอตรวจรับ</span>
           </div>
-          <span style="font-size:12px;color:var(--gray-400)">${r.DeliveredAt ? fmtDate(r.DeliveredAt) : ''}</span>
+          <span style="font-size:12px;color:var(--gray-400)">${r.eliveredAt ? fmtDate(r.eliveredAt) : r.DeliveredAt ? fmtDate(r.DeliveredAt) : ''}</span>
         </div>
         <div class="form-grid" style="margin-bottom:12px">
-          <div class="field"><label>ระบบงาน</label><div class="field-value">${r.Type||r.RequestType||'-'}</div></div>
-          <div class="field"><label>โครงการ</label><div class="field-value">${r.Project||'-'}</div></div>
+          <div class="field"><label>ระบบงาน</label><div class="field-value">${r.ProjectName||r.Type||r.RequestType||'-'}</div></div>
+          <div class="field"><label>โครงการ</label><div class="field-value">${r.ProjectName0||r.Project||'-'}</div></div>
           <div class="field"><label>Drawing No.</label><div class="field-value">${r.DrawingNumber||'-'}</div></div>
-          <div class="field"><label>Revise</label><div class="field-value">${r.CurrentRevise||'-'}</div></div>
+          <div class="field"><label>Revise</label><div class="field-value">${r.CurrentRevise||r.ReviseNumber||'-'}</div></div>
+          <div class="field"><label>ผู้เขียนแบบ</label><div class="field-value">${r.AssigneeName||'-'}</div></div>
+          <div class="field"><label>วันที่ส่ง</label><div class="field-value">${r.eliveredAt ? fmtDate(r.eliveredAt) : '-'}</div></div>
           ${r.NoteFromDrawing ? `<div class="field span2"><label>หมายเหตุจากผู้เขียนแบบ</label><div class="field-value">${r.NoteFromDrawing}</div></div>` : ''}
         </div>
         <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          ${r.DwgFileUrl ? `<a href="${r.DwgFileUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📐 เปิดไฟล์ DWG</a>` : ''}
-          ${r.PdfFileUrl ? `<a href="${r.PdfFileUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📄 เปิดไฟล์ PDF</a>` : ''}
+          ${dwgUrl ? `<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📐 เปิดไฟล์ DWG</a>` : ''}
+          ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📄 เปิดไฟล์ PDF</a>` : ''}
+          <a href="${folderUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📁 โฟลเดอร์เอกสารทั้งหมด</a>
         </div>
         <div id="review-action-${r.Title}">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2993,8 +3017,8 @@ async function buildReview(highlightId) {
             </div>
           </div>
         </div>
-      </div>
-    `).join('');
+      </div>`;
+    }).join('');
 
     // scroll ไปที่ highlighted item
     if (highlightId) {
@@ -3064,6 +3088,59 @@ async function reviewUpdate(requestId, action, comment) {
 
     const msg = action === 'approve' ? '✅ อนุมัติรับงานแล้ว' : action === 'revise' ? '✏️ ส่งกลับให้แก้ไขแล้ว' : '❌ Reject แล้ว';
     showToast('✅', `${msg} — ${requestId}`);
+
+    // ส่ง Teams แจ้งกลับผู้เขียนแบบ
+    try {
+      const assigneeEmail = item.AssigneeEmail || '';
+      const myInfo = await graphGet('/me');
+      const myId   = myInfo?.id;
+      const myEmail = (myInfo?.mail || myInfo?.userPrincipalName || '').toLowerCase();
+      if (assigneeEmail && assigneeEmail.toLowerCase() !== myEmail && myId) {
+        const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatType: 'oneOnOne',
+            members: [
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${assigneeEmail}')` },
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myId}` }
+            ]
+          })
+        });
+        let chatId = null;
+        if (chatResp.ok) { chatId = (await chatResp.json()).id; }
+        else if (chatResp.status === 409) {
+          const e = await chatResp.json();
+          chatId = e?.error?.innerError?.id || null;
+          if (!chatId) {
+            const list = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+            const found = list?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === assigneeEmail.toLowerCase()));
+            chatId = found?.id || null;
+          }
+        }
+        if (chatId) {
+          const emoji = action === 'approve' ? '✅' : action === 'revise' ? '✏️' : '❌';
+          const actionTh = action === 'approve' ? 'อนุมัติรับงาน' : action === 'revise' ? 'ขอแก้ไข' : 'Reject';
+          const lines = [
+            `${emoji} <b>PPG Drawing e-Service — ผลการตรวจรับงาน</b>`,
+            ``,
+            `📋 <b>เลขคำขอ:</b> ${requestId}`,
+            `📌 <b>ผล:</b> ${actionTh}`,
+            `👤 <b>โดย:</b> ${myInfo?.displayName || myEmail}`,
+            `📅 <b>วันที่:</b> ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`,
+          ];
+          if (comment) lines.push(`💬 <b>รายละเอียด:</b> ${comment}`);
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: { contentType: 'html', content: lines.join('<br>') } })
+          });
+        }
+      }
+    } catch(teamsErr) { console.warn('Teams notify assignee failed:', teamsErr.message); }
+
     buildReview();
   } catch(e) { showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message); }
 }
