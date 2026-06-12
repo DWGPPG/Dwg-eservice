@@ -1821,6 +1821,13 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
+  // reset dropdowns
+  const projEl = document.getElementById('f_project');
+  if (projEl) { projEl.selectedIndex = 0; onProjectSelect(''); }
+  const dnEl = document.getElementById('f_drawing_number');
+  if (dnEl) { dnEl.innerHTML = '<option value="">-- เลือก Drawing Number --</option>'; }
+  const dnameEl = document.getElementById('f_drawing_name');
+  if (dnameEl) { dnameEl.innerHTML = '<option value="">-- เลือก Drawing Name --</option>'; }
   const urgEl = document.getElementById('f_urgent'); if(urgEl) urgEl.value = 'ปกติ';
   const deptEl2 = document.getElementById('f_dept'); if(deptEl2) deptEl2.selectedIndex = 0;
   const deptOther = document.getElementById('deptOtherWrap'); if(deptOther) deptOther.style.display = 'none';
@@ -2330,6 +2337,8 @@ function renderApprovalCard(item, isManager) {
         ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
       </span>
       ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
+      ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="margin-left:6px;text-decoration:none;font-size:12px;padding:4px 10px">🔗 ลิงก์แนบ</a>` : ''}
+      ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="margin-left:2px;text-decoration:none;font-size:12px;padding:4px 10px">📎 เอกสาร/แบบ</a>` : ''}
       <div class="approve-actions">
         <button class="btn btn-secondary" onclick="toggleComment('${item.id}','return')">
           <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
@@ -2445,15 +2454,65 @@ async function confirmAssign() {
       console.warn('อัปเดต fields เพิ่มเติมไม่สำเร็จ:', e2.message);
     }
 
-    // แจ้งเตือน Power Automate
-    await triggerAutomate({
-      action:        isManager ? 'approved_lv2' : 'approved_lv1',
-      itemId:        pendingApproveId,
-      assigneeName:  selectedAssignee.name,
-      assigneeEmail: selectedAssignee.email,
-      note,
-      approverName:  currentUser.name,
-    });
+    // แจ้งเตือน Teams ไปหา assignee โดยตรง
+    try {
+      const allItems = await spGetItems();
+      const spIt     = allItems.find(r => r.id === pendingApproveId || r.Title === pendingApproveId);
+      const meInfo   = await graphGet('/me');
+      const myId     = meInfo?.id;
+      const myEmail  = (meInfo?.mail || meInfo?.userPrincipalName || '').toLowerCase();
+      const toEmail  = selectedAssignee.email;
+      const dataLink = spIt?.DataLink || '';
+      const detail   = spIt?.Detail || '';
+      const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${spIt?.Title||''}`;
+
+      if (toEmail && toEmail.toLowerCase() !== myEmail && myId) {
+        const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatType: 'oneOnOne',
+            members: [
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${toEmail}')` },
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myId}` }
+            ]
+          })
+        });
+        let chatId = null;
+        if (chatResp.ok) { chatId = (await chatResp.json()).id; }
+        else if (chatResp.status === 409) {
+          const e409 = await chatResp.json();
+          chatId = e409?.error?.innerError?.id || null;
+          if (!chatId) {
+            const list = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+            const found = list?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === toEmail.toLowerCase()));
+            chatId = found?.id || null;
+          }
+        }
+        if (chatId) {
+          const lvLabel = isManager ? 'Lv.2' : 'Lv.1';
+          const lines = [
+            `✅ <b>PPG Drawing e-Service — งานถูกมอบหมายให้คุณ</b>`,
+            ``,
+            `📋 <b>เลขคำขอ:</b> ${spIt?.Title||pendingApproveId}`,
+            `🏗️ <b>ระบบงาน:</b> ${spIt?.ProjectName||'—'}`,
+            `📁 <b>โครงการ:</b> ${spIt?.ProjectName0||'—'}`,
+            `🎯 <b>ผู้อนุมัติ:</b> ${currentUser.name} (${lvLabel})`,
+          ];
+          if (detail)   lines.push(`💬 <b>รายละเอียดคำขอ:</b> ${detail}`);
+          if (dataLink) lines.push(`🔗 <b>ลิงก์แนบ:</b> <a href="${dataLink}">${dataLink}</a>`);
+          if (note)     lines.push(`📌 <b>หมายเหตุ:</b> ${note}`);
+          lines.push(`📎 <a href="${folderUrl}">โฟลเดอร์เอกสารแนบทั้งหมด</a>`);
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: { contentType: 'html', content: lines.join('<br>') } })
+          });
+        }
+      }
+    } catch(teamsErr) { console.warn('Teams notify assignee (admin) failed:', teamsErr.message); }
 
     closeModal('assignModal');
     const card = document.getElementById('card-'+pendingApproveId);
