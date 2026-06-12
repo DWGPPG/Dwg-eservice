@@ -2723,6 +2723,15 @@ function fmtDate(iso) {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543}`;
 }
 
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543} เวลา ${hh}:${mm} น.`;
+}
+
 function daysBetween(a, b) {
   return Math.abs(new Date(b) - new Date(a)) / 86400000;
 }
@@ -3191,7 +3200,7 @@ async function exportReviewPDF(requestId) {
       </div>
       <div style="display:flex;justify-content:space-between;padding:12px 40px;background:#f8fafc;border-bottom:1px solid #e2e8f0">
         <div><span style="color:#666;font-size:12px">เลขคำขอ / Request No.</span><br><span style="font-size:16px;font-weight:700;color:#1a365d">${r.Title}</span></div>
-        <div style="text-align:right"><span style="color:#666;font-size:12px">วันที่นำส่ง / Delivered Date</span><br><span style="font-size:14px;font-weight:600">${r.eliveredAt ? fmtDate(r.eliveredAt) : '-'}</span></div>
+        <div style="text-align:right"><span style="color:#666;font-size:12px">วันที่นำส่ง / Delivered Date</span><br><span style="font-size:14px;font-weight:600">${r.eliveredAt ? fmtDateTime(r.eliveredAt) : '-'}</span></div>
       </div>
       <div style="padding:16px 40px">
         <table style="width:100%;border-collapse:collapse">
@@ -3220,7 +3229,7 @@ async function exportReviewPDF(requestId) {
         <div style="font-size:12px;color:#666;margin-bottom:6px">ผลการตรวจรับ / Review Result</div>
         <div style="font-size:15px;font-weight:700">${reviewResultTh}</div>
         ${reviewComment ? `<div style="font-size:12px;color:#555;margin-top:4px">${reviewComment}</div>` : ''}
-        ${r.ReviewedAt ? `<div style="font-size:11px;color:#999;margin-top:4px">วันที่ตรวจรับ: ${fmtDate(r.ReviewedAt)}</div>` : ''}
+        ${r.ReviewedAt ? `<div style="font-size:11px;color:#999;margin-top:4px">วันที่ตรวจรับ: ${fmtDateTime(r.ReviewedAt)}</div>` : ''}
       </div>
       <div style="padding:16px 40px 24px;display:flex;justify-content:space-between;gap:20px">
         ${[['ผู้นำส่ง / Deliverer', r.AssigneeName||''],['ผู้ตรวจรับ / Receiver', r.SenderName||r.SenderEmail||''],['ผู้อนุมัติ / Approver','']].map(([title,name]) => `
