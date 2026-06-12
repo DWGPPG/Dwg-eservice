@@ -482,6 +482,10 @@ tr:hover td { background: var(--sky); }
         ตรวจรับงาน
         <span id="reviewBadge" style="display:none;background:#e53e3e;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-left:4px">0</span>
       </div>
+      <div class="nav-tab" id="reportTab" onclick="showPage('report',this)" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        รายงาน
+      </div>
     </div>
     <div class="nav-right">
       <div class="nav-user" onclick="signOut()" title="คลิกเพื่อออกจากระบบ" style="cursor:pointer">
@@ -973,6 +977,49 @@ tr:hover td { background: var(--sky); }
     </div>
   </div>
 
+  <!-- REPORT -->
+  <div class="page" id="page-report">
+    <div class="page-header">
+      <div class="page-title">รายงานสรุปงานฝ่ายเขียนแบบ</div>
+      <div class="page-sub">สรุปงานรายบุคคล เลือกช่วงเวลาและสมาชิกได้</div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field" style="min-width:140px">
+          <label>ช่วงเวลา</label>
+          <select id="rpt_period" onchange="onRptPeriodChange(this.value)" style="width:100%">
+            <option value="week">รายสัปดาห์</option>
+            <option value="month" selected>รายเดือน</option>
+            <option value="year">รายปี</option>
+            <option value="custom">กำหนดเอง</option>
+          </select>
+        </div>
+        <div class="field" id="rpt_custom_wrap" style="display:none;min-width:200px">
+          <label>ช่วงที่กำหนด</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" id="rpt_date_from" style="flex:1">
+            <span style="color:var(--gray-400)">—</span>
+            <input type="date" id="rpt_date_to" style="flex:1">
+          </div>
+        </div>
+        <div class="field" style="min-width:180px">
+          <label>สมาชิก</label>
+          <select id="rpt_member" style="width:100%">
+            <option value="all">ทุกคน</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:2px">
+          <button class="btn btn-primary" onclick="buildReport()">🔍 สร้างรายงาน</button>
+          <button class="btn btn-secondary" onclick="exportReportPDF()" id="rpt_export_btn" style="display:none">📥 Export PDF</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="reportContent"></div>
+  </div>
+
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="page-header">
@@ -1029,9 +1076,8 @@ tr:hover td { background: var(--sky); }
   <span id="toastMsg">สำเร็จ</span>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  ⚙️ CONFIG — แก้ไขค่าเหล่านี้ก่อนใช้งาน
 // ═══════════════════════════════════════════════════════════════
 const CONFIG = {
   // ── ค่าจาก Azure AD DrawingReqApp ──
@@ -1527,6 +1573,8 @@ async function onSignedIn() {
   maybeShowSendworkTab(currentUser.username);
   // แสดง ตรวจรับงาน tab สำหรับทุกคน
   maybeShowReviewTab();
+  // แสดง รายงาน tab สำหรับสมาชิกฝ่ายเขียนแบบ
+  maybeShowReportTab();
 
   // เช็ค URL param ?review=DWG-XXXX
   const urlParams = new URLSearchParams(window.location.search);
@@ -2631,6 +2679,7 @@ function showPage(name, tab) {
   if (name==='admin')     buildAdmin();
   if (name==='sendwork')  swLoadRequests();
   if (name==='review')    buildReview(_pendingReviewId);
+  if (name==='report')    {} // buildReport เรียกเมื่อกดปุ่มเอง
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -3091,7 +3140,217 @@ function swPopulateFromRequest(item) {
   swCheckReady();
 }
 
-// ── REVIEW TAB ──
+// ── REPORT TAB ──
+function maybeShowReportTab() {
+  const isDrawing = CONFIG.drawingTeam.some(m => m.email.toLowerCase() === currentUser?.username?.toLowerCase());
+  const tab = document.getElementById('reportTab');
+  if (tab && isDrawing) {
+    tab.style.display = '';
+    // populate member dropdown
+    const sel = document.getElementById('rpt_member');
+    if (sel && sel.options.length === 1) {
+      CONFIG.drawingTeam.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.email;
+        opt.textContent = m.name;
+        sel.appendChild(opt);
+      });
+    }
+  }
+}
+
+function onRptPeriodChange(val) {
+  document.getElementById('rpt_custom_wrap').style.display = val === 'custom' ? '' : 'none';
+}
+
+function getRptDateRange() {
+  const period = document.getElementById('rpt_period').value;
+  const now = new Date();
+  let from, to = new Date();
+  if (period === 'week') {
+    from = new Date(now); from.setDate(now.getDate() - 7);
+  } else if (period === 'month') {
+    from = new Date(now.getFullYear(), now.getMonth(), 1);
+  } else if (period === 'year') {
+    from = new Date(now.getFullYear(), 0, 1);
+  } else {
+    from = new Date(document.getElementById('rpt_date_from').value);
+    to   = new Date(document.getElementById('rpt_date_to').value);
+    to.setHours(23,59,59);
+  }
+  from.setHours(0,0,0,0);
+  return { from, to };
+}
+
+async function buildReport() {
+  const el = document.getElementById('reportContent');
+  el.innerHTML = '<div style="padding:20px;color:var(--gray-400)">⏳ กำลังโหลด...</div>';
+  try {
+    await refreshToken();
+    const all = await spGetItems();
+    const { from, to } = getRptDateRange();
+    const memberEmail = document.getElementById('rpt_member').value;
+    const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[document.getElementById('rpt_period').value];
+
+    // filter ตามช่วงเวลา
+    const inRange = all.filter(r => {
+      const d = new Date(r.SubmittedAt || r.Created || 0);
+      return d >= from && d <= to;
+    });
+
+    // filter ตาม member
+    const members = memberEmail === 'all'
+      ? CONFIG.drawingTeam
+      : CONFIG.drawingTeam.filter(m => m.email.toLowerCase() === memberEmail.toLowerCase());
+
+    const sections = members.map(m => {
+      const items = inRange.filter(r => (r.AssigneeEmail||'').toLowerCase() === m.email.toLowerCase());
+      const total    = items.length;
+      const done     = items.filter(r => r.Status === 'done').length;
+      const inprog   = items.filter(r => ['approved','working','delivered'].includes(r.Status)).length;
+      const pending  = items.filter(r => ['pending','inprogress_lv1','review'].includes(r.Status)).length;
+      const rejected = items.filter(r => r.Status === 'rejected').length;
+      return { m, items, total, done, inprog, pending, rejected };
+    });
+
+    // render
+    el.innerHTML = sections.map(({ m, items, total, done, inprog, pending, rejected }) => `
+      <div class="card rpt-section" id="rpt-${m.id}" style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:40px;height:40px;border-radius:50%;background:var(--green-light);color:var(--success);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px">${m.name.slice(0,2)}</div>
+            <div>
+              <div style="font-weight:600;font-size:15px">${m.name}</div>
+              <div style="font-size:12px;color:var(--gray-400)">${m.role}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <span style="background:var(--gray-100);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500">ทั้งหมด ${total} รายการ</span>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+          ${[
+            ['เสร็จแล้ว', done, '#27a06a', '#f0faf5'],
+            ['กำลังทำ', inprog, '#3b82f6', '#eff6ff'],
+            ['รออนุมัติ', pending, '#f59e0b', '#fffbeb'],
+            ['Rejected', rejected, '#ef4444', '#fff0f0'],
+          ].map(([label, val, color, bg]) => `
+            <div style="background:${bg};border-radius:8px;padding:12px;text-align:center">
+              <div style="font-size:22px;font-weight:700;color:${color}">${val}</div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:2px">${label}</div>
+            </div>`).join('')}
+        </div>
+
+        <!-- Bar chart -->
+        ${total > 0 ? `
+        <div style="margin-bottom:16px">
+          <div style="font-size:12px;font-weight:500;color:var(--gray-500);margin-bottom:6px">สัดส่วนสถานะ</div>
+          <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--gray-100)">
+            ${done?`<div style="width:${done/total*100}%;background:#27a06a" title="เสร็จ ${done}"></div>`:''}
+            ${inprog?`<div style="width:${inprog/total*100}%;background:#3b82f6" title="กำลังทำ ${inprog}"></div>`:''}
+            ${pending?`<div style="width:${pending/total*100}%;background:#f59e0b" title="รออนุมัติ ${pending}"></div>`:''}
+            ${rejected?`<div style="width:${rejected/total*100}%;background:#ef4444" title="Rejected ${rejected}"></div>`:''}
+          </div>
+          <div style="display:flex;gap:12px;margin-top:6px;flex-wrap:wrap">
+            ${[['เสร็จแล้ว','#27a06a'],['กำลังทำ','#3b82f6'],['รออนุมัติ','#f59e0b'],['Rejected','#ef4444']].map(([l,c])=>`<span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--gray-500)"><span style="width:8px;height:8px;border-radius:50%;background:${c};display:inline-block"></span>${l}</span>`).join('')}
+          </div>
+        </div>` : ''}
+
+        <!-- Table -->
+        ${items.length > 0 ? `
+        <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:var(--gray-50)">
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">เลขคำขอ</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">ประเภท</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">โครงการ</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">Drawing No.</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">วันที่รับ</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">สถานะ</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--gray-200);font-weight:500">ผลตรวจรับ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(r => `
+                <tr style="border-bottom:1px solid var(--gray-100)">
+                  <td style="padding:7px 8px;font-family:var(--mono);font-size:11px">${r.Title}</td>
+                  <td style="padding:7px 8px">${r.ProjectName||'—'}</td>
+                  <td style="padding:7px 8px">${r.ProjectName0||'—'}</td>
+                  <td style="padding:7px 8px">${r.DrawingNumber||'—'}</td>
+                  <td style="padding:7px 8px;color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
+                  <td style="padding:7px 8px"><span class="badge ${STATUS_CLASS_TABLE[r.Status]||'badge-pending'}">${STATUS_LABEL_TABLE[r.Status]||r.Status}</span></td>
+                  <td style="padding:7px 8px">${r.ReviewResult ? `<span style="color:${r.ReviewResult==='approved'?'#27a06a':r.ReviewResult==='revise'?'#f59e0b':'#ef4444'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ แก้ไข':'❌ Reject'}</span>` : '—'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : `<div style="text-align:center;padding:20px;color:var(--gray-400);font-size:13px">ไม่มีงานในช่วงเวลานี้</div>`}
+      </div>`).join('');
+
+    document.getElementById('rpt_export_btn').style.display = '';
+  } catch(e) {
+    el.innerHTML = `<div style="padding:20px;color:var(--danger)">โหลดไม่สำเร็จ: ${e.message}</div>`;
+  }
+}
+
+async function exportReportPDF() {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  const memberEmail = document.getElementById('rpt_member').value;
+  const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[document.getElementById('rpt_period').value];
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('PPG Drawing e-Service - รายงานสรุปงานฝ่ายเขียนแบบ', 14, 18);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`ช่วงเวลา: ${periodLabel} | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH')}`, 14, 26);
+
+  let y = 34;
+  const sections = document.querySelectorAll('.rpt-section');
+  sections.forEach((sec, si) => {
+    const name = sec.querySelector('[style*="font-weight:600"]')?.textContent || '';
+    const rows = sec.querySelectorAll('tbody tr');
+    if (!rows.length) return;
+
+    if (y > 170) { doc.addPage(); y = 14; }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text(name, 14, y); y += 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    // header
+    const headers = ['เลขคำขอ','ประเภท','โครงการ','Drawing No.','วันที่รับ','สถานะ','ผลตรวจรับ'];
+    const widths  = [32, 40, 40, 28, 24, 30, 30];
+    let x = 14;
+    doc.setFillColor(245, 247, 250);
+    doc.rect(14, y-4, 224, 7, 'F');
+    headers.forEach((h, i) => { doc.text(h, x+1, y); x += widths[i]; });
+    y += 5;
+
+    rows.forEach(row => {
+      if (y > 190) { doc.addPage(); y = 14; }
+      const cells = row.querySelectorAll('td');
+      x = 14;
+      cells.forEach((cell, i) => {
+        const text = cell.textContent.trim().slice(0, 25);
+        doc.text(text, x+1, y);
+        x += widths[i];
+      });
+      doc.setDrawColor(230,230,230);
+      doc.line(14, y+2, 238, y+2);
+      y += 7;
+    });
+    y += 5;
+  });
+
+  const periodMap = { week:'weekly', month:'monthly', year:'yearly', custom:'custom' };
+  doc.save(`PPG-DrawingReport-${periodMap[document.getElementById('rpt_period').value]}-${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
 async function buildReview(highlightId) {
   const el = document.getElementById('reviewList');
   if (el) el.innerHTML = '<div style="padding:20px;color:var(--gray-400);font-size:13px">⏳ กำลังโหลด...</div>';
