@@ -3652,49 +3652,6 @@ async function reviewSearch(val) {
 }
 
 let _reviewAction = {};
-      <div class="card" id="review-${r.Title}" style="${highlightId===r.Title?'border:2px solid var(--sun);':''}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-          <div>
-            <span style="font-size:16px;font-weight:500;color:var(--navy)">${r.Title}</span>
-            <span class="badge" style="background:var(--sky);color:var(--info);margin-left:8px">รอตรวจรับ</span>
-          </div>
-          <span style="font-size:12px;color:var(--gray-400)">${r.eliveredAt ? fmtDate(r.eliveredAt) : r.DeliveredAt ? fmtDate(r.DeliveredAt) : ''}</span>
-        </div>
-        <div class="form-grid" style="margin-bottom:12px">
-          <div class="field"><label>ระบบงาน</label><div class="field-value">${r.ProjectName||r.Type||r.RequestType||'-'}</div></div>
-          <div class="field"><label>โครงการ</label><div class="field-value">${r.ProjectName0||r.Project||'-'}</div></div>
-          <div class="field"><label>Drawing No.</label><div class="field-value">${r.DrawingNumber||'-'}</div></div>
-          <div class="field"><label>Revise</label><div class="field-value">${r.CurrentRevise||r.ReviseNumber||'-'}</div></div>
-          <div class="field"><label>ผู้เขียนแบบ</label><div class="field-value">${r.AssigneeName||'-'}</div></div>
-          <div class="field"><label>วันที่ส่ง</label><div class="field-value">${r.eliveredAt ? fmtDate(r.eliveredAt) : '-'}</div></div>
-          ${r.NoteFromDrawing ? `<div class="field span2"><label>หมายเหตุจากผู้เขียนแบบ</label><div class="field-value">${r.NoteFromDrawing}</div></div>` : ''}
-          ${detail    ? `<div class="field span2"><label>รายละเอียดคำขอ</label><div class="field-value">${detail}</div></div>` : ''}
-          ${dataLink  ? `<div class="field span2"><label>ลิงก์แนบ</label><div class="field-value"><a href="${dataLink}" target="_blank">${dataLink}</a></div></div>` : ''}
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-          ${dwgUrl ? `<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📐 เปิดไฟล์ DWG</a>` : ''}
-          ${pdfUrl ? `<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📄 เปิดไฟล์ PDF</a>` : ''}
-          <a href="${folderUrl}" target="_blank" class="btn btn-secondary" style="text-decoration:none">📁 โฟลเดอร์เอกสารทั้งหมด</a>
-        </div>
-        <div id="review-action-${r.Title}">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-primary" style="background:#27a06a" onclick="reviewApprove('${r.Title}')">✅ อนุมัติรับงาน</button>
-            <button class="btn btn-secondary" onclick="toggleReviewInput('${r.Title}','revise')">✏️ แก้ไข</button>
-            <button class="btn btn-secondary" style="color:var(--danger);border-color:var(--danger)" onclick="toggleReviewInput('${r.Title}','reject')">❌ Reject</button>
-            <button class="btn btn-secondary" onclick="exportReviewPDF('${r.Title}')" style="margin-left:auto">📥 Export PDF</button>
-          </div>
-          <div id="review-input-${r.Title}" style="display:none;margin-top:10px">
-            <textarea id="review-text-${r.Title}" class="textarea" placeholder="ระบุรายละเอียด..." style="min-height:70px;width:100%"></textarea>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button class="btn btn-primary" id="review-submit-${r.Title}" onclick="reviewSubmit('${r.Title}')">ยืนยัน</button>
-              <button class="btn btn-secondary" onclick="document.getElementById('review-input-${r.Title}').style.display='none'">ยกเลิก</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-}
-
-let _reviewAction = {};
 function toggleReviewInput(id, action) {
   _reviewAction[id] = action;
   const inp = document.getElementById(`review-input-${id}`);
