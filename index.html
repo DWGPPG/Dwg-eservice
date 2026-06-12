@@ -2628,7 +2628,6 @@ async function swSubmitWork() {
 
     const activeTab      = document.getElementById('sw-tab-upload').classList.contains('sw-tab-active') ? 'upload' : 'link';
     const requestId      = document.getElementById('sw_req_id').value.trim();
-    const requesterEmail = document.getElementById('sw_requester_email').value.trim();
     const projectName    = document.getElementById('sw_project').value.trim();
     const requestType    = document.getElementById('sw_req_type').value.trim();
     const drawingNumber  = document.getElementById('sw_drawing_number').value.trim();
@@ -2639,7 +2638,13 @@ async function swSubmitWork() {
     const note           = document.getElementById('sw_note').value.trim();
     const spLink         = document.getElementById('sw_sp_link')?.value || '';
 
-    if (!requestId || !requesterEmail) throw new Error('กรุณากรอกเลขคำขอและ Email ผู้ร้องขอ');
+    if (!requestId) throw new Error('กรุณากรอกเลขคำขอ');
+
+    // ดึง SenderEmail จาก SharePoint โดยตรง ไม่ใช้ค่าจาก form
+    const allItems    = await spGetItems();
+    const spItem      = allItems.find(r => r.Title === requestId);
+    const requesterEmail = spItem?.SenderEmail || document.getElementById('sw_requester_email').value.trim();
+    if (!requesterEmail) throw new Error('ไม่พบ Email ผู้ร้องขอ — กรุณาค้นหาเลขคำขอก่อน');
 
     // ── 1. อัปโหลดไฟล์ขึ้น SharePoint ──
     let dwgUrl = '', pdfUrl = '';
