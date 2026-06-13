@@ -1151,6 +1151,7 @@ const CONFIG = {
 
   // ── domain บริษัท ──
   allowedDomain: 'primepower.co.th',
+  drawingTeamChatId: '19:e668fd9c854447918fdb8218e2f023bb@thread.v2', // Drawing Dept. นะจ๊ะ
 
   // ── Power Automate Webhook (ใส่ทีหลังหลัง setup Power Automate เสร็จ) ──
   automateWebhookUrl: 'https://default2ca2640f6b3545d1930b9b4ee11fb7.11.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/15216b07ce36481ca513340e949a4414/triggers/manual/paths/invoke?api-version=1',
@@ -1942,14 +1943,9 @@ async function submitRequest() {
       }
     }
 
-    // 3. ส่ง Teams notification ไปยังทีมเขียนแบบโดยตรง (Graph API)
+    // 3. ส่ง Teams notification ไปกลุ่ม Drawing Dept. โดยตรง
     try {
-      const meInfo  = await graphGet('/me');
-      const myId    = meInfo?.id;
-      const myEmail = (meInfo?.mail || meInfo?.userPrincipalName || '').toLowerCase();
       const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${refNo}`;
-      const reviewUrl = `${CONFIG.redirectUri}?review=${refNo}`;
-
       const lines = [
         `📋 <b>คำร้องใหม่เข้ามาแล้ว!</b>`,
         ``,
@@ -1959,54 +1955,22 @@ async function submitRequest() {
         `👤 <b>ผู้ส่ง:</b> ${name}`,
         `🏢 <b>แผนก:</b> ${dept}`,
         `⚡ <b>ความเร่งด่วน:</b> ${urgency}`,
-        `📅 <b>วันที่ส่ง:</b> ${now}`,
+        `📅 <b>วันที่ส่ง:</b> ${fmtDateTime(now)}`,
       ];
       if (detail)   lines.push(`💬 <b>รายละเอียด:</b> ${detail}`);
       if (datalink) lines.push(`🔗 <b>ลิงก์แนบข้อมูล:</b> <a href="${datalink}">${datalink}</a>`);
       lines.push(`📁 <a href="${folderUrl}">เปิดโฟลเดอร์เอกสาร / แบบ</a>`);
       lines.push(`<br>กรุณาเข้าระบบเพื่อตรวจสอบ: <a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`);
 
-      const msg = lines.join('<br>');
-
-      // ส่งหาสมาชิกทีมเขียนแบบทุกคน
-      for (const member of CONFIG.teamMembers) {
-        const toEmail = member.email.toLowerCase();
-        if (toEmail === myEmail) continue;
-        try {
-          const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chatType: 'oneOnOne',
-              members: [
-                { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
-                  'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${toEmail}')` },
-                { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
-                  'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myId}` }
-              ]
-            })
-          });
-          let chatId = null;
-          if (chatResp.ok) { chatId = (await chatResp.json()).id; }
-          else if (chatResp.status === 409) {
-            const e409 = await chatResp.json();
-            chatId = e409?.error?.innerError?.id || null;
-            if (!chatId) {
-              const list = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
-              const found = list?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === toEmail));
-              chatId = found?.id || null;
-            }
-          }
-          if (chatId) {
-            await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
-              method: 'POST',
-              headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ body: { contentType: 'html', content: msg } })
-            });
-          }
-        } catch(memberErr) { console.warn('Teams notify member failed:', member.email, memberErr.message); }
+      const chatId = CONFIG.drawingTeamChatId;
+      if (chatId) {
+        await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: { contentType: 'html', content: lines.join('<br>') } })
+        });
       }
-    } catch(teamsErr) { console.warn('Teams notify new_request failed:', teamsErr.message); }
+    } catch(teamsErr) { console.warn('Teams group notify failed:', teamsErr.message); }
 
     allRequests.unshift({ ...item, id: item.id });
     document.getElementById('refNumber').textContent = refNo;
