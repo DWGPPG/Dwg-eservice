@@ -119,6 +119,51 @@ body { font-family: var(--font); background: var(--gray-100); color: var(--navy)
 .nav-tab:hover { color: var(--white); }
 .nav-tab.active { color: var(--sun); border-bottom-color: var(--sun); }
 .nav-tab svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+
+/* Hamburger button */
+.nav-hamburger { display:none; background:none; border:none; color:#fff; cursor:pointer; padding:8px; margin-left:auto; }
+.nav-hamburger svg { width:22px; height:22px; stroke:#fff; fill:none; stroke-width:2; }
+
+/* Mobile drawer */
+.nav-drawer { display:none; position:fixed; top:56px; left:0; right:0; bottom:0; z-index:200; }
+.nav-drawer.open { display:block; }
+.nav-drawer-overlay { position:absolute; inset:0; background:rgba(0,0,0,.4); }
+.nav-drawer-panel { position:absolute; top:0; left:0; width:260px; height:100%; background:#fff; box-shadow:4px 0 20px rgba(0,0,0,.15); overflow-y:auto; animation: slideInLeft .2s ease; }
+@keyframes slideInLeft { from { transform:translateX(-100%); } to { transform:translateX(0); } }
+.nav-drawer-header { background:linear-gradient(135deg,#005DAC,#004A8E); padding:16px; display:flex; align-items:center; gap:10px; }
+.nav-drawer-header img { height:32px; width:auto; }
+.nav-drawer-header span { color:#fff; font-weight:600; font-size:14px; }
+.nav-drawer-user { padding:12px 16px; border-bottom:1px solid var(--gray-100); display:flex; align-items:center; gap:10px; }
+.nav-drawer-item { display:flex; align-items:center; gap:12px; padding:13px 20px; color:var(--gray-600); font-size:14px; cursor:pointer; border-bottom:1px solid var(--gray-50); transition:background .15s; }
+.nav-drawer-item:hover { background:var(--gray-50); color:var(--navy); }
+.nav-drawer-item.active { background:#EBF4FF; color:#005DAC; font-weight:500; }
+.nav-drawer-item svg { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:1.8; flex-shrink:0; }
+.nav-drawer-logout { padding:16px 20px; border-top:1px solid var(--gray-100); margin-top:8px; }
+
+/* Responsive breakpoints */
+@media (max-width: 768px) {
+  .nav { padding: 0 12px; }
+  .nav-tabs { display: none; }
+  .nav-right { display: none; }
+  .nav-hamburger { display: flex; align-items: center; justify-content: center; }
+  .nav-logo { margin-right: auto; }
+  .content { padding: 12px; }
+  .card { padding: 14px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .page-header { padding: 16px 0 8px; }
+  .page-title { font-size: 18px; }
+  .modal-box { width: 95vw; max-height: 90vh; }
+  .btn { padding: 9px 14px; font-size: 13px; }
+  table { font-size: 12px; }
+  .rpt-section { overflow-x: auto; }
+}
+@media (max-width: 480px) {
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-card { padding: 12px; }
+  .stat-val { font-size: 22px; }
+  .form-grid.two-col { grid-template-columns: 1fr; }
+}
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .nav-user { display: flex; align-items: center; gap: 8px; color: var(--gray-400); font-size: 12px; cursor: pointer; }
 .nav-user:hover { color: var(--white); }
@@ -497,7 +542,36 @@ tr:hover td { background: var(--sky); }
         ออกจากระบบ
       </button>
     </div>
+    <!-- Hamburger (mobile only) -->
+    <button class="nav-hamburger" onclick="toggleDrawer()" id="hamburgerBtn" aria-label="เมนู">
+      <svg viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
   </nav>
+
+  <!-- Mobile Drawer -->
+  <div class="nav-drawer" id="navDrawer">
+    <div class="nav-drawer-overlay" onclick="closeDrawer()"></div>
+    <div class="nav-drawer-panel">
+      <div class="nav-drawer-header">
+        <img src="" id="drawerLogoImg" alt="PPG" style="height:28px">
+        <span>PPG Drawing</span>
+      </div>
+      <div class="nav-drawer-user">
+        <div class="avatar" id="drawerAvatar" style="width:36px;height:36px;font-size:14px">?</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--navy)" id="drawerName">...</div>
+          <div style="font-size:11px;color:var(--gray-400)" id="drawerEmail"></div>
+        </div>
+      </div>
+      <div id="drawerMenu"></div>
+      <div class="nav-drawer-logout">
+        <button onclick="signOut()" style="width:100%;padding:10px;background:#fff0f0;color:#e53e3e;border:1px solid #fca5a5;border-radius:8px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          ออกจากระบบ
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
@@ -1613,6 +1687,10 @@ async function onSignedIn() {
   maybeShowReviewTab();
   // แสดง รายงาน tab สำหรับสมาชิกฝ่ายเขียนแบบ
   maybeShowReportTab();
+  // Mobile drawer
+  buildDrawerMenu();
+  updateDrawerUser();
+  syncDrawerVisibility();
 
   // เช็ค URL param ?review=DWG-XXXX
   const urlParams = new URLSearchParams(window.location.search);
@@ -3842,15 +3920,22 @@ async function reviewUpdate(requestId, action, comment) {
         if (chatId) {
           const emoji = action === 'approve' ? '✅' : action === 'revise' ? '✏️' : '❌';
           const actionTh = action === 'approve' ? 'อนุมัติรับงาน' : action === 'revise' ? 'ขอแก้ไข' : 'Reject';
+          const receiptUrl = `${CONFIG.redirectUri}?review=${requestId}`;
           const lines = [
             `${emoji} <b>PPG Drawing e-Service — ผลการตรวจรับงาน</b>`,
             ``,
             `📋 <b>เลขคำขอ:</b> ${requestId}`,
+            `📦 <b>ระบบงาน:</b> ${item.ProjectName||'—'}`,
+            `🏗️ <b>โครงการ:</b> ${item.ProjectName0||'—'}`,
+            `📐 <b>Drawing No.:</b> ${item.DrawingNumber||'—'}`,
+            `📄 <b>Drawing Name:</b> ${item.DrawingName||'—'}`,
+            `🔄 <b>Revise:</b> ${item.CurrentRevise||item.ReviseNumber||'—'}`,
             `📌 <b>ผล:</b> ${actionTh}`,
             `👤 <b>โดย:</b> ${myInfo?.displayName || myEmail}`,
             `📅 <b>วันที่:</b> ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`,
           ];
           if (comment) lines.push(`💬 <b>รายละเอียด:</b> ${comment}`);
+          lines.push(`<br>📎 <a href="${receiptUrl}">ดูใบรับงาน / ตรวจสอบในระบบ</a>`);
           await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
@@ -3875,6 +3960,67 @@ function maybeShowSendworkTab(email) {
   const isMember = CONFIG.teamMembers.some(m => m.email.toLowerCase() === (email||'').toLowerCase());
   const tab = document.getElementById('sendworkTab');
   if (tab && isMember) tab.style.display = '';
+}
+
+// ── MOBILE DRAWER ──
+const DRAWER_MENU_ITEMS = [
+  { page:'dashboard', icon:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', label:'Dashboard' },
+  { page:'submit',    icon:'<path d="M12 5v14M5 12h14" stroke-linecap="round"/>', label:'ส่งคำร้อง' },
+  { page:'track',     icon:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/>', label:'ติดตามสถานะ' },
+  { page:'admin',     icon:'<path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/>', label:'อนุมัติ (Admin)', id:'drawerAdmin' },
+  { page:'sendwork',  icon:'<path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>', label:'นำส่งงาน', id:'drawerSendwork' },
+  { page:'review',    icon:'<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>', label:'ตรวจรับงาน', id:'drawerReview' },
+  { page:'report',    icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', label:'รายงาน', id:'drawerReport' },
+];
+
+function buildDrawerMenu() {
+  const menu = document.getElementById('drawerMenu');
+  if (!menu) return;
+  menu.innerHTML = DRAWER_MENU_ITEMS.map(item => `
+    <div class="nav-drawer-item" ${item.id?`id="${item.id}"`:''}
+      onclick="drawerNav('${item.page}')"
+      style="${item.id ? 'display:none' : ''}">
+      <svg viewBox="0 0 24 24">${item.icon}</svg>
+      ${item.label}
+    </div>`).join('');
+}
+
+function drawerNav(page) {
+  closeDrawer();
+  const tab = document.querySelector(`.nav-tab[onclick*="'${page}'"]`);
+  showPage(page, tab);
+  document.querySelectorAll('.nav-drawer-item').forEach(el => el.classList.remove('active'));
+  const active = document.querySelector(`.nav-drawer-item[onclick*="'${page}'"]`);
+  if (active) active.classList.add('active');
+}
+
+function toggleDrawer() {
+  document.getElementById('navDrawer')?.classList.toggle('open');
+}
+
+function closeDrawer() {
+  document.getElementById('navDrawer')?.classList.remove('open');
+}
+
+function updateDrawerUser() {
+  if (!currentUser) return;
+  const name  = currentUser.name || currentUser.username?.split('@')[0] || '';
+  const email = currentUser.username || '';
+  const initials = name.split(' ').map(n=>n[0]||'').join('').toUpperCase().slice(0,2) || '?';
+  const el = (id) => document.getElementById(id);
+  if (el('drawerAvatar')) el('drawerAvatar').textContent = initials;
+  if (el('drawerName'))   el('drawerName').textContent   = name;
+  if (el('drawerEmail'))  el('drawerEmail').textContent  = email;
+  if (el('drawerLogoImg')) el('drawerLogoImg').src = LOGO_NAV_URL;
+}
+
+function syncDrawerVisibility() {
+  const map = { drawerAdmin:'adminTab', drawerSendwork:'sendworkTab', drawerReview:'reviewTab', drawerReport:'reportTab' };
+  Object.entries(map).forEach(([dId, tId]) => {
+    const tab  = document.getElementById(tId);
+    const item = document.getElementById(dId);
+    if (tab && item) item.style.display = tab.style.display === 'none' ? 'none' : '';
+  });
 }
 
 // ── START ──
