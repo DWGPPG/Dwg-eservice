@@ -84,7 +84,45 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font); background: var(--gray-100); color: var(--navy); min-height: 100vh; font-size: 14px; line-height: 1.6; }
 
-/* Send-work tab buttons */
+/* ── DARK MODE ── */
+body.dark {
+  --sun: #0DB14B; --sun-light: #0a3320; --sun-dark: #10d45a;
+  --navy: #93c5fd; --navy-soft: #1e3a5f;
+  --sky: #0f1f0f; --white: #1e2530;
+  --gray-100: #161e2a; --gray-200: #2d3748; --gray-400: #718096; --gray-600: #a0aec0;
+  --success: #10d45a; --success-bg: #0a2d1a;
+  --warning: #f6c90e; --warning-bg: #2d2200;
+  --danger: #fc8181; --danger-bg: #2d1515;
+  --info: #63b3ed; --info-bg: #1a2d4a;
+  background: #111827;
+  color: #e2e8f0;
+}
+body.dark .nav { background: linear-gradient(90deg,#0f2d52,#0a1f3a); }
+body.dark .nav-drawer-panel { background: #1e2530; }
+body.dark .nav-drawer-header { background: linear-gradient(135deg,#0f2d52,#0a1f3a); }
+body.dark .login-card { background: #1e2530; }
+body.dark .config-banner { background: #0a1f3a; }
+body.dark input, body.dark select, body.dark textarea { background: #1e2530; color: #e2e8f0; border-color: #2d3748; }
+body.dark .col-filter-dropdown { background: #1e2530; border-color: #2d3748; }
+body.dark .col-filter-option:hover { background: #0a3320; }
+body.dark tr:hover td { background: #0a3320; }
+body.dark .modal { background: #1e2530; }
+body.dark .assign-modal { background: #1e2530; }
+body.dark .toast { background: #2d3748; }
+body.dark .file-drop { background: #1e2530; border-color: #2d3748; }
+body.dark .btn-secondary { background: #2d3748; color: #e2e8f0; border-color: #4a5568; }
+body.dark .btn-secondary:hover { background: #4a5568; }
+body.dark #darkModeBtn { background: #2d3748; color: #e2e8f0; border-color: #4a5568; }
+
+/* ── DUE DATE ROW HIGHLIGHTS ── */
+tr.due-today td { background: #fff7ed !important; }
+tr.due-overdue td { background: #fff1f0 !important; }
+body.dark tr.due-today td { background: #2d1f00 !important; }
+body.dark tr.due-overdue td { background: #2d0f0f !important; }
+
+/* ── EDIT REQUEST MODAL ── */
+.edit-modal { background:var(--white);border-radius:var(--radius-lg);padding:28px;max-width:560px;width:95%;max-height:88vh;overflow-y:auto; }
+body.dark .edit-modal { background:#1e2530; }
 .sw-tab { display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;background:transparent;color:var(--gray-600);font-family:var(--font);transition:all .15s; }
 .sw-tab-active { background:var(--white);color:var(--navy);border-color:var(--gray-200); }
 .sw-tab:not(.sw-tab-active):hover { background:var(--white); }
@@ -666,9 +704,15 @@ tr:hover td { background: var(--sky); }
 
   <!-- DASHBOARD -->
   <div class="page active" id="page-dashboard">
-    <div class="page-header">
-      <div class="page-title">Dashboard สถานะงาน</div>
-      <div class="page-sub">ระบบคำร้องฝ่ายเขียนแบบ PRIME POWER GROUP</div>
+    <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="page-title">Dashboard สถานะงาน</div>
+        <div class="page-sub">ระบบคำร้องฝ่ายเขียนแบบ PRIME POWER GROUP</div>
+      </div>
+      <button id="darkModeBtn" onclick="toggleDarkMode()" title="สลับ Dark/Light mode"
+        style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-600);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font)">
+        🌙 Dark Mode
+      </button>
     </div>
     <div class="stats-row" id="statsRow">
       <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val skeleton" style="height:30px;width:60px">&nbsp;</div></div>
@@ -686,6 +730,11 @@ tr:hover td { background: var(--sky); }
         <div id="typeChart" style="display:flex;flex-direction:column;gap:10px;margin-top:4px"></div>
       </div>
     </div>
+    <!-- กราฟรายเดือน -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">คำร้องรายเดือน (12 เดือนล่าสุด)</div>
+      <div id="monthChart" style="display:flex;gap:4px;align-items:flex-end;height:100px;padding:0 4px;overflow-x:auto"></div>
+    </div>
     <div class="card" id="workloadCard">
       <div class="card-title">ปริมาณงานคงค้างของทีม</div>
       <div class="wl-summary" id="wlSummary"></div>
@@ -700,7 +749,12 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
     <div class="card">
-      <div class="card-title">คำร้องทั้งหมด</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div class="card-title" style="margin-bottom:0;flex:1">คำร้องทั้งหมด</div>
+        <input type="text" id="dashSearch" placeholder="🔍 ค้นหา เลขคำร้อง โครงการ ชื่อ..."
+          oninput="onDashSearch(this.value)"
+          style="width:240px;font-size:13px;padding:7px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+      </div>
       <div class="filter-row" style="margin-bottom:12px">
         <button class="filter-btn active" onclick="filterTable('all',this)">ทั้งหมด</button>
         <button class="filter-btn" onclick="filterTable('pending',this)">รออนุมัติ</button>
@@ -1612,6 +1666,58 @@ tr:hover td { background: var(--sky); }
   <span id="toastMsg">สำเร็จ</span>
 </div>
 
+<!-- Edit Request Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="edit-modal">
+    <h2 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">✏️ แก้ไขคำร้อง</h2>
+    <p style="font-size:12px;color:var(--gray-400);margin-bottom:16px">สามารถแก้ไขได้เฉพาะช่วง <b>รออนุมัติ</b> เท่านั้น</p>
+    <input type="hidden" id="edit_id">
+    <div class="form-grid" style="gap:12px">
+      <div class="field span2">
+        <label>ชื่อโครงการ <span class="req">*</span></label>
+        <input type="text" id="edit_project" placeholder="ชื่อโครงการ">
+      </div>
+      <div class="field">
+        <label>Drawing Number</label>
+        <input type="text" id="edit_drawing_number">
+      </div>
+      <div class="field">
+        <label>Revise Number</label>
+        <input type="text" id="edit_revise">
+      </div>
+      <div class="field span2">
+        <label>Drawing Name</label>
+        <input type="text" id="edit_drawing_name">
+      </div>
+      <div class="field">
+        <label>วันที่ต้องการรับงาน</label>
+        <input type="date" id="edit_duedate">
+      </div>
+      <div class="field">
+        <label>ระดับความเร่งด่วน</label>
+        <select id="edit_urgent">
+          <option>ปกติ</option><option>เร่งด่วน</option><option>เร่งด่วนมาก</option>
+        </select>
+      </div>
+      <div class="field span2">
+        <label>รายละเอียดเพิ่มเติม</label>
+        <textarea id="edit_detail" rows="3"></textarea>
+      </div>
+      <div class="field span2">
+        <label>แนบลิงก์ข้อมูล</label>
+        <input type="text" id="edit_datalink" placeholder="Link Google Drive, OneDrive, SharePoint...">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-secondary" onclick="closeModal('editModal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="editSaveBtn" onclick="saveEditRequest()">
+        <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        บันทึกการแก้ไข
+      </button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -2157,15 +2263,26 @@ async function refreshToken() {
           if (useMobile) {
             await msalInstance.acquireTokenRedirect({ scopes: graphScopes, account: currentUser });
           } else {
-            const r2 = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
-            accessToken = r2.accessToken;
+            // ── Session หมดอายุ: แจ้ง popup ก่อน ──
+            const confirmed = confirm(
+              '⏰ Session หมดอายุ\n\nกรุณา Login ใหม่เพื่อใช้งานต่อ\n\nกด OK เพื่อ Login'
+            );
+            if (confirmed) {
+              const r2 = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
+              accessToken = r2.accessToken;
+              showToast('✅', 'Login สำเร็จ — ใช้งานต่อได้เลย');
+            }
           }
-        } catch(e2) { console.warn('refreshToken failed:', e2.message); }
+        } catch(e2) {
+          console.warn('refreshToken failed:', e2.message);
+          showToast('⚠️', 'Session หมดอายุ — กรุณา Login ใหม่');
+        }
       }
       return;
     }
   }
   console.warn('refreshToken: interaction_in_progress หลังลอง 3 ครั้ง');
+  showToast('⚠️', 'Session มีปัญหา — ลอง Refresh หน้าเว็บ');
 }
 
 async function onSignedIn() {
@@ -2331,9 +2448,22 @@ async function getListId(listName) {
 }
 
 async function spGetItems(filter = '') {
+  // ── Pagination: วนดึงจนหมด ไม่มีลิมิต ──
   const q = filter ? `&$filter=${encodeURIComponent(filter)}` : '';
-  const r = await graphGet(`/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=500${q}`);
-  return r.value.map(i => ({ ...i.fields, id: i.id }));
+  let url = `/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=500${q}`;
+  let allItems = [];
+  while (url) {
+    const r = await graphGet(url);
+    allItems = allItems.concat(r.value.map(i => ({ ...i.fields, id: i.id })));
+    // ถ้ามีหน้าถัดไป nextLink จะเป็น full URL — ตัด base ออกให้ graphGet ใช้ได้
+    const next = r['@odata.nextLink'];
+    if (next) {
+      url = next.replace('https://graph.microsoft.com/v1.0', '');
+    } else {
+      url = null;
+    }
+  }
+  return allItems;
 }
 
 async function spSearchByTitle(title) {
@@ -2478,6 +2608,13 @@ async function submitRequest() {
   if (!name || !project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการให้ครบ'); return; }
 
   const btn = document.getElementById('submitBtn');
+
+  // ── ป้องกันกดซ้ำ: เช็ค flag ก่อน ──
+  if (btn.dataset.submitting === 'true') {
+    showToast('⏳', 'กำลังส่งคำร้องอยู่ กรุณารอสักครู่...');
+    return;
+  }
+  btn.dataset.submitting = 'true';
   btn.classList.add('btn-loading');
   btn.disabled = true;
 
@@ -2568,6 +2705,7 @@ async function submitRequest() {
   } finally {
     btn.classList.remove('btn-loading');
     btn.disabled = false;
+    btn.dataset.submitting = 'false'; // ── คืน flag ให้กดได้อีกครั้ง ──
   }
 }
 
@@ -2663,6 +2801,7 @@ async function buildDashboard() {
     renderStats();
     renderTypeChart();
     renderBarChart();
+    renderMonthChart();
     renderWorkload();
     renderTable(allRequests);
   } catch(e) {
@@ -2725,6 +2864,106 @@ function renderBarChart() {
       <div class="bar ${i===6?'':'dim'}" style="height:${Math.round(v/max*72)}px" title="${v} รายการ"></div>
       <div class="bar-label">${days[(today - (6-i) + 7) % 7]}</div>
     </div>`).join('');
+}
+
+// ── กราฟรายเดือน 12 เดือนล่าสุด ──
+function renderMonthChart() {
+  const now = new Date();
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ year: d.getFullYear(), month: d.getMonth(), count: 0,
+      label: d.toLocaleDateString('th-TH', { month:'short' }) });
+  }
+  allRequests.forEach(r => {
+    if (!r.SubmittedAt) return;
+    const d = new Date(r.SubmittedAt);
+    const m = months.find(x => x.year === d.getFullYear() && x.month === d.getMonth());
+    if (m) m.count++;
+  });
+  const max = Math.max(...months.map(m => m.count), 1);
+  const currentMonth = now.getMonth();
+  document.getElementById('monthChart').innerHTML = months.map(m => `
+    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:32px">
+      <div style="font-size:10px;color:var(--gray-400);font-weight:600">${m.count||''}</div>
+      <div style="width:100%;background:${m.month===currentMonth?'var(--sun)':'var(--gray-200)'};border-radius:4px 4px 0 0;
+        height:${Math.max(Math.round(m.count/max*80),m.count>0?4:0)}px;opacity:${m.month===currentMonth?1:.75};
+        transition:height .3s" title="${m.label}: ${m.count} รายการ"></div>
+      <div style="font-size:9px;color:var(--gray-400)">${m.label}</div>
+    </div>`).join('');
+}
+
+// ── ค้นหาใน Dashboard ──
+let dashSearchQuery = '';
+function onDashSearch(val) {
+  dashSearchQuery = val.toLowerCase().trim();
+  renderTable(allRequests);
+}
+
+// ── Dark Mode ──
+function toggleDarkMode() {
+  const isDark = document.body.classList.toggle('dark');
+  localStorage.setItem('ppg_darkmode', isDark ? '1' : '0');
+  const btn = document.getElementById('darkModeBtn');
+  if (btn) btn.textContent = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+}
+function initDarkMode() {
+  if (localStorage.getItem('ppg_darkmode') === '1') {
+    document.body.classList.add('dark');
+    const btn = document.getElementById('darkModeBtn');
+    if (btn) btn.textContent = '☀️ Light Mode';
+  }
+}
+
+// ── แก้ไขคำร้อง (เฉพาะ pending) ──
+function openEditRequest(itemId) {
+  const r = allRequests.find(x => x.id === itemId);
+  if (!r) return;
+  if (!['pending','review','inprogress_lv1'].includes(r.Status)) {
+    showToast('⚠️', 'แก้ไขได้เฉพาะคำร้องที่ยังรออนุมัติเท่านั้น'); return;
+  }
+  document.getElementById('edit_id').value          = itemId;
+  document.getElementById('edit_project').value     = r.ProjectName0 || '';
+  document.getElementById('edit_drawing_number').value = r.DrawingNumber || '';
+  document.getElementById('edit_revise').value      = r.ReviseNumber || '';
+  document.getElementById('edit_drawing_name').value = r.DrawingName || '';
+  document.getElementById('edit_duedate').value     = r.DueDate ? r.DueDate.slice(0,10) : '';
+  document.getElementById('edit_urgent').value      = r.Urgency || 'ปกติ';
+  document.getElementById('edit_detail').value      = r.Detail || '';
+  document.getElementById('edit_datalink').value    = r.DataLink || '';
+  document.getElementById('editModal').classList.add('show');
+}
+
+async function saveEditRequest() {
+  const itemId  = document.getElementById('edit_id').value;
+  const project = document.getElementById('edit_project').value.trim();
+  if (!project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการ'); return; }
+  const btn = document.getElementById('editSaveBtn');
+  btn.disabled = true; btn.classList.add('btn-loading');
+  try {
+    const due = document.getElementById('edit_duedate').value;
+    const fields = {
+      ProjectName0:  project,
+      DrawingNumber: document.getElementById('edit_drawing_number').value.trim(),
+      ReviseNumber:  document.getElementById('edit_revise').value.trim(),
+      DrawingName:   document.getElementById('edit_drawing_name').value.trim(),
+      Urgency:       document.getElementById('edit_urgent').value,
+      Detail:        document.getElementById('edit_detail').value.trim(),
+      DataLink:      document.getElementById('edit_datalink').value.trim(),
+    };
+    if (due) fields.DueDate = new Date(due).toISOString();
+    await spUpdateItem(itemId, fields);
+    // อัปเดต local cache
+    const idx = allRequests.findIndex(x => x.id === itemId);
+    if (idx >= 0) Object.assign(allRequests[idx], fields);
+    closeModal('editModal');
+    renderTable(allRequests);
+    showToast('✅', 'แก้ไขคำร้องสำเร็จ');
+  } catch(e) {
+    showToast('❌', 'แก้ไขไม่สำเร็จ: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.classList.remove('btn-loading');
+  }
 }
 
 function renderWorkload() {
@@ -2836,6 +3075,18 @@ function renderTable(items) {
         return true;
       });
 
+  // ── Search filter ──
+  if (dashSearchQuery) {
+    filtered = filtered.filter(r =>
+      (r.Title||'').toLowerCase().includes(dashSearchQuery) ||
+      (r.ProjectName||'').toLowerCase().includes(dashSearchQuery) ||
+      (r.ProjectName0||'').toLowerCase().includes(dashSearchQuery) ||
+      (r.AssigneeName||'').toLowerCase().includes(dashSearchQuery) ||
+      (r.Department||'').toLowerCase().includes(dashSearchQuery) ||
+      (r.SenderName||'').toLowerCase().includes(dashSearchQuery)
+    );
+  }
+
   // ── Column filters ──
   if (colFilters.type.length)     filtered = filtered.filter(r => colFilters.type.includes(r.ProjectName0||'—'));
   if (colFilters.project.length)  filtered = filtered.filter(r => colFilters.project.includes(r.ProjectName||'—'));
@@ -2859,17 +3110,34 @@ function renderTable(items) {
   });
 
   // ── Render rows ──
-  document.getElementById('dashTableBody').innerHTML = filtered.map(r => `
-    <tr>
-      <td style="font-family:var(--mono);font-size:12px">${r.Title}</td>
+  const today0 = new Date(); today0.setHours(0,0,0,0);
+  document.getElementById('dashTableBody').innerHTML = filtered.map(r => {
+    const isPending = ['pending','review','inprogress_lv1'].includes(r.Status);
+    const due = r.DueDate ? new Date(r.DueDate) : null;
+    if (due) due.setHours(0,0,0,0);
+    const isOverdue  = due && due < today0 && !['done','cancelled'].includes(r.Status);
+    const isDueToday = due && due.getTime() === today0.getTime() && !['done','cancelled'].includes(r.Status);
+    const rowClass   = isOverdue ? 'due-overdue' : isDueToday ? 'due-today' : '';
+    const dueBadge   = isOverdue
+      ? `<span style="font-size:10px;background:#fee2e2;color:#b91c1c;border-radius:4px;padding:1px 5px;margin-left:4px">🔴เกิน</span>`
+      : isDueToday
+      ? `<span style="font-size:10px;background:#fff7ed;color:#c2410c;border-radius:4px;padding:1px 5px;margin-left:4px">🟡วันนี้</span>`
+      : '';
+    return `<tr class="${rowClass}">
+      <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
+        ${r.Title}
+        ${isPending ? `<button onclick="openEditRequest('${r.id}')" title="แก้ไขคำร้อง"
+          style="margin-left:6px;background:none;border:1px solid var(--gray-200);border-radius:5px;padding:1px 6px;font-size:10px;cursor:pointer;color:var(--gray-600)">✏️</button>` : ''}
+      </td>
       <td>${r.ProjectName0||'—'}</td>
       <td style="font-weight:500">${r.ProjectName||'—'}</td>
       <td>${r.Department||'—'}</td>
-      <td style="color:var(--gray-400)">${fmtDate(r.SubmittedAt)}</td>
+      <td style="color:var(--gray-400);white-space:nowrap">${fmtDate(r.SubmittedAt)}${dueBadge}</td>
       <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
       <td><span class="badge ${STATUS_CLASS_TABLE[r.Status]||'badge-pending'}">${STATUS_LABEL_TABLE[r.Status]||r.Status}</span></td>
       <td>${r.ReviewResult ? `<span class="badge ${r.ReviewResult==='approved'?'badge-done':r.ReviewResult==='revise'?'badge-pending':'badge-rejected'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ แก้ไข':'❌ Reject'}</span>${r.ReviseComment?`<div style="font-size:11px;color:var(--gray-500);margin-top:2px">${r.ReviseComment}</div>`:r.DeliveryRejectReason?`<div style="font-size:11px;color:var(--danger);margin-top:2px">${r.DeliveryRejectReason}</div>`:''}` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
-    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--gray-400)">ไม่มีข้อมูล</td></tr>';
 
   // ── Update sort icons ──
   document.querySelectorAll('#dashTable th.sortable').forEach(th => {
@@ -4609,6 +4877,9 @@ document.addEventListener('click', function(e) {
     dd.style.display = 'none';
   }
 });
+
+// Dark mode: โหลดค่าที่บันทึกไว้ทันที
+initDarkMode();
 
 </script>
 </body>
