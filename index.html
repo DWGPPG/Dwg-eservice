@@ -453,7 +453,7 @@ tr:hover td { background: var(--sky); }
 <div class="main-app" id="mainApp">
   <nav class="nav">
     <a class="nav-logo" href="#">
-      <div class="nav-logo-icon" style="background:linear-gradient(135deg,#005DAC,#0DB14B);font-size:10px;font-weight:700;color:#fff;letter-spacing:-0.5px">PPG</div>
+      <img id="navLogoImg" src="" alt="PPG" style="height:36px;width:auto;border-radius:6px;object-fit:contain">
       PPG Drawing
     </a>
     <div class="nav-tabs">
@@ -1035,6 +1035,20 @@ tr:hover td { background: var(--sky); }
     <div id="reportContent"></div>
   </div>
 
+  <!-- PDF PREVIEW MODAL -->
+  <div class="modal-overlay" id="pdfPreviewModal" style="display:none;z-index:9999">
+    <div style="background:#fff;border-radius:12px;width:min(860px,96vw);max-height:92vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--gray-200)">
+        <div style="font-weight:600;font-size:15px" id="pdfPreviewTitle">ตัวอย่างเอกสาร</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary" id="pdfPreviewDownloadBtn" onclick="pdfPreviewDownload()">📥 ดาวน์โหลด PDF</button>
+          <button class="btn btn-secondary" onclick="closePdfPreview()">✕ ปิด</button>
+        </div>
+      </div>
+      <div style="overflow-y:auto;padding:20px;background:#f0f2f5" id="pdfPreviewBody"></div>
+    </div>
+  </div>
+
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="page-header">
@@ -1146,7 +1160,8 @@ const CONFIG = {
 // ── MSAL Setup ──
 // MSAL instance จะสร้างใน init() หลัง library โหลดเสร็จ
 let msalInstance = null;
-const LOGO_BASE64 = 'https://dwgppg.github.io/Dwg-eservice/PPG.webp';
+const LOGO_BASE64   = 'https://dwgppg.github.io/Dwg-eservice/PPG-Head%20For%20Web.png';
+const LOGO_NAV_URL  = 'https://dwgppg.github.io/Dwg-eservice/PPG%20logo%20for%20Web.png';
 const graphScopes = ['User.Read', 'Sites.ReadWrite.All', 'Files.ReadWrite.All', 'Chat.ReadWrite'];
 
 let currentUser  = null;
@@ -1446,6 +1461,10 @@ async function updateWorkStatus(itemId, status) {
 
 async function init() {
   setBanner('connecting', '⚙️ กำลังเชื่อมต่อ Microsoft 365...');
+
+  // ตั้ง logo navbar
+  const navLogo = document.getElementById('navLogoImg');
+  if (navLogo) navLogo.src = LOGO_NAV_URL;
 
   // สร้าง MSAL instance หลัง library โหลดเสร็จ
   const msalConfig = {
@@ -3166,7 +3185,20 @@ function swPopulateFromRequest(item) {
   swCheckReady();
 }
 
-async function exportReviewPDF(requestId) {
+// state สำหรับ preview
+let _pdfPreviewHtml = '';
+let _pdfPreviewFilename = '';
+let _pdfPreviewWidth = 794;
+
+function closePdfPreview() {
+  document.getElementById('pdfPreviewModal').style.display = 'none';
+  _pdfPreviewHtml = '';
+}
+
+async function pdfPreviewDownload() {
+  const btn = document.getElementById('pdfPreviewDownloadBtn');
+  btn.textContent = '⏳ กำลัง Export...';
+  btn.disabled = true;
   try {
     if (!window.html2canvas) {
       await new Promise((res, rej) => {
@@ -3176,6 +3208,46 @@ async function exportReviewPDF(requestId) {
         document.head.appendChild(s);
       });
     }
+    const printDiv = document.createElement('div');
+    printDiv.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${_pdfPreviewWidth}px;background:#fff;font-family:Sarabun,sans-serif;font-size:13px;color:#222;padding:0`;
+    printDiv.innerHTML = _pdfPreviewHtml;
+    document.body.appendChild(printDiv);
+    const canvas = await html2canvas(printDiv, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false, width:_pdfPreviewWidth, windowWidth:_pdfPreviewWidth });
+    document.body.removeChild(printDiv);
+    const { jsPDF } = window.jspdf;
+    const pdf   = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const imgW  = pageW;
+    const imgH  = canvas.height * imgW / canvas.width;
+    const imgData = canvas.toDataURL('image/png');
+    if (imgH <= pageH) {
+      pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
+    } else {
+      let srcY = 0, remaining = imgH;
+      while (remaining > 0) {
+        const sliceH = Math.min(remaining, pageH);
+        const sc = document.createElement('canvas');
+        sc.width = canvas.width;
+        sc.height = Math.round((sliceH/imgH)*canvas.height);
+        sc.getContext('2d').drawImage(canvas, 0, Math.round(srcY*canvas.height/imgH), canvas.width, sc.height, 0, 0, canvas.width, sc.height);
+        if (srcY > 0) pdf.addPage();
+        pdf.addImage(sc.toDataURL('image/png'), 'PNG', 0, 0, imgW, sliceH);
+        remaining -= sliceH; srcY += sliceH;
+      }
+    }
+    pdf.save(_pdfPreviewFilename);
+    showToast('✅', 'ดาวน์โหลด PDF สำเร็จ');
+  } catch(e) {
+    showToast('❌', 'Export ไม่สำเร็จ: ' + e.message);
+  } finally {
+    btn.textContent = '📥 ดาวน์โหลด PDF';
+    btn.disabled = false;
+  }
+}
+
+async function exportReviewPDF(requestId) {
+  try {
     const all = await spGetItems();
     const r   = all.find(i => i.Title === requestId);
     if (!r) { showToast('❌', 'ไม่พบข้อมูลคำขอ'); return; }
@@ -3190,10 +3262,8 @@ async function exportReviewPDF(requestId) {
     const reviewBg = r.ReviewResult==='approved'?'#f0faf5':r.ReviewResult==='revise'?'#fffbeb':r.ReviewResult==='reject'?'#fff0f0':'#f8fafc';
     const reviewBorder = r.ReviewResult==='approved'?'#6ee7b7':r.ReviewResult==='revise'?'#fde68a':r.ReviewResult==='reject'?'#fca5a5':'#e2e8f0';
 
-    const printDiv = document.createElement('div');
-    printDiv.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:794px;background:#fff;font-family:Sarabun,sans-serif;font-size:13px;color:#222;padding:0';
-    printDiv.innerHTML = `
-      <div style="width:100%;margin-bottom:0"><img src="${LOGO_BASE64}" style="width:100%;height:auto;display:block"></div>
+    const html = `
+      <div style="width:100%;margin-bottom:0"><img src="${LOGO_BASE64}" style="width:100%;height:auto;display:block" crossorigin="anonymous"></div>
       <div style="text-align:center;padding:14px 40px 8px;border-bottom:2px solid #1a365d">
         <div style="font-size:18px;font-weight:700;color:#1a365d;letter-spacing:1px">ใบรับงานเขียนแบบ</div>
         <div style="font-size:12px;color:#666;margin-top:2px">Drawing Delivery Receipt</div>
@@ -3231,52 +3301,38 @@ async function exportReviewPDF(requestId) {
         ${reviewComment ? `<div style="font-size:12px;color:#555;margin-top:4px">${reviewComment}</div>` : ''}
         ${r.ReviewedAt ? `<div style="font-size:11px;color:#999;margin-top:4px">วันที่ตรวจรับ: ${fmtDateTime(r.ReviewedAt)}</div>` : ''}
       </div>
-      <div style="padding:16px 40px 24px;display:flex;justify-content:space-between;gap:20px">
-        ${[['ผู้นำส่ง / Deliverer', r.AssigneeName||''],['ผู้ตรวจรับ / Receiver', r.SenderName||r.SenderEmail||''],['ผู้อนุมัติ / Approver','']].map(([title,name]) => `
-          <div style="flex:1;text-align:center">
-            <div style="border-top:1px solid #666;padding-top:8px;margin-top:48px">
-              <div style="font-size:12px;color:#444">${name}</div>
-              <div style="font-size:11px;color:#999;margin-top:2px">${title}</div>
-              <div style="font-size:11px;color:#999">วันที่ ................</div>
-            </div>
-          </div>`).join('')}
+      <div style="padding:12px 40px 24px">
+        <div style="font-size:12px;font-weight:600;color:#444;margin-bottom:12px;border-bottom:1px solid #e2e8f0;padding-bottom:6px">ลายมือชื่อ / Signatures</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          ${[
+            ['ลงชื่อผู้นำส่ง / Deliverer', r.AssigneeName||''],
+            ['ลงชื่อผู้จัดการผู้นำส่ง / Deliverer Manager', ''],
+            ['ลงชื่อผู้ตรวจรับ / Receiver', r.SenderName||r.SenderEmail||''],
+            ['ลงชื่อผู้จัดการผู้ตรวจรับ / Receiver Manager', ''],
+          ].map(([title,name]) => `
+            <div style="text-align:center;padding:8px">
+              <div style="height:50px"></div>
+              <div style="border-top:1px solid #555;padding-top:8px">
+                <div style="font-size:12px;color:#333;min-height:16px">${name}</div>
+                <div style="font-size:11px;color:#666;margin-top:3px">(${title})</div>
+                <div style="font-size:11px;color:#999;margin-top:3px">วันที่ / Date : ........................</div>
+              </div>
+            </div>`).join('')}
+        </div>
       </div>
       <div style="padding:8px 40px;background:#1a365d;color:#fff;font-size:10px;display:flex;justify-content:space-between">
         <span>PPG Drawing e-Service</span>
         <span>เอกสารนี้สร้างโดยระบบอัตโนมัติ | ${new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}</span>
       </div>`;
 
-    document.body.appendChild(printDiv);
-    const canvas = await html2canvas(printDiv, { scale:2, useCORS:true, backgroundColor:'#ffffff', logging:false, width:794, windowWidth:794 });
-    document.body.removeChild(printDiv);
-
-    const { jsPDF } = window.jspdf;
-    const pdf   = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const imgW  = pageW;
-    const imgH  = canvas.height * imgW / canvas.width;
-    const imgData = canvas.toDataURL('image/png');
-
-    if (imgH <= pageH) {
-      pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
-    } else {
-      let srcY = 0, remaining = imgH;
-      while (remaining > 0) {
-        const sliceH = Math.min(remaining, pageH);
-        const sc = document.createElement('canvas');
-        sc.width = canvas.width;
-        sc.height = Math.round((sliceH/imgH)*canvas.height);
-        sc.getContext('2d').drawImage(canvas, 0, Math.round(srcY*canvas.height/imgH), canvas.width, sc.height, 0, 0, canvas.width, sc.height);
-        if (srcY > 0) pdf.addPage();
-        pdf.addImage(sc.toDataURL('image/png'), 'PNG', 0, 0, imgW, sliceH);
-        remaining -= sliceH; srcY += sliceH;
-      }
-    }
-    pdf.save('ใบรับงาน-' + requestId + '.pdf');
-    showToast('✅', 'Export ใบรับงาน ' + requestId + ' สำเร็จ');
+    _pdfPreviewHtml = html;
+    _pdfPreviewFilename = 'ใบรับงาน-' + requestId + '.pdf';
+    _pdfPreviewWidth = 794;
+    document.getElementById('pdfPreviewTitle').textContent = 'ตัวอย่างใบรับงาน — ' + requestId;
+    document.getElementById('pdfPreviewBody').innerHTML = `<div style="background:#fff;width:794px;margin:0 auto;box-shadow:0 2px 12px rgba(0,0,0,.15)">${html}</div>`;
+    document.getElementById('pdfPreviewModal').style.display = 'flex';
   } catch(e) {
-    showToast('❌', 'Export ไม่สำเร็จ: ' + e.message);
+    showToast('❌', 'โหลดไม่สำเร็จ: ' + e.message);
     console.error(e);
   }
 }
