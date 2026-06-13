@@ -1803,14 +1803,29 @@ async function init() {
   try {
     await msalInstance.initialize();
 
-    // ล้าง interaction ที่ค้างจาก redirect ก่อนทำอะไรทั้งหมด
-    try { await msalInstance.handleRedirectPromise(); } catch(e) { console.warn('handleRedirect:', e); }
+    // ตรวจ iOS/Android — ใช้ redirect แทน popup
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const useMobile = isIOS || isAndroid;
 
-    // Popup flow — ตรวจสอบ account ที่ login ไว้แล้ว
+    // จัดการ redirect callback ก่อนทุกอย่าง
+    let redirectResp = null;
+    try {
+      redirectResp = await msalInstance.handleRedirectPromise();
+    } catch(e) { console.warn('handleRedirect:', e); }
+
+    // ถ้า redirect กลับมาพร้อม token
+    if (redirectResp && redirectResp.account) {
+      currentUser  = redirectResp.account;
+      accessToken  = redirectResp.accessToken;
+      await onSignedIn();
+      return;
+    }
+
+    // ตรวจ account ที่ login ไว้แล้ว
     const accounts = msalInstance.getAllAccounts();
     if (accounts.length > 0) {
       currentUser = accounts[0];
-      // ลอง silent token เท่านั้น — ห้ามเปิด popup ใน init เด็ดขาด
       try {
         const r = await msalInstance.acquireTokenSilent({
           scopes: graphScopes,
@@ -1819,23 +1834,25 @@ async function init() {
         });
         accessToken = r.accessToken;
       } catch(e) {
-        // silent fail — user ต้อง login ใหม่เอง ไม่ throw และไม่เปิด popup
         console.warn('silent token failed on init (ok):', e.errorCode || e.message);
-        accessToken = null;
-        currentUser = null; // force re-login
+        accessToken  = null;
+        currentUser  = null;
       }
     }
 
     if (currentUser) {
       if (!currentUser.username.endsWith('@' + CONFIG.allowedDomain)) {
         setBanner('error', `⛔ บัญชีนี้ไม่ได้รับอนุญาต — ใช้ได้เฉพาะ @${CONFIG.allowedDomain}`);
-        try { await msalInstance.logoutPopup(); } catch(e) { console.warn(e); }
+        try {
+          if (useMobile) await msalInstance.logoutRedirect();
+          else await msalInstance.logoutPopup();
+        } catch(e) { console.warn(e); }
         location.reload();
         return;
       }
       await onSignedIn();
     } else {
-      showLogin();
+      showLogin(useMobile);
       setBanner('ready', '✅ พร้อมเชื่อมต่อ — กด Sign in ด้วยบัญชี Microsoft 365');
     }
   } catch (e) {
@@ -1851,26 +1868,39 @@ function setBanner(type, msg) {
   document.getElementById('configStatus').textContent = msg;
 }
 
-function showLogin() {
+function showLogin(useMobile) {
   document.getElementById('loginScreen').classList.add('show');
   document.getElementById('mainApp').classList.remove('show');
+  // เก็บ flag ไว้ใช้ตอน signIn
+  window._useMobileAuth = useMobile || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
 let _signingIn = false;
 async function signIn() {
-  if (_signingIn) return; // ป้องกันกดซ้ำ
+  if (_signingIn) return;
   _signingIn = true;
   try {
-    const resp = await msalInstance.loginPopup({ 
-      scopes: graphScopes,
-      prompt: 'select_account'
-    });
-    currentUser = resp.account;
-    accessToken = resp.accessToken;
-    await onSignedIn();
-  } catch(e) { 
+    const useMobile = window._useMobileAuth;
+    if (useMobile) {
+      // Redirect flow สำหรับ iOS/Android
+      await msalInstance.loginRedirect({
+        scopes: graphScopes,
+        prompt: 'select_account'
+      });
+      // หน้าจะ redirect ไป Microsoft แล้วกลับมา — code หยุดที่นี่
+    } else {
+      // Popup flow สำหรับ Desktop
+      const resp = await msalInstance.loginPopup({
+        scopes: graphScopes,
+        prompt: 'select_account'
+      });
+      currentUser = resp.account;
+      accessToken = resp.accessToken;
+      await onSignedIn();
+    }
+  } catch(e) {
     if (e.errorCode !== 'user_cancelled') {
-      showToast('❌', 'Login ไม่สำเร็จ: ' + (e.errorMessage || e.message));
+      setBanner('error', 'Login ไม่สำเร็จ: ' + (e.errorMessage || e.message));
     }
   } finally {
     _signingIn = false;
@@ -1879,13 +1909,17 @@ async function signIn() {
 
 async function signOut() {
   if (!confirm('ออกจากระบบ?')) return;
-  try { await msalInstance.logoutPopup(); } catch(e) { console.warn(e); }
-  location.reload();
+  const useMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  try {
+    if (useMobile) await msalInstance.logoutRedirect();
+    else await msalInstance.logoutPopup();
+  } catch(e) { console.warn(e); }
+  if (!useMobile) location.reload();
 }
 
 async function refreshToken() {
   if (!currentUser) return;
-  // ลอง silent ก่อนเสมอ
+  const useMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const r = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: currentUser });
@@ -1893,16 +1927,18 @@ async function refreshToken() {
       return;
     } catch(e) {
       if (e.errorCode === 'interaction_in_progress') {
-        // มี popup อื่นเปิดอยู่ — รอแล้วลองใหม่
         await new Promise(r => setTimeout(r, 800 * (attempt + 1)));
         continue;
       }
-      // token หมดอายุหรือ consent ต้องการ popup
       if (!_signingIn) {
         try {
-          const r2 = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
-          accessToken = r2.accessToken;
-        } catch(e2) { console.warn('refreshToken popup failed:', e2.message); }
+          if (useMobile) {
+            await msalInstance.acquireTokenRedirect({ scopes: graphScopes, account: currentUser });
+          } else {
+            const r2 = await msalInstance.acquireTokenPopup({ scopes: graphScopes, account: currentUser });
+            accessToken = r2.accessToken;
+          }
+        } catch(e2) { console.warn('refreshToken failed:', e2.message); }
       }
       return;
     }
