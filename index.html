@@ -142,7 +142,7 @@ body { font-family: var(--font); background: var(--gray-100); color: var(--navy)
 
 /* Responsive breakpoints */
 @media (max-width: 768px) {
-  .nav { padding: 0 12px; }
+  .nav { padding: 0 12px; overflow: hidden; }
   .nav-tabs { display: none; }
   .nav-right { display: none; }
   .nav-hamburger { display: flex; align-items: center; justify-content: center; }
@@ -163,6 +163,93 @@ body { font-family: var(--font); background: var(--gray-100); color: var(--navy)
   .stat-card { padding: 12px; }
   .stat-val { font-size: 22px; }
   .form-grid.two-col { grid-template-columns: 1fr; }
+}
+
+/* ── iOS Safari Mobile Overflow Fixes ── */
+@media (max-width: 768px) {
+  /* Prevent any horizontal scroll on the whole page */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
+  /* Pages: remove side padding that causes overflow */
+  .page { padding: 12px 12px; max-width: 100%; }
+
+  /* Cards: tighter padding */
+  .card { padding: 14px 12px; }
+
+  /* ── Dashboard ── */
+  /* Two-column chart grid → single column */
+  #page-dashboard > div[style*="grid-template-columns:1fr 1fr"] {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+
+  /* Table: allow horizontal scroll inside card, don't overflow page */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+  table { min-width: 520px; }
+
+  /* Filter row: wrap nicely */
+  .filter-row { flex-wrap: wrap; gap: 6px; }
+
+  /* Workload row: wrap on very small screens */
+  .wl-row { grid-template-columns: 110px 1fr; }
+  .wl-count { display: none; }
+
+  /* ── Submit & Sendwork forms ── */
+  /* All form grids → single column */
+  .form-grid { grid-template-columns: 1fr !important; }
+  .field.span2 { grid-column: 1 !important; }
+
+  /* combo-wrap: don't let buttons push select off screen */
+  .combo-wrap { flex-wrap: nowrap; gap: 6px; }
+  .combo-wrap select { min-width: 0; flex: 1; width: 0; }
+  .btn-add-sm { flex-shrink: 0; width: 32px; height: 32px; }
+
+  /* add-item-row: stack vertically on tiny screens */
+  .add-item-row { flex-wrap: wrap; }
+  .add-item-row input { min-width: 0; flex: 1; }
+
+  /* Map input: button inside → make sure it fits */
+  .map-input-wrap input { padding-right: 80px; font-size: 13px; }
+  .map-open-btn { font-size: 10px; padding: 4px 8px; right: 4px; }
+
+  /* type-grid: 2 columns instead of 3 */
+  .type-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Form actions: full width button */
+  .form-actions { justify-content: stretch; }
+  .form-actions .btn { flex: 1; justify-content: center; }
+
+  /* ── Sendwork tab buttons ── */
+  /* Tab row: stretch to fill width */
+  div[style*="width:fit-content"] { width: 100% !important; }
+  .sw-tab { flex: 1; justify-content: center; font-size: 12px; padding: 6px 8px; }
+
+  /* Sendwork search row: stack vertically */
+  #page-sendwork .card > div[style*="display:flex"] { flex-direction: column !important; }
+  #page-sendwork .card > div[style*="display:flex"] > button { margin-top: 8px !important; width: 100%; justify-content: center; }
+
+  /* SharePoint link row */
+  #sw-panel-link > div { flex-wrap: wrap; }
+  #sw-panel-link > div input { min-width: 0; }
+  #sw-panel-link > div button { flex-shrink: 0; }
+
+  /* req-meta-grid: keep 2 cols but reduce font */
+  .req-meta-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .meta-val { font-size: 12px; }
+
+  /* Approve actions: wrap below card footer */
+  .approve-actions { margin-left: 0; margin-top: 8px; width: 100%; }
+  .req-card-footer { flex-direction: column; align-items: flex-start; }
+
+  /* Modal: ensure it doesn't overflow */
+  .modal-box, .modal { width: 95vw !important; max-width: 95vw; }
+
+  /* Toast: full-width at bottom */
+  .toast { left: 12px; right: 12px; bottom: 16px; max-width: calc(100vw - 24px); }
+
+  /* Inputs and selects: prevent zoom on focus in iOS Safari */
+  input, select, textarea { font-size: 16px !important; }
 }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .nav-user { display: flex; align-items: center; gap: 8px; color: var(--gray-400); font-size: 12px; cursor: pointer; }
