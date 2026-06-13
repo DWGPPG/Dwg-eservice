@@ -3590,75 +3590,35 @@ async function buildReport() {
 
 async function exportReportPDF() {
   const btn = document.getElementById('rpt_export_btn');
-  btn.textContent = '⏳ กำลัง Export...';
+  btn.textContent = '⏳ กำลังโหลด...';
   btn.disabled = true;
   try {
-    // โหลด html2canvas ถ้ายังไม่มี
-    if (!window.html2canvas) {
-      await new Promise((res, rej) => {
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-        s.onload = res; s.onerror = rej;
-        document.head.appendChild(s);
-      });
-    }
+    const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[document.getElementById('rpt_period').value];
+    const memberName  = document.getElementById('rpt_member').options[document.getElementById('rpt_member').selectedIndex]?.text || 'ทุกคน';
+    const periodMap   = { week:'weekly', month:'monthly', year:'yearly', custom:'custom' };
+    const filename    = `PPG-DrawingReport-${periodMap[document.getElementById('rpt_period').value]}-${new Date().toISOString().slice(0,10)}.pdf`;
 
     const el = document.getElementById('reportContent');
-
-    // เพิ่ม heading ชั่วคราวก่อน screenshot
-    const header = document.createElement('div');
-    const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[document.getElementById('rpt_period').value];
-    header.innerHTML = `
+    const headerHtml = `
       <div style="padding:16px 0 8px;border-bottom:2px solid #1a365d;margin-bottom:16px">
         <div style="font-size:18px;font-weight:700;color:#1a365d">PPG Drawing e-Service — รายงานสรุปงานฝ่ายเขียนแบบ</div>
-        <div style="font-size:12px;color:#666;margin-top:4px">ช่วงเวลา: ${periodLabel} | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'})}</div>
+        <div style="font-size:12px;color:#666;margin-top:4px">ช่วงเวลา: ${periodLabel} | สมาชิก: ${memberName} | วันที่พิมพ์: ${new Date().toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})}</div>
       </div>`;
-    el.insertBefore(header, el.firstChild);
 
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      logging: false
-    });
+    const previewHtml = headerHtml + el.innerHTML;
 
-    el.removeChild(header);
+    _pdfPreviewHtml     = previewHtml;
+    _pdfPreviewFilename = filename;
+    _pdfPreviewWidth    = 900;
 
-    const { jsPDF } = window.jspdf;
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const imgW  = pageW - 20;
-    const imgH  = canvas.height * imgW / canvas.width;
-
-    let y = 10;
-    let remaining = imgH;
-    const pageContentH = pageH - 20;
-
-    // ถ้าสูงกว่า 1 หน้า ต้องแบ่งหน้า
-    if (imgH <= pageContentH) {
-      pdf.addImage(imgData, 'PNG', 10, y, imgW, imgH);
-    } else {
-      let srcY = 0;
-      while (remaining > 0) {
-        const sliceH = Math.min(remaining, pageContentH);
-        const sliceCanvas = document.createElement('canvas');
-        sliceCanvas.width  = canvas.width;
-        sliceCanvas.height = (sliceH / imgH) * canvas.height;
-        const ctx = sliceCanvas.getContext('2d');
-        ctx.drawImage(canvas, 0, srcY * canvas.height / imgH, canvas.width, sliceCanvas.height, 0, 0, canvas.width, sliceCanvas.height);
-        pdf.addImage(sliceCanvas.toDataURL('image/png'), 'PNG', 10, y, imgW, sliceH);
-        remaining -= sliceH;
-        srcY     += sliceH;
-        if (remaining > 0) { pdf.addPage(); y = 10; }
-      }
-    }
-
-    const periodMap = { week:'weekly', month:'monthly', year:'yearly', custom:'custom' };
-    pdf.save(`PPG-DrawingReport-${periodMap[document.getElementById('rpt_period').value]}-${new Date().toISOString().slice(0,10)}.pdf`);
+    document.getElementById('pdfPreviewTitle').textContent = `ตัวอย่างรายงาน — ${periodLabel}`;
+    document.getElementById('pdfPreviewBody').innerHTML = `
+      <div style="background:#fff;width:900px;margin:0 auto;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.15)">
+        ${previewHtml}
+      </div>`;
+    document.getElementById('pdfPreviewModal').style.display = 'flex';
   } catch(e) {
-    showToast('❌', 'Export ไม่สำเร็จ: ' + e.message);
+    showToast('❌', 'โหลดไม่สำเร็จ: ' + e.message);
   } finally {
     btn.textContent = '📥 Export PDF';
     btn.disabled = false;
