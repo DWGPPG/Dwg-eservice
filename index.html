@@ -1152,6 +1152,7 @@ const CONFIG = {
   // ── domain บริษัท ──
   allowedDomain: 'primepower.co.th',
   drawingTeamChatId: '19:e668fd9c854447918fdb8218e2f023bb@thread.v2', // Drawing Dept. นะจ๊ะ
+  reviewAdmins: ['narakorn.pa@primepower.co.th', 'sarit.sr@primepower.co.th'],
 
   // ── Power Automate Webhook (ใส่ทีหลังหลัง setup Power Automate เสร็จ) ──
   automateWebhookUrl: 'https://default2ca2640f6b3545d1930b9b4ee11fb7.11.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/15216b07ce36481ca513340e949a4414/triggers/manual/paths/invoke?api-version=1',
@@ -3596,12 +3597,14 @@ async function buildReview(highlightId) {
     }
     await refreshToken();
     const myEmail = currentUser?.username?.toLowerCase() || '';
+    const isReviewAdmin = (CONFIG.reviewAdmins||[]).some(e => e.toLowerCase() === myEmail);
     const all = await spGetItems();
 
-    // งานรอตรวจรับ — Status0 = delivered และ SenderEmail ตรงกับ user หรือไม่มี SenderEmail
+    // งานรอตรวจรับ — Admin เห็นทุก item, ผู้ร้องขอเห็นเฉพาะของตัวเอง
     const items = all.filter(r => {
       const st = (r.Status0 || r.Status || '').toLowerCase();
       if (st !== 'delivered') return false;
+      if (isReviewAdmin) return true;
       const rEmail = (r.SenderEmail || '').toLowerCase();
       return !rEmail || rEmail === myEmail;
     });
@@ -3611,6 +3614,7 @@ async function buildReview(highlightId) {
       const st = (r.Status0 || r.Status || '').toLowerCase();
       if (!['done','approved','rejected'].includes(st)) return false;
       if (!r.ReviewResult) return false;
+      if (isReviewAdmin) return true;
       const rEmail = (r.SenderEmail || '').toLowerCase();
       return !rEmail || rEmail === myEmail;
     }).sort((a,b) => new Date(b.ReviewedAt||b.Modified||0) - new Date(a.ReviewedAt||a.Modified||0)).slice(0, 10);
