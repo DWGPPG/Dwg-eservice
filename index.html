@@ -206,7 +206,7 @@ body.dark .edit-modal { background:#1e2530; }
 /* ── iOS Safari Mobile Overflow Fixes ── */
 @media (max-width: 768px) {
   /* Prevent any horizontal scroll on the whole page */
-  html, body { overflow-x: hidden; max-width: 100vw; }
+  html, body { overflow-x: clip; max-width: 100vw; }
 
   /* Pages: remove side padding that causes overflow */
   .page { padding: 12px 12px; max-width: 100%; }
@@ -221,10 +221,6 @@ body.dark .edit-modal { background:#1e2530; }
     flex-direction: column !important;
     gap: 12px !important;
   }
-
-  /* Table: allow horizontal scroll inside card, don't overflow page */
-  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
-  table { min-width: 520px; }
 
   /* Filter row: wrap nicely */
   .filter-row { flex-wrap: wrap; gap: 6px; }
@@ -295,7 +291,9 @@ body.dark .edit-modal { background:#1e2530; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--navy-soft); color: var(--sun); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
 
 /* PAGES */
-.page { display: none; padding: 28px 24px; max-width: 960px; margin: 0 auto; overflow-x: hidden; }
+.page { display: none; padding: 28px 24px; max-width: 960px; margin: 0 auto; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+.table-wrap table { min-width: 700px; }
 .page.active { display: block; }
 .page-header { margin-bottom: 24px; }
 .page-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
