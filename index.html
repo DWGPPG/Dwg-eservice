@@ -1134,16 +1134,203 @@ tr:hover td { background: var(--sky); }
       <div class="page-sub">Workflow และขั้นตอนการทำงานของระบบ PPG Drawing e-Service</div>
     </div>
 
-    <!-- ส่วนที่ 1: ภาพรวม -->
+    <!-- ภาพรวม -->
     <div class="card" style="margin-bottom:16px">
       <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #bee3f8">🔄 ภาพรวม Workflow</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-        ${['🔑 Login','→','📋 ส่งคำร้อง','→','✅ Admin อนุมัติ','→','✏️ เขียนแบบ','→','📤 นำส่งงาน','→','🔍 ตรวจรับ','→','📄 ใบรับงาน PDF'].map(s => s==='→'
-          ? `<span style="color:var(--gray-400);font-size:18px">→</span>`
-          : `<span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">${s}</span>`
-        ).join('')}
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">🔑 Login</span>
+        <span style="color:var(--gray-400);font-size:18px">→</span>
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">📋 ส่งคำร้อง</span>
+        <span style="color:var(--gray-400);font-size:18px">→</span>
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">✅ Admin อนุมัติ</span>
+        <span style="color:var(--gray-400);font-size:18px">→</span>
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">✏️ เขียนแบบ</span>
+        <span style="color:var(--gray-400);font-size:18px">→</span>
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">📤 นำส่งงาน</span>
+        <span style="color:var(--gray-400);font-size:18px">→</span>
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">🔍 ตรวจรับ</span>
+        <span style="color:var(--gray-400);font-size:18px">→</span>
+        <span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">📄 ใบรับงาน PDF</span>
       </div>
     </div>
+
+    <!-- แยก Role -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+
+      <!-- ผู้ร้องขอ -->
+      <div class="card" style="border-top:3px solid #8b5cf6">
+        <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:12px">👤 ผู้ร้องขอ</div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">📝</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ส่งคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">กรอกข้อมูล ประเภท โครงการ Drawing No. รายละเอียด ลิงก์แนบ วันกำหนด</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">💾</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ระบบบันทึก</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">สร้างเลขคำขอ DWG-YYYY-XXXX อัปโหลดไฟล์แนบ</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">🔔</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Teams แจ้งกลุ่ม</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ส่งไปกลุ่ม Drawing Dept. นะจ๊ะ อัตโนมัติ</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">🔍</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ติดตามสถานะ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ดูความคืบหน้าในหน้า Dashboard</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">✅</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ตรวจรับงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เมื่องานนำส่งแล้ว กด อนุมัติ / แก้ไข / Reject</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0">
+          <span style="font-size:16px;flex-shrink:0">📥</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Export ใบรับงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">Preview PDF แล้ว Download</div></div>
+        </div>
+      </div>
+
+      <!-- Admin -->
+      <div class="card" style="border-top:3px solid #ef4444">
+        <div style="font-size:13px;font-weight:700;color:#991b1b;margin-bottom:12px">⚙️ Admin / ผู้จัดการ</div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">📋</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">รับคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เห็นทุกคำร้อง ดูรายละเอียด ไฟล์แนบ ลิงก์</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">✅</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">อนุมัติ Lv.1</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เลือกผู้เขียนแบบ Teams แจ้ง 1:1 ทันที</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">✅</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">อนุมัติ Lv.2 (ผู้จัดการ)</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ผู้จัดการยืนยัน Teams แจ้ง 1:1 อีกครั้ง</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">👁️</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ตรวจรับงาน (Admin)</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เห็นทุก item Export ใบรับงาน PDF ได้</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0">
+          <span style="font-size:16px;flex-shrink:0">⚙️</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">จัดการโครงการ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เพิ่ม ซ่อน แสดง รายการโครงการ</div></div>
+        </div>
+      </div>
+
+      <!-- ฝ่ายเขียนแบบ -->
+      <div class="card" style="border-top:3px solid #16a34a">
+        <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px">✏️ ฝ่ายเขียนแบบ</div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">📬</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">รับ Teams แจ้งเตือน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ได้รับ 1:1 จาก Admin พร้อมรายละเอียดงาน</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">📤</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">นำส่งงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ค้นหาเลขคำขอ Upload DWG+PDF ระบุ Revise</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">🔔</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Teams แจ้งผู้ร้องขอ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ส่ง 1:1 พร้อมลิงก์ไฟล์และลิงก์ใบรับงาน</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">📊</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">รายงานรายบุคคล</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">สรุปงานตามช่วงเวลา ดูสถิติของทุกคน</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0">
+          <span style="font-size:16px;flex-shrink:0">📥</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Export PDF รายงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">Preview แล้ว Download PDF</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Teams Notification -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #c7d2fe">💬 Teams Notification ทุก Event</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;border:1px solid var(--gray-200)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">📝 ส่งคำร้องใหม่</div>
+          <div style="font-size:11px;color:#6366f1;margin:3px 0">ส่งไป: กลุ่ม Drawing Dept. นะจ๊ะ</div>
+          <div style="font-size:11px;color:var(--gray-500)">ข้อมูลคำร้อง + ลิงก์แนบ + ลิงก์โฟลเดอร์</div>
+        </div>
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;border:1px solid var(--gray-200)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">✅ Admin อนุมัติ</div>
+          <div style="font-size:11px;color:#6366f1;margin:3px 0">ส่งไป: 1:1 ผู้เขียนแบบ</div>
+          <div style="font-size:11px;color:var(--gray-500)">รายละเอียด + ลิงก์แนบ + โฟลเดอร์เอกสาร</div>
+        </div>
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;border:1px solid var(--gray-200)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">📤 นำส่งงาน</div>
+          <div style="font-size:11px;color:#6366f1;margin:3px 0">ส่งไป: 1:1 ผู้ร้องขอ</div>
+          <div style="font-size:11px;color:var(--gray-500)">ลิงก์ DWG/PDF + ลิงก์ใบรับงาน</div>
+        </div>
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;border:1px solid var(--gray-200)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">🔍 ตรวจรับงาน</div>
+          <div style="font-size:11px;color:#6366f1;margin:3px 0">ส่งไป: 1:1 ผู้เขียนแบบ</div>
+          <div style="font-size:11px;color:var(--gray-500)">ผล + Drawing No./Name + Revise + ลิงก์ใบรับงาน</div>
+        </div>
+        <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;border:1px solid var(--gray-200)">
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">⚠️ DueDate Alert</div>
+          <div style="font-size:11px;color:#6366f1;margin:3px 0">ส่งไป: กลุ่ม Drawing Dept. นะจ๊ะ</div>
+          <div style="font-size:11px;color:var(--gray-500)">รายการงานเกิน/ใกล้กำหนด (ทุกวันตอน Login)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DueDate -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #fde68a">⏰ ระบบ DueDate Alert</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:700;color:#e53e3e;margin-bottom:6px">🔴 เกินกำหนด</div>
+          <div style="font-size:12px;color:#7f1d1d;line-height:1.6">งานที่ยังไม่เสร็จและ DueDate ผ่านไปแล้ว<br>→ แสดงสีแดงใน Card: <b>⚠️ เกินกำหนด X วัน</b><br>→ ส่ง Teams กลุ่มแจ้งเตือนทันที</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:700;color:#d97706;margin-bottom:6px">🟡 ใกล้กำหนด (≤3 วัน)</div>
+          <div style="font-size:12px;color:#78350f;line-height:1.6">งานที่เหลือเวลาอีกไม่เกิน 3 วัน<br>→ แสดงสีส้มใน Card: <b>🔔 ใกล้กำหนด / วันนี้!</b><br>→ ส่ง Teams กลุ่มพร้อมกัน</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--gray-500);background:var(--gray-50);padding:8px 12px;border-radius:6px">⚙️ ระบบตรวจสอบ 1 ครั้งต่อวัน ตอน Login เท่านั้น เพื่อไม่ให้แจ้งเตือนซ้ำ</div>
+    </div>
+
+    <!-- สถานะ -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e2e8f0">📌 สถานะงานทั้งหมด</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        <div style="background:#fffbeb;border:1px solid #f59e0b40;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#f59e0b;font-weight:600">รออนุมัติ</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(pending)</span></div>
+        <div style="background:#eff6ff;border:1px solid #3b82f640;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#3b82f6;font-weight:600">กำลังดำเนินการ Lv.1</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(inprogress_lv1)</span></div>
+        <div style="background:#f5f3ff;border:1px solid #6366f140;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#6366f1;font-weight:600">อนุมัติแล้ว / กำลังเขียนแบบ</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(approved)</span></div>
+        <div style="background:#ecfeff;border:1px solid #06b6d440;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#06b6d4;font-weight:600">กำลังดำเนินการ (อัปเดต)</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(working)</span></div>
+        <div style="background:#f5f3ff;border:1px solid #8b5cf640;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#8b5cf6;font-weight:600">นำส่งแล้ว รอตรวจรับ</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(delivered)</span></div>
+        <div style="background:#f0fdf4;border:1px solid #16a34a40;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#16a34a;font-weight:600">เสร็จสิ้น</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(done)</span></div>
+        <div style="background:#fff0f0;border:1px solid #ef444440;border-radius:20px;padding:5px 14px;font-size:12px"><span style="color:#ef4444;font-weight:600">ปฏิเสธ</span><span style="color:var(--gray-400);margin-left:4px;font-size:10px">(rejected)</span></div>
+      </div>
+    </div>
+
+    <!-- PDF -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e2e8f0">📄 เอกสาร PDF ที่ออกได้</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="border:1px solid var(--gray-200);border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">📋 ใบรับงานเขียนแบบ</div>
+          <div style="font-size:11px;color:var(--gray-600);line-height:1.8">
+            • หัวกระดาษ PRIME POWER GROUP<br>
+            • เลขคำขอ + วันที่นำส่ง + เวลา<br>
+            • ประเภท โครงการ Drawing No./Name Revise<br>
+            • รายละเอียดคำขอ + ลิงก์แนบ<br>
+            • ผลการตรวจรับ + วันที่ตรวจรับ + เวลา<br>
+            • ช่องลายเซ็น 4 ช่อง
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--gray-400)">กด 📥 PDF ใน card → Preview → Download</div>
+        </div>
+        <div style="border:1px solid var(--gray-200);border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">📊 รายงานสรุปงาน</div>
+          <div style="font-size:11px;color:var(--gray-600);line-height:1.8">
+            • เลือกช่วง: สัปดาห์ / เดือน / ปี / กำหนดเอง<br>
+            • เลือกสมาชิก: ทุกคน หรือรายบุคคล<br>
+            • สถิติ 4 ช่อง: เสร็จ / กำลังทำ / รออนุมัติ / Rejected<br>
+            • Progress bar สัดส่วนสถานะ<br>
+            • ตารางรายการทุกคำขอ
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--gray-400)">กด 📥 Export PDF → Preview → Download</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
 
     <!-- ส่วนที่ 2: ขั้นตอนแยก Role -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
