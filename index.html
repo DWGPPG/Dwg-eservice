@@ -294,6 +294,14 @@ body.dark .edit-modal { background:#1e2530; }
 .page { display: none; padding: 28px 24px; max-width: 960px; margin: 0 auto; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 .table-wrap table { min-width: 700px; }
+
+/* ── Scroll bar ด้านบนตาราง ── */
+.table-scroll-top {
+  overflow-x: auto; overflow-y: hidden;
+  height: 12px; margin-bottom: -12px;
+  position: relative; z-index: 1;
+}
+.table-scroll-top-inner { height: 1px; }
 .page.active { display: block; }
 .page-header { margin-bottom: 24px; }
 .page-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
@@ -759,7 +767,10 @@ tr:hover td { background: var(--sky); }
         <button class="filter-btn" onclick="filterTable('approved',this)">อนุมัติแล้ว</button>
         <button class="filter-btn" onclick="filterTable('rejected',this)">ส่งกลับ</button>
       </div>
-      <div class="table-wrap">
+      <div class="table-scroll-top" id="tableScrollTop">
+        <div class="table-scroll-top-inner" id="tableScrollTopInner"></div>
+      </div>
+      <div class="table-wrap" id="tableWrap">
         <table id="dashTable">
           <thead><tr>
             <th class="sortable" onclick="sortTable('Title')"><span class="th-inner">เลขที่คำร้อง<span class="sort-icon"></span></span></th>
@@ -3025,6 +3036,9 @@ function renderTable(items) {
     if (col === tableSortCol) th.classList.add(tableSortDir);
   });
 
+  // sync scroll bar ด้านบน
+  initTableTopScroll();
+
   // ── Update filter button active state ──
   const cfMap = { type:'cfbtn-type', project:'cfbtn-project', dept:'cfbtn-dept', assignee:'cfbtn-assignee', status:'cfbtn-status' };
   Object.entries(cfMap).forEach(([k, btnId]) => {
@@ -4746,6 +4760,36 @@ function syncDrawerVisibility() {
     const tab  = document.getElementById(tId);
     const item = document.getElementById(dId);
     if (tab && item) item.style.display = tab.style.display === 'none' ? 'none' : '';
+  });
+}
+
+// ── Sync scroll bar ด้านบน-ล่างตาราง ──
+function initTableTopScroll() {
+  const top  = document.getElementById('tableScrollTop');
+  const wrap = document.getElementById('tableWrap');
+  const inner = document.getElementById('tableScrollTopInner');
+  if (!top || !wrap || !inner) return;
+
+  // sync ความกว้างให้ตรงกับตาราง
+  const syncWidth = () => {
+    inner.style.width = wrap.scrollWidth + 'px';
+  };
+  syncWidth();
+  new ResizeObserver(syncWidth).observe(wrap);
+
+  // scroll ด้านบน → ล่าง
+  top.addEventListener('scroll', () => {
+    if (wrap._scrolling) return;
+    top._scrolling = true;
+    wrap.scrollLeft = top.scrollLeft;
+    top._scrolling = false;
+  });
+  // scroll ด้านล่าง → บน
+  wrap.addEventListener('scroll', () => {
+    if (top._scrolling) return;
+    wrap._scrolling = true;
+    top.scrollLeft = wrap.scrollLeft;
+    wrap._scrolling = false;
   });
 }
 
