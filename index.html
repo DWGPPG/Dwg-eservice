@@ -1857,7 +1857,8 @@ async function init() {
     }
   } catch (e) {
     console.error('init error:', e);
-    setBanner('error', '❌ เกิดข้อผิดพลาด: ' + e.message + ' | ' + e.stack?.split('\n')[1]);
+    const errMsg = e.errorCode ? `${e.errorCode}: ${e.errorMessage}` : e.message;
+    setBanner('error', '❌ ' + errMsg);
     showLogin();
   }
 }
@@ -1900,7 +1901,8 @@ async function signIn() {
     }
   } catch(e) {
     if (e.errorCode !== 'user_cancelled') {
-      setBanner('error', 'Login ไม่สำเร็จ: ' + (e.errorMessage || e.message));
+      const errMsg = e.errorCode ? `${e.errorCode}: ${e.errorMessage}` : e.message;
+      setBanner('error', '❌ Login ไม่สำเร็จ: ' + errMsg);
     }
   } finally {
     _signingIn = false;
