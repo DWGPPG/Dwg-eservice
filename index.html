@@ -531,6 +531,10 @@ tr:hover td { background: var(--sky); }
         <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         รายงาน
       </div>
+      <div class="nav-tab" id="guideTab" onclick="showPage('guide',this)" style="display:none">
+        <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        คู่มือ
+      </div>
     </div>
     <div class="nav-right">
       <div class="nav-user" onclick="signOut()" title="คลิกเพื่อออกจากระบบ" style="cursor:pointer">
@@ -1123,6 +1127,173 @@ tr:hover td { background: var(--sky); }
     </div>
   </div>
 
+  <!-- GUIDE -->
+  <div class="page" id="page-guide">
+    <div class="page-header">
+      <div class="page-title">📖 คู่มือการใช้งาน</div>
+      <div class="page-sub">Workflow และขั้นตอนการทำงานของระบบ PPG Drawing e-Service</div>
+    </div>
+
+    <!-- ส่วนที่ 1: ภาพรวม -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #bee3f8">🔄 ภาพรวม Workflow</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        ${['🔑 Login','→','📋 ส่งคำร้อง','→','✅ Admin อนุมัติ','→','✏️ เขียนแบบ','→','📤 นำส่งงาน','→','🔍 ตรวจรับ','→','📄 ใบรับงาน PDF'].map(s => s==='→'
+          ? `<span style="color:var(--gray-400);font-size:18px">→</span>`
+          : `<span style="background:var(--gray-100);border:1px solid var(--gray-200);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500">${s}</span>`
+        ).join('')}
+      </div>
+    </div>
+
+    <!-- ส่วนที่ 2: ขั้นตอนแยก Role -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+      <!-- ผู้ร้องขอ -->
+      <div class="card" style="border-top:3px solid #8b5cf6">
+        <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:12px">👤 ผู้ร้องขอ</div>
+        ${[
+          ['📝','ส่งคำร้องใหม่','กรอกข้อมูล ประเภท โครงการ Drawing No. รายละเอียด ลิงก์แนบ วันกำหนด'],
+          ['💾','ระบบบันทึก','สร้างเลขคำขอ DWG-YYYY-XXXX อัปโหลดไฟล์แนบ'],
+          ['🔔','Teams แจ้งกลุ่ม','ส่งไปกลุ่ม Drawing Dept. นะจ๊ะ อัตโนมัติ'],
+          ['🔍','ติดตามสถานะ','ดูความคืบหน้าในหน้า Dashboard'],
+          ['✅','ตรวจรับงาน','เมื่องานนำส่งแล้ว กด อนุมัติ / แก้ไข / Reject'],
+          ['📥','Export ใบรับงาน','Preview PDF แล้ว Download'],
+        ].map(([icon,title,desc]) => `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+            <span style="font-size:16px;flex-shrink:0">${icon}</span>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--navy)">${title}</div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:2px">${desc}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      <!-- Admin -->
+      <div class="card" style="border-top:3px solid #ef4444">
+        <div style="font-size:13px;font-weight:700;color:#991b1b;margin-bottom:12px">⚙️ Admin / ผู้จัดการ</div>
+        ${[
+          ['📋','รับคำร้องใหม่','เห็นทุกคำร้อง ดูรายละเอียด ไฟล์แนบ ลิงก์'],
+          ['✅','อนุมัติ Lv.1','เลือกผู้เขียนแบบ Teams แจ้ง 1:1 ทันที'],
+          ['✅','อนุมัติ Lv.2','ผู้จัดการยืนยัน Teams แจ้ง 1:1 อีกครั้ง'],
+          ['👁️','ตรวจรับงาน','เห็นทุก item Export ใบรับงาน PDF ได้'],
+          ['⚙️','จัดการโครงการ','เพิ่ม ซ่อน แสดง รายการโครงการ'],
+        ].map(([icon,title,desc]) => `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+            <span style="font-size:16px;flex-shrink:0">${icon}</span>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--navy)">${title}</div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:2px">${desc}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      <!-- ฝ่ายเขียนแบบ -->
+      <div class="card" style="border-top:3px solid #16a34a">
+        <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px">✏️ ฝ่ายเขียนแบบ</div>
+        ${[
+          ['📬','รับ Teams แจ้งเตือน','ได้รับ 1:1 จาก Admin พร้อมรายละเอียดงาน'],
+          ['📤','นำส่งงาน','ค้นหาเลขคำขอ Upload DWG+PDF ระบุ Revise'],
+          ['🔔','Teams แจ้งผู้ร้องขอ','ส่ง 1:1 พร้อมลิงก์ไฟล์และลิงก์ใบรับงาน'],
+          ['📊','รายงานรายบุคคล','สรุปงานตามช่วงเวลา ดูสถิติของทุกคน'],
+          ['📥','Export PDF รายงาน','Preview แล้ว Download PDF'],
+        ].map(([icon,title,desc]) => `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+            <span style="font-size:16px;flex-shrink:0">${icon}</span>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--navy)">${title}</div>
+              <div style="font-size:11px;color:var(--gray-500);margin-top:2px">${desc}</div>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- ส่วนที่ 3: Teams Notification -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #c7d2fe">💬 Teams Notification ทุก Event</div>
+      <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
+        ${[
+          ['📝 ส่งคำร้องใหม่','กลุ่ม Drawing Dept. นะจ๊ะ','ข้อมูลคำร้อง + ลิงก์แนบ + ลิงก์โฟลเดอร์'],
+          ['✅ Admin อนุมัติ','1:1 ไปผู้เขียนแบบ','รายละเอียด + ลิงก์แนบ + โฟลเดอร์เอกสาร'],
+          ['📤 นำส่งงาน','1:1 ไปผู้ร้องขอ','ลิงก์ DWG/PDF + ลิงก์ใบรับงาน'],
+          ['🔍 ตรวจรับงาน','1:1 ไปผู้เขียนแบบ','ผล + Drawing No./Name + Revise + ลิงก์ใบรับงาน'],
+          ['⚠️ DueDate Alert','กลุ่ม Drawing Dept. นะจ๊ะ','รายการงานเกิน/ใกล้กำหนด (ทุกวันตอน Login)'],
+        ].map(([event,to,detail]) => `
+          <div style="background:var(--gray-50);border-radius:8px;padding:10px 12px;border:1px solid var(--gray-200)">
+            <div style="font-size:12px;font-weight:600;color:var(--navy)">${event}</div>
+            <div style="font-size:11px;color:#6366f1;margin:3px 0">ส่งไป: ${to}</div>
+            <div style="font-size:11px;color:var(--gray-500)">${detail}</div>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- ส่วนที่ 4: DueDate -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #fde68a">⏰ ระบบ DueDate Alert</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:700;color:#e53e3e;margin-bottom:6px">🔴 เกินกำหนด</div>
+          <div style="font-size:12px;color:#7f1d1d;line-height:1.6">งานที่ยังไม่เสร็จและ DueDate ผ่านไปแล้ว<br>→ แสดงสีแดงใน Card: <b>⚠️ เกินกำหนด X วัน</b><br>→ ส่ง Teams กลุ่มแจ้งเตือนทันที</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px">
+          <div style="font-size:13px;font-weight:700;color:#d97706;margin-bottom:6px">🟡 ใกล้กำหนด (≤3 วัน)</div>
+          <div style="font-size:12px;color:#78350f;line-height:1.6">งานที่เหลือเวลาอีกไม่เกิน 3 วัน<br>→ แสดงสีส้มใน Card: <b>🔔 ใกล้กำหนด / วันนี้!</b><br>→ ส่ง Teams กลุ่มพร้อมกัน</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--gray-500);background:var(--gray-50);padding:8px 12px;border-radius:6px">
+        ⚙️ ระบบตรวจสอบ 1 ครั้งต่อวัน ตอน Login เท่านั้น เพื่อไม่ให้แจ้งเตือนซ้ำ
+      </div>
+    </div>
+
+    <!-- ส่วนที่ 5: สถานะ -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e2e8f0">📌 สถานะงานทั้งหมด</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${[
+          ['pending','รออนุมัติ','#f59e0b','#fffbeb'],
+          ['inprogress_lv1','กำลังดำเนินการ (Lv.1)','#3b82f6','#eff6ff'],
+          ['approved','อนุมัติแล้ว / กำลังเขียนแบบ','#6366f1','#f5f3ff'],
+          ['working','กำลังดำเนินการ (อัปเดต)','#06b6d4','#ecfeff'],
+          ['delivered','นำส่งแล้ว รอตรวจรับ','#8b5cf6','#f5f3ff'],
+          ['done','เสร็จสิ้น','#16a34a','#f0fdf4'],
+          ['rejected','ปฏิเสธ','#ef4444','#fff0f0'],
+        ].map(([code,label,color,bg]) => `
+          <div style="background:${bg};border:1px solid ${color}40;border-radius:20px;padding:5px 14px;font-size:12px">
+            <span style="color:${color};font-weight:600">${label}</span>
+            <span style="color:var(--gray-400);margin-left:4px;font-size:10px">(${code})</span>
+          </div>`).join('')}
+      </div>
+    </div>
+
+    <!-- ส่วนที่ 6: เอกสาร PDF -->
+    <div class="card">
+      <div style="font-size:15px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e2e8f0">📄 เอกสาร PDF ที่ออกได้</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="border:1px solid var(--gray-200);border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">📋 ใบรับงานเขียนแบบ</div>
+          <ul style="font-size:11px;color:var(--gray-600);line-height:1.8;padding-left:16px">
+            <li>หัวกระดาษ PRIME POWER GROUP</li>
+            <li>เลขคำขอ + วันที่นำส่ง + เวลา</li>
+            <li>ข้อมูลครบ: ประเภท โครงการ Drawing No./Name Revise</li>
+            <li>รายละเอียดคำขอ + ลิงก์แนบ</li>
+            <li>ผลการตรวจรับ + วันที่ตรวจรับ + เวลา</li>
+            <li>ช่องลายเซ็น 4 ช่อง</li>
+          </ul>
+          <div style="margin-top:8px;font-size:11px;color:var(--gray-400)">กด 📥 PDF ใน card → Preview → Download</div>
+        </div>
+        <div style="border:1px solid var(--gray-200);border-radius:8px;padding:14px">
+          <div style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">📊 รายงานสรุปงาน</div>
+          <ul style="font-size:11px;color:var(--gray-600);line-height:1.8;padding-left:16px">
+            <li>เลือกช่วง: สัปดาห์ / เดือน / ปี / กำหนดเอง</li>
+            <li>เลือกสมาชิก: ทุกคน หรือรายบุคคล</li>
+            <li>สถิติ 4 ช่อง: เสร็จ / กำลังทำ / รออนุมัติ / Rejected</li>
+            <li>Progress bar สัดส่วนสถานะ</li>
+            <li>ตารางรายการทุกคำขอ</li>
+          </ul>
+          <div style="margin-top:8px;font-size:11px;color:var(--gray-400)">กด 📥 Export PDF → Preview → Download</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ADMIN -->
   <div class="page" id="page-admin">
     <div class="page-header">
@@ -1691,6 +1862,8 @@ async function onSignedIn() {
   buildDrawerMenu();
   updateDrawerUser();
   syncDrawerVisibility();
+  // แสดง คู่มือ tab สำหรับฝ่ายเขียนแบบ
+  maybeShowGuideTab();
 
   // เช็ค URL param ?review=DWG-XXXX
   const urlParams = new URLSearchParams(window.location.search);
@@ -2822,7 +2995,8 @@ function showPage(name, tab) {
   if (name==='admin')     buildAdmin();
   if (name==='sendwork')  swLoadRequests();
   if (name==='review')    setTimeout(() => buildReview(_pendingReviewId), 300);
-  if (name==='report')    {} // buildReport เรียกเมื่อกดปุ่มเอง
+  if (name==='report')    {}
+  if (name==='guide')     {}
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -3933,6 +4107,16 @@ function maybeShowSendworkTab(email) {
   if (tab && isMember) tab.style.display = '';
 }
 
+function maybeShowGuideTab() {
+  if (!CONFIG.teamMembers || !currentUser) return;
+  const isDrawing = CONFIG.teamMembers.some(m => m.email.toLowerCase() === currentUser?.username?.toLowerCase());
+  const tab = document.getElementById('guideTab');
+  if (tab && isDrawing) tab.style.display = '';
+  // sync drawer
+  const dItem = document.getElementById('drawerGuide');
+  if (dItem && isDrawing) dItem.style.display = '';
+}
+
 // ── DUE DATE ALERTS ──
 async function checkDueDateAlerts() {
   try {
@@ -4017,6 +4201,7 @@ const DRAWER_MENU_ITEMS = [
   { page:'sendwork',  icon:'<path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/>', label:'นำส่งงาน', id:'drawerSendwork' },
   { page:'review',    icon:'<path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/>', label:'ตรวจรับงาน', id:'drawerReview' },
   { page:'report',    icon:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>', label:'รายงาน', id:'drawerReport' },
+  { page:'guide',     icon:'<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>', label:'คู่มือ', id:'drawerGuide' },
 ];
 
 function buildDrawerMenu() {
