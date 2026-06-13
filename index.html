@@ -1529,17 +1529,11 @@ const CONFIG = {
   spDrawingNumberListName: 'DrawingNumberList',
   spDrawingNameListName:   'DrawingNameList',
   spKwpListName:           'KwpList',
+  spTeamMemberListName:    'DrawingTeam',   // ← List สมาชิกทีม (เพิ่ม/ลบพนักงานที่นี่)
 
-  // ── ทีมงานในแผนก (แก้ชื่อ/email ให้ตรงกับความเป็นจริง) ──
-  teamMembers: [
-    { id:'m1', name:'Jeerapat Upaiprom',   email:'jeerapat.up@primepower.co.th',  role:'ผู้จัดการแผนกเขียนแบบโครงการ' },
-    { id:'m2', name:'Narakorn Pankord',    email:'narakorn.pa@primepower.co.th',  role:'ผู้จัดการแผนกเขียนแบบขายโครงการ' },
-    { id:'m3', name:'Archan Saengphloeng', email:'archan.sa@primepower.co.th',    role:'ผู้จัดการแผนกเขียนแบบโครงสร้าง' },
-    { id:'m4', name:'Sarit Sribangsai',    email:'Sarit.Sr@primepower.co.th',     role:'วิศวกรไฟฟ้าเขียนแบบอาวุโส' },
-    { id:'m5', name:'Janjira Phongphut',   email:'janjira.ph@primepower.co.th',   role:'วิศวกรไฟฟ้าเขียนแบบ' },
-    { id:'m6', name:'Panuwat Panno',       email:'panuwat.pa@primepower.co.th',   role:'พนักงานเขียนแบบโครงการอาวุโส' },
-    { id:'m7', name:'Kotchakorn Kumla',    email:'Kotchakorn.Ku@primepower.co.th',role:'พนักงานเขียนแบบโครงสร้าง' },
-  ],
+  // ── ทีมงานในแผนก — โหลดจาก SharePoint List "DrawingTeam" อัตโนมัติ ──
+  // (ค่านี้จะถูก overwrite ตอน login — ไม่ต้องแก้ที่นี่อีกต่อไป)
+  teamMembers: [],
 
   // ── อีเมลผู้อนุมัติ Lv.2 (หัวหน้าแผนก) ──
   approverLv2Email: 'narakorn.pa@primepower.co.th', // primary (ใช้สำหรับ isMgr check)
@@ -1696,6 +1690,41 @@ async function loadKwpList() {
     kwpCache.sort((a,b) => parseFloat(a.Title) - parseFloat(b.Title));
     renderKwpSelect();
   } catch(e) { console.warn('loadKwpList:', e); }
+}
+
+// ── โหลดสมาชิกทีมจาก SharePoint List "DrawingTeam" ──
+// Column ที่ต้องมีใน List:
+//   Title     = ชื่อ-นามสกุล (ภาษาอังกฤษ)
+//   Email     = อีเมล @primepower.co.th
+//   Role      = ตำแหน่ง
+//   IsActive  = Yes/No (ซ่อนคนลาออกโดยไม่ต้องลบ)
+async function loadTeamMembers() {
+  try {
+    const tmLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spTeamMemberListName}'`);
+    const tmListId = tmLists.value[0]?.id;
+    if (!tmListId) { console.warn('DrawingTeam List not found — using CONFIG.teamMembers fallback'); return; }
+
+    const r = await graphGet(`/sites/${spSiteId}/lists/${tmListId}/items?expand=fields&$top=200`);
+    const members = r.value
+      .map(i => i.fields)
+      .filter(f => f.IsActive !== false && f.IsActive !== 'No') // กรองเฉพาะ Active
+      .map((f, idx) => ({
+        id:    'sp' + idx,
+        name:  f.Title  || '',
+        email: (f.Email || '').trim(),
+        role:  f.Role   || '',
+      }))
+      .filter(m => m.email); // ต้องมี email
+
+    if (members.length > 0) {
+      CONFIG.teamMembers = members;
+      console.log(`✅ โหลด DrawingTeam จาก SharePoint: ${members.length} คน`);
+    } else {
+      console.warn('DrawingTeam List ว่างเปล่า — using CONFIG.teamMembers fallback');
+    }
+  } catch(e) {
+    console.warn('loadTeamMembers failed:', e.message);
+  }
 }
 
 function renderKwpSelect() {
@@ -2173,6 +2202,10 @@ async function loadSpIds() {
       spKwpListId = kwpLists.value[0]?.id || null;
       await loadKwpList(); // ถ้าไม่มี List จะใช้ค่า default อัตโนมัติ
     } catch(e) { console.warn('KwpList not found, using defaults:', e.message); await loadKwpList(); }
+    // โหลด DrawingTeam (สมาชิกทีม)
+    try {
+      await loadTeamMembers();
+    } catch(e) { console.warn('DrawingTeam not found, using CONFIG fallback:', e.message); }
   } catch(e) {
     setBanner('error', '❌ เชื่อมต่อ SharePoint ไม่สำเร็จ: ' + e.message);
     console.error('loadSpIds:', e);
