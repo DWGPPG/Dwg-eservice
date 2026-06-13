@@ -1880,17 +1880,15 @@ let _signingIn = false;
 async function signIn() {
   if (_signingIn) return;
   _signingIn = true;
+  const useMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   try {
-    const useMobile = window._useMobileAuth;
     if (useMobile) {
-      // Redirect flow สำหรับ iOS/Android
       await msalInstance.loginRedirect({
         scopes: graphScopes,
         prompt: 'select_account'
       });
-      // หน้าจะ redirect ไป Microsoft แล้วกลับมา — code หยุดที่นี่
+      // หน้าจะ redirect — code หยุดที่นี่
     } else {
-      // Popup flow สำหรับ Desktop
       const resp = await msalInstance.loginPopup({
         scopes: graphScopes,
         prompt: 'select_account'
