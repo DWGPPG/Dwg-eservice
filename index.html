@@ -2089,8 +2089,8 @@ async function onSignedIn() {
 
   setBanner('ready', `✅ เชื่อมต่อแล้ว — ${currentUser.username} | SharePoint: ${CONFIG.spSite}`);
 
-  // ตรวจ DueDate ทุกวันตอน login
-  checkDueDateAlerts();
+  // ตรวจ DueDate รอบ 08:30 และ 15:00
+  startDueDateScheduler();
 }
 
 function isApprover() {
@@ -4310,16 +4310,28 @@ function maybeShowGuideTab() {
 }
 
 // ── DUE DATE ALERTS ──
+// ── DUE DATE ALERT: 08:30 เฉพาะ Narakorn.pa เท่านั้น ──
+const DUE_ALERT_USER = 'narakorn.pa@primepower.co.th'; // user ที่รับหน้าที่ส่งแจ้งเตือน
+
 async function checkDueDateAlerts() {
   try {
-    // ตรวจสอบแค่ 1 ครั้งต่อวัน (เก็บใน localStorage)
-    const today     = new Date().toISOString().slice(0, 10);
-    const lastCheck = localStorage.getItem('ppg_duecheck_date');
-    if (lastCheck === today) return; // เช็คแล้ววันนี้
+    // เฉพาะ Narakorn.pa เท่านั้น
+    const myEmail = (currentUser?.username || '').toLowerCase();
+    if (myEmail !== DUE_ALERT_USER) return;
 
-    const all   = await spGetItems();
-    const now   = new Date();
-    now.setHours(0,0,0,0);
+    // เช็คเวลา — ต้องถึง 08:30 แล้ว
+    const now08 = new Date();
+    const totalMin = now08.getHours() * 60 + now08.getMinutes();
+    if (totalMin < 8 * 60 + 30) return; // ยังไม่ถึง 08:30
+
+    // ส่งได้แค่ครั้งเดียวต่อวัน
+    const today = new Date().toISOString().slice(0, 10);
+    const key   = `ppg_duecheck_${today}`;
+    if (localStorage.getItem(key)) return; // ส่งแล้ววันนี้
+
+    const all = await spGetItems();
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
 
     // กรองงานที่ยังไม่เสร็จและมี DueDate
     const activeStatus = ['pending','inprogress_lv1','approved','working','delivered'];
@@ -4340,14 +4352,13 @@ async function checkDueDateAlerts() {
     });
 
     if (overdue.length === 0 && nearDue.length === 0) {
-      localStorage.setItem('ppg_duecheck_date', today);
+      localStorage.setItem(key, '1');
       return;
     }
 
-    // ส่ง Teams กลุ่ม
     const chatId = CONFIG.drawingTeamChatId;
     if (chatId) {
-      const lines = [`⚠️ <b>PPG Drawing e-Service — แจ้งเตือน DueDate</b>`, ``];
+      const lines = [`⚠️ <b>PPG Drawing e-Service — แจ้งเตือน DueDate 🌅 08:30</b>`, ``];
 
       if (overdue.length > 0) {
         lines.push(`🔴 <b>เกินกำหนดแล้ว (${overdue.length} รายการ)</b>`);
@@ -4380,8 +4391,14 @@ async function checkDueDateAlerts() {
     if (overdue.length > 0) showToast('⚠️', `มีงานเกินกำหนด ${overdue.length} รายการ — แจ้งกลุ่ม Teams แล้ว`);
     else if (nearDue.length > 0) showToast('🔔', `มีงานใกล้ถึงกำหนด ${nearDue.length} รายการ`);
 
-    localStorage.setItem('ppg_duecheck_date', today);
+    localStorage.setItem(key, '1');
   } catch(e) { console.warn('checkDueDateAlerts:', e.message); }
+}
+
+// ── SCHEDULER: polling ทุก 5 นาที เพื่อจับช่วงเวลา 08:30 ──
+function startDueDateScheduler() {
+  checkDueDateAlerts(); // เช็คทันทีตอน login
+  setInterval(checkDueDateAlerts, 5 * 60 * 1000); // ทุก 5 นาที
 }
 
 // ── MOBILE DRAWER ──
