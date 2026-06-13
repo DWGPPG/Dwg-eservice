@@ -2732,7 +2732,7 @@ function showPage(name, tab) {
   if (name==='dashboard') buildDashboard();
   if (name==='admin')     buildAdmin();
   if (name==='sendwork')  swLoadRequests();
-  if (name==='review')    buildReview(_pendingReviewId);
+  if (name==='review')    setTimeout(() => buildReview(_pendingReviewId), 300);
   if (name==='report')    {} // buildReport เรียกเมื่อกดปุ่มเอง
 }
 
@@ -3591,8 +3591,16 @@ async function buildReview(highlightId) {
   const el = document.getElementById('reviewList');
   if (el) el.innerHTML = '<div style="padding:20px;color:var(--gray-400);font-size:13px">⏳ กำลังโหลด...</div>';
   try {
+    // รอ SharePoint พร้อมสูงสุด 5 วินาที
     if (!spSiteId || !spListId) {
-      if (el) el.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">ยังไม่ได้เชื่อมต่อ SharePoint — กรุณารอสักครู่แล้วลองใหม่</p></div>';
+      await refreshToken();
+      for (let i = 0; i < 10; i++) {
+        if (spSiteId && spListId) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    if (!spSiteId || !spListId) {
+      if (el) el.innerHTML = '<div class="empty-state"><p style="color:var(--danger)">ยังไม่ได้เชื่อมต่อ SharePoint — กรุณา refresh หน้าแล้วลองใหม่</p></div>';
       return;
     }
     await refreshToken();
