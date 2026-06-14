@@ -1958,9 +1958,9 @@ async function loadTeamMembers() {
       })
       .map((f, idx) => ({
         id:    'sp' + idx,
-        name:  f.Title || f.title || '',
+        name:  f.Title0 || f.Title || f.title || '',
         email: (f.Email || f.email || '').trim(),
-        role:  f.Role  || f.role  || '',
+        role:  f.Role   || f.role  || '',
       }))
       .filter(m => m.email);
 
