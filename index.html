@@ -612,7 +612,12 @@ tr:hover td { background: var(--sky); }
 <!-- ══ LOGIN SCREEN ══ -->
 <div class="login-screen" id="loginScreen">
   <div class="login-card">
-    <div class="login-logo" style="background:linear-gradient(135deg,#005DAC,#0DB14B);font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.5px">PPG</div>
+    <div class="login-logo" style="background:transparent;width:auto;height:auto;border-radius:0">
+      <img src="https://dwgppg.github.io/Dwg-eservice/PPG%20logo%20for%20Web.png" alt="PPG Logo"
+        style="height:72px;width:auto;object-fit:contain;margin:0 auto 4px;display:block"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div style="display:none;background:linear-gradient(135deg,#005DAC,#0DB14B);font-size:18px;font-weight:700;color:#fff;letter-spacing:-0.5px;width:56px;height:56px;border-radius:16px;align-items:center;justify-content:center;margin:0 auto">PPG</div>
+    </div>
     <div class="login-title">PPG Drawing e-Service</div>
     <div class="login-sub">ระบบคำร้องฝ่ายเขียนแบบ</div>
     <div class="login-domain">@primepower.co.th</div>
@@ -1618,6 +1623,13 @@ tr:hover td { background: var(--sky); }
         style="width:220px;font-size:13px;padding:7px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
     </div>
     <div id="adminList"></div>
+    <!-- ข้อ 3: รายการอนุมัติล่าสุด -->
+    <div class="card" id="adminHistoryCard" style="margin-top:16px;display:none">
+      <div style="font-size:14px;font-weight:600;color:var(--navy);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--gray-200)">
+        🕐 รายการที่อนุมัติล่าสุด
+      </div>
+      <div id="adminHistoryList"></div>
+    </div>
   </div>
 </div>
 
@@ -1933,30 +1945,31 @@ async function loadTeamMembers() {
     if (!tmListId) { console.warn('DrawingTeam List not found — using CONFIG.teamMembers fallback'); return; }
 
     const r = await graphGet(`/sites/${spSiteId}/lists/${tmListId}/items?expand=fields&$top=200`);
+    console.log('DrawingTeam raw fields sample:', r.value[0]?.fields); // debug
+
     const members = r.value
       .map(i => i.fields)
       .filter(f => {
-        // SharePoint Yes/No column ส่งมาเป็น boolean true/false
-        // กรองเฉพาะ IsActive = true หรือไม่มี field (ถือว่า active)
-        if (f.IsActive === false) return false;
-        if (f.IsActive === 'No') return false;
+        // SharePoint Yes/No column: Graph API ส่งมาเป็น boolean true/false
+        // ถ้า field ไม่มี (undefined) ถือว่า active
+        const active = f.IsActive;
+        if (active === false || active === 'No' || active === 0) return false;
         return true;
       })
       .map((f, idx) => ({
         id:    'sp' + idx,
-        name:  f.Title  || '',
-        email: (f.Email || '').trim(),
-        role:  f.Role   || '',
+        name:  f.Title || f.title || '',
+        email: (f.Email || f.email || '').trim(),
+        role:  f.Role  || f.role  || '',
       }))
       .filter(m => m.email);
 
     if (members.length > 0) {
       CONFIG.teamMembers = members;
-      console.log(`✅ โหลด DrawingTeam จาก SharePoint: ${members.length} คน`, members.map(m=>m.name));
-      // refresh dropdown รายงานทันทีหลังโหลดเสร็จ
+      console.log(`✅ โหลด DrawingTeam: ${members.length} คน`, members.map(m => m.name));
       refreshReportMemberSelect();
     } else {
-      console.warn('DrawingTeam List ว่างเปล่า — raw data:', r.value.map(i=>i.fields));
+      console.warn('DrawingTeam: ไม่พบสมาชิก — raw:', r.value.map(i => i.fields));
     }
   } catch(e) {
     console.warn('loadTeamMembers failed:', e.message);
@@ -3583,6 +3596,8 @@ async function buildAdmin() {
     renderAdminList(approvalItems, myWorkItems, isManager);
     // ข้อ 6: อัปเดต badge จำนวนรออนุมัติ
     updateAdminBadge(approvalItems.length);
+    // ข้อ 3: แสดงประวัติอนุมัติล่าสุด
+    renderAdminHistory(allItems, myEmail);
   } catch(e) {
     const msg = e.message || String(e);
     if (list) list.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-state-icon">❌</div><p style="color:var(--danger);font-size:13px">โหลดไม่สำเร็จ: ${msg}</p></div>`;
@@ -4876,6 +4891,47 @@ function renderSLAStats() {
     </div>`;
   }).join('');
   el.closest('.card').style.display = '';
+}
+
+// ── ประวัติอนุมัติล่าสุด ──
+function renderAdminHistory(allItems, myEmail) {
+  const card = document.getElementById('adminHistoryCard');
+  const list = document.getElementById('adminHistoryList');
+  if (!card || !list) return;
+
+  // งานที่อนุมัติแล้ว (approved/done/delivered) เรียงล่าสุดก่อน
+  const recentApproved = allItems
+    .filter(r => ['approved','working','done','delivered'].includes(r.Status) && r.SubmittedAt)
+    .sort((a,b) => new Date(b.SubmittedAt||0) - new Date(a.SubmittedAt||0))
+    .slice(0, 10);
+
+  if (!recentApproved.length) {
+    card.style.display = 'none';
+    return;
+  }
+
+  const STATUS_LABEL = {
+    approved:'✅ อนุมัติแล้ว', working:'✏️ กำลังเขียนแบบ',
+    done:'📤 นำส่งแล้ว', delivered:'📤 นำส่งแล้ว'
+  };
+
+  list.innerHTML = recentApproved.map(r => `
+    <div style="display:grid;grid-template-columns:140px 1fr auto;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:center;font-size:12px">
+      <div style="font-family:var(--mono);font-size:11px;color:var(--navy);font-weight:600;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"
+        onclick="openReqDetail('${r.id}')">${r.Title}</div>
+      <div>
+        <div style="font-weight:500;color:var(--gray-700)">${r.ProjectName0||'—'}</div>
+        <div style="color:var(--gray-400);font-size:11px;margin-top:1px">
+          ${r.AssigneeName ? `✏️ ${r.AssigneeName}` : ''} ${r.Department ? `· ${r.Department}` : ''}
+        </div>
+      </div>
+      <div style="text-align:right;white-space:nowrap">
+        <span class="badge ${r.Status==='done'||r.Status==='delivered'?'badge-done':'badge-approved'}" style="font-size:10px">${STATUS_LABEL[r.Status]||r.Status}</span>
+        <div style="color:var(--gray-400);font-size:10px;margin-top:3px">${fmtDate(r.SubmittedAt)}</div>
+      </div>
+    </div>`).join('');
+
+  card.style.display = '';
 }
 
 function updateAdminBadge(count) {
