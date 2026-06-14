@@ -295,6 +295,8 @@ body.dark .edit-modal { background:#1e2530; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 .table-wrap table { min-width: 700px; }
 
+.modal-box { background:var(--white);border-radius:var(--radius-lg);box-shadow:0 20px 60px rgba(0,0,0,.25); }
+body.dark .modal-box { background:#1e2530; }
 /* Revision reason required highlight */
 #rev_reason:invalid, #rev_reason.required-error { border-color: #dc2626 !important; }
 #rev_new_revise:focus { border-color: #f59e0b; outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
@@ -755,6 +757,12 @@ tr:hover td { background: var(--sky); }
       <div class="card-title">คำร้องรายเดือน (12 เดือนล่าสุด)</div>
       <div id="monthChart" style="display:flex;gap:4px;align-items:flex-end;height:100px;padding:0 4px;overflow-x:auto"></div>
     </div>
+    <!-- SLA Tracking -->
+    <div class="card" id="slaCard" style="display:none;margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:10px">⏱️ SLA เฉลี่ยแต่ละ Stage (วัน)</div>
+      <div id="slaStats" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      <div style="font-size:10px;color:var(--gray-400);margin-top:8px">🟢 &lt;3 วัน · 🟡 3-5 วัน · 🔴 &gt;5 วัน</div>
+    </div>
     <div class="card" id="workloadCard">
       <div class="card-title">ปริมาณงานคงค้างของทีม</div>
       <div class="wl-summary" id="wlSummary"></div>
@@ -780,6 +788,7 @@ tr:hover td { background: var(--sky); }
         <button class="filter-btn" onclick="filterTable('pending',this)">รออนุมัติ</button>
         <button class="filter-btn" onclick="filterTable('approved',this)">อนุมัติแล้ว</button>
         <button class="filter-btn" onclick="filterTable('rejected',this)">ส่งกลับ</button>
+        <button class="filter-btn" onclick="filterTable('revision',this)">✏️ Revision</button>
       </div>
       <div class="table-scroll-top" id="tableScrollTop">
         <div class="table-scroll-top-inner" id="tableScrollTopInner"></div>
@@ -1649,6 +1658,17 @@ tr:hover td { background: var(--sky); }
 <div class="toast" id="toast">
   <span id="toastIcon">✓</span>
   <span id="toastMsg">สำเร็จ</span>
+</div>
+
+<!-- Request Detail Popup (กดเลขคำร้องใน Dashboard) -->
+<div class="modal-overlay" id="reqDetailModal">
+  <div class="modal-box" style="max-width:600px;width:95vw;max-height:88vh;overflow-y:auto;padding:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--gray-200);position:sticky;top:0;background:var(--white);z-index:1">
+      <div style="font-size:15px;font-weight:700;color:var(--navy)" id="reqDetailTitle">รายละเอียดคำร้อง</div>
+      <button onclick="closeModal('reqDetailModal')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);line-height:1">✕</button>
+    </div>
+    <div id="reqDetailBody" style="padding:20px"></div>
+  </div>
 </div>
 
 <!-- Submit Confirm Modal -->
@@ -2919,17 +2939,22 @@ async function doSubmitRequest() {
     // 3. ส่ง Teams notification ไปกลุ่ม Drawing Dept. โดยตรง
     try {
       const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${refNo}`;
+      const isRev = isRevisionMode;
       const lines = [
-        `📋 <b>คำร้องใหม่เข้ามาแล้ว!</b>`,
+        isRev
+          ? `✏️ <b>Revision เข้ามาแล้ว!</b>`
+          : `📋 <b>คำร้องใหม่เข้ามาแล้ว!</b>`,
         ``,
         `🔖 <b>เลขที่:</b> ${refNo}`,
+        isRev ? `🔗 <b>อ้างอิงจาก:</b> ${revisionRefData?.Title||'—'}` : '',
         `📦 <b>ประเภท:</b> ${selectedType}`,
         `🏗️ <b>โครงการ:</b> ${project}`,
         `👤 <b>ผู้ส่ง:</b> ${name}`,
         `🏢 <b>แผนก:</b> ${dept}`,
         `⚡ <b>ความเร่งด่วน:</b> ${urgency}`,
         `📅 <b>วันที่ส่ง:</b> ${fmtDateTime(now)}`,
-      ];
+      ].filter(Boolean);
+      if (isRev && revisionReason) lines.push(`📝 <b>สาเหตุแก้ไข:</b> ${revisionReason}`);
       if (detail)   lines.push(`💬 <b>รายละเอียด:</b> ${detail}`);
       if (datalink) lines.push(`🔗 <b>ลิงก์แนบข้อมูล:</b> <a href="${datalink}">${datalink}</a>`);
       lines.push(`📁 <a href="${folderUrl}">เปิดโฟลเดอร์เอกสาร / แบบ</a>`);
@@ -3064,8 +3089,10 @@ async function buildDashboard() {
     renderTypeChart();
     renderBarChart();
     renderMonthChart();
+    renderSLAStats();
     renderWorkload();
     renderTable(allRequests);
+    checkRejectNotification();
   } catch(e) {
     setBanner('error', '❌ โหลด Dashboard ไม่สำเร็จ: ' + e.message);
   }
@@ -3334,6 +3361,7 @@ function renderTable(items) {
         if (currentFilter === 'pending')  return ['pending','review','inprogress_lv1','inprogress'].includes(r.Status);
         if (currentFilter === 'approved') return ['approved','working','done','delivered'].includes(r.Status);
         if (currentFilter === 'rejected') return r.Status === 'rejected';
+        if (currentFilter === 'revision') return (r.IsRevision === 'Yes') || (r.Title||'').includes('-Rev.');
         return true;
       });
 
@@ -3359,9 +3387,9 @@ function renderTable(items) {
   // ── Sort ──
   filtered = [...filtered].sort((a, b) => {
     let va, vb;
-    if (tableSortCol === 'SubmittedAt') {
-      va = new Date(a.SubmittedAt || a.Created || 0);
-      vb = new Date(b.SubmittedAt || b.Created || 0);
+    if (tableSortCol === 'SubmittedAt' || tableSortCol === 'DueDate') {
+      va = new Date(a[tableSortCol] || 0);
+      vb = new Date(b[tableSortCol] || 0);
     } else {
       va = (a[tableSortCol]||'').toString().toLowerCase();
       vb = (b[tableSortCol]||'').toString().toLowerCase();
@@ -3387,7 +3415,7 @@ function renderTable(items) {
       : '';
     return `<tr class="${rowClass}">
       <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
-        <span onclick="copyToClipboard('${r.Title}')" title="กดเพื่อ copy เลขคำร้อง" style="cursor:pointer">${r.Title}</span>
+        <span onclick="openReqDetail('${r.id}')" title="ดูรายละเอียด" style="cursor:pointer;color:var(--navy);text-decoration:underline;text-decoration-style:dotted">${r.Title}</span>
         <button onclick="copyToClipboard('${r.Title}')" title="Copy เลขคำร้อง"
           style="margin-left:4px;background:none;border:none;cursor:pointer;font-size:11px;color:var(--gray-400);padding:1px 3px">📋</button>
         ${isPending ? `<button onclick="openEditRequest('${r.id}')" title="แก้ไขคำร้องนี้ (ทำได้เฉพาะช่วงรออนุมัติ)"
@@ -4753,6 +4781,88 @@ function renderPersonalStats() {
     </div>`;
   card.style.display = '';
 }
+// ── ข้อ 8: Popup รายละเอียดคำร้อง ──
+function openReqDetail(itemId) {
+  const r = allRequests.find(x => x.id === itemId);
+  if (!r) return;
+  const STATUS_LABEL = { pending:'⏳ รออนุมัติ', inprogress_lv1:'🔄 อนุมัติ Lv.1', approved:'✅ อนุมัติแล้ว',
+    working:'✏️ กำลังเขียนแบบ', done:'📤 นำส่งแล้ว', review:'🔍 ตรวจรับ', cancelled:'🚫 ยกเลิก', rejected:'↩️ ส่งกลับ' };
+  const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
+  const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+  const reviewBadge = r.ReviewResult
+    ? `<span class="badge ${r.ReviewResult==='approved'?'badge-done':r.ReviewResult==='revise'?'badge-pending':'badge-rejected'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ ขอแก้ไข':'❌ Reject'}</span>`
+    : '—';
+  document.getElementById('reqDetailTitle').textContent = r.Title;
+  document.getElementById('reqDetailBody').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:16px">
+      <div><span style="color:var(--gray-400);font-size:11px">สถานะ</span><br><b>${STATUS_LABEL[r.Status]||r.Status}</b></div>
+      <div><span style="color:var(--gray-400);font-size:11px">ประเภท</span><br>${r.ProjectName||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">โครงการ</span><br><b>${r.ProjectName0||'—'}</b></div>
+      <div><span style="color:var(--gray-400);font-size:11px">ฝ่าย/แผนก</span><br>${r.Department||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">ผู้ส่ง</span><br>${r.SenderName||r.SenderEmail||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">ผู้รับผิดชอบ</span><br>${r.AssigneeName||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">Drawing Number</span><br>${r.DrawingNumber||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">Revise</span><br>${r.CurrentRevise||r.ReviseNumber||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">Drawing Name</span><br>${r.DrawingName||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">kWp</span><br>${r.SolarKwp||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">วันที่ส่ง</span><br>${fmtDate(r.SubmittedAt)}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">วันกำหนด</span><br><b style="color:${r.DueDate&&new Date(r.DueDate)<new Date()?'#dc2626':'inherit'}">${fmtDate(r.DueDate)||'—'}</b></div>
+      ${r.DeliveredAt?`<div><span style="color:var(--gray-400);font-size:11px">วันนำส่ง</span><br>${fmtDate(r.DeliveredAt)}</div>`:''}
+      <div><span style="color:var(--gray-400);font-size:11px">ผลตรวจรับ</span><br>${reviewBadge}</div>
+    </div>
+    ${r.IsRevision==='Yes'||r.Title?.includes('-Rev.')?`<div style="padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;margin-bottom:12px">✏️ <b>Revision</b> อ้างอิงจาก: ${r.RefRequestId||'—'}<br>📝 สาเหตุ: ${r.RevisionReason||'—'}</div>`:''}
+    ${r.Detail?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">รายละเอียด</div><div style="font-size:13px;line-height:1.6;padding:10px;background:var(--gray-100);border-radius:8px">${r.Detail}</div></div>`:''}
+    ${r.DataLink?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">ลิงก์ข้อมูล</div><a href="${r.DataLink}" target="_blank" style="font-size:12px;color:var(--info);word-break:break-all">${r.DataLink}</a></div>`:''}
+    ${r.ReviseComment||r.DeliveryRejectReason?`<div style="padding:10px 14px;background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;font-size:12px;margin-bottom:12px;color:#dc2626">💬 หมายเหตุ: ${r.ReviseComment||r.DeliveryRejectReason}</div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${dwgUrl?`<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📐 ดาวน์โหลด DWG</a>`:''}
+      ${pdfUrl?`<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📄 ดาวน์โหลด PDF</a>`:''}
+    </div>`;
+  document.getElementById('reqDetailModal').classList.add('show');
+}
+
+// ── ข้อ 4: แจ้งเตือน Reject กลับมา ──
+function checkRejectNotification() {
+  if (!currentUser || !isApprover()) return;
+  const myEmail = (currentUser.username||'').toLowerCase();
+  const myName  = (currentUser.name||'').toLowerCase();
+  const rejected = (allRequests||[]).filter(r => {
+    const e = (r.AssigneeEmail||'').toLowerCase();
+    const n = (r.AssigneeName||'').toLowerCase();
+    const isMe = e===myEmail || (myName && n.includes(myName.split(' ')[0]));
+    return isMe && r.ReviewResult==='reject' && r.ReviewedAt;
+  });
+  const key  = 'ppg_reject_seen_' + (currentUser.username||'');
+  const seen = JSON.parse(localStorage.getItem(key)||'[]');
+  const newRej = rejected.filter(r => !seen.includes(r.Title));
+  if (newRej.length > 0) {
+    showToast('↩️', `มีงาน ${newRej.length} รายการที่ถูก Reject กลับมา — กรุณาตรวจสอบ`);
+    localStorage.setItem(key, JSON.stringify([...seen, ...newRej.map(r=>r.Title)].slice(-50)));
+  }
+}
+
+// ── ข้อ 7 (SLA): เพิ่มใน buildDashboard ──
+function renderSLAStats() {
+  const sla = { 'รอ→อนุมัติ':{s:0,c:0}, 'อนุมัติ→ส่งงาน':{s:0,c:0}, 'ส่งงาน→ตรวจรับ':{s:0,c:0} };
+  allRequests.forEach(r => {
+    if (r.SubmittedAt && r.ApprovedAt) { const d=daysBetween(r.SubmittedAt,r.ApprovedAt); if(d>=0&&d<365){sla['รอ→อนุมัติ'].s+=d;sla['รอ→อนุมัติ'].c++;} }
+    if (r.ApprovedAt && r.DeliveredAt) { const d=daysBetween(r.ApprovedAt,r.DeliveredAt); if(d>=0&&d<365){sla['อนุมัติ→ส่งงาน'].s+=d;sla['อนุมัติ→ส่งงาน'].c++;} }
+    if (r.DeliveredAt && r.ReviewedAt) { const d=daysBetween(r.DeliveredAt,r.ReviewedAt); if(d>=0&&d<365){sla['ส่งงาน→ตรวจรับ'].s+=d;sla['ส่งงาน→ตรวจรับ'].c++;} }
+  });
+  const el = document.getElementById('slaStats');
+  if (!el) return;
+  el.innerHTML = Object.entries(sla).map(([label,{s,c}]) => {
+    const avg = c ? (s/c).toFixed(1) : '—';
+    const color = c&&s/c>5?'#dc2626':c&&s/c>3?'#d97706':'#15803d';
+    return `<div style="text-align:center;padding:8px 12px;background:var(--gray-100);border-radius:8px;flex:1">
+      <div style="font-size:20px;font-weight:700;color:${color}">${avg}</div>
+      <div style="font-size:10px;color:var(--gray-500);margin-top:2px">${label}</div>
+      <div style="font-size:10px;color:var(--gray-400)">${c} รายการ</div>
+    </div>`;
+  }).join('');
+  el.closest('.card').style.display = '';
+}
+
 function updateAdminBadge(count) {
   // nav tab badge
   const badge = document.getElementById('adminBadge');
