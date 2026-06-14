@@ -803,6 +803,7 @@ tr:hover td { background: var(--sky); }
         <button class="filter-btn" onclick="filterTable('approved',this)">อนุมัติแล้ว</button>
         <button class="filter-btn" onclick="filterTable('rejected',this)">ส่งกลับ</button>
         <button class="filter-btn" onclick="filterTable('revision',this)">✏️ Revision</button>
+        <button class="filter-btn" onclick="filterTable('asbuilt',this)">🏁 As-Built</button>
       </div>
       <div class="table-scroll-top" id="tableScrollTop">
         <div class="table-scroll-top-inner" id="tableScrollTopInner"></div>
@@ -1445,7 +1446,16 @@ tr:hover td { background: var(--sky); }
         <span style="background:var(--sun-light);border:1px solid var(--sun);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--sun-dark)">📄 ใบรับงาน PDF</span>
       </div>
       <div style="margin-top:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e">
-        ✏️ <b>Revision Flow:</b> เลือก "Revision / แก้ไขแบบ" → ค้นหาเลขคำร้องเดิม → ระบบออกเลข <code>DWG-YYYY-XXXX-Rev.01</code> อัตโนมัติ → ดำเนินการตาม Flow เดิม
+        ✏️ <b>Revision Flow:</b> เลือก "Revision / แก้ไขแบบ" → ค้นหาเลขคำร้องเดิม → ระบบออกเลขต่อท้าย <code>-Rev.01</code> อัตโนมัติ → ดำเนินการตาม Flow เดิม
+      </div>
+      <div style="margin-top:8px;padding:8px 12px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:12px;color:#0369a1">
+        🔖 <b>รูปแบบเลขคำขอ:</b><br>
+        📋 Proposal → <code>DWG-DES-2569-0001</code><br>
+        🏛️ ขออนุญาต → <code>DWG-PES-2569-0001</code><br>
+        🏗️ ก่อสร้าง → <code>DWG-BEMV-2569-0001</code> (ใช้ Project Code 4 ตัว)<br>
+        🏁 As-Built → <code>DWG-ASB-BEMV-2569-0001</code><br>
+        📁 อื่นๆ → <code>DWG-OTH-2569-0001</code><br>
+        ✏️ Revision → ต่อท้ายทุกประเภท เช่น <code>DWG-DES-2569-0001-Rev.01</code>
       </div>
     </div>
 
@@ -1455,7 +1465,7 @@ tr:hover td { background: var(--sky); }
         <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:12px">👤 ผู้ร้องขอ (ทุกฝ่าย)</div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">📝</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ส่งคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เลือกประเภท (Proposal / ก่อสร้าง / Revision / อื่นๆ) กรอกโครงการ Drawing kWp วันกำหนด ลิงก์ข้อมูล</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ส่งคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เลือกประเภท (Proposal / ขออนุญาต / ก่อสร้าง / <b>As-Built</b> / Revision / อื่นๆ) เลือกหมวด Drawing กรอกโครงการ Drawing kWp วันกำหนด ลิงก์ข้อมูล</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">✏️</span>
@@ -1666,6 +1676,7 @@ tr:hover td { background: var(--sky); }
         <button class="filter-btn" onclick="filterAdmin('proposal',this)">📋 Proposal</button>
         <button class="filter-btn" onclick="filterAdmin('construction',this)">🏗️ ก่อสร้าง</button>
         <button class="filter-btn" onclick="filterAdmin('permit',this)">🏛️ ขออนุญาต</button>
+        <button class="filter-btn" onclick="filterAdmin('asbuilt',this)">🏁 As-Built</button>
         <button class="filter-btn" onclick="filterAdmin('revision',this)">✏️ Revision</button>
       </div>
       <input type="text" id="adminSearch" placeholder="🔍 ค้นหาเลขคำร้อง โครงการ ชื่อ..."
@@ -3420,21 +3431,23 @@ function renderStats() {
 }
 
 function renderTypeChart() {
-  const types = { 'Proposal':0, 'ก่อสร้าง':0, 'ขออนุญาต':0, 'Revision':0, 'อื่นๆ':0 };
+  const types = { 'Proposal':0, 'ก่อสร้าง':0, 'ขออนุญาต':0, 'As-Built':0, 'Revision':0, 'อื่นๆ':0 };
   allRequests.forEach(r => {
     const t = r.ProjectName || '';
-    if (t.includes('Proposal'))    types['Proposal']++;
+    if (t.includes('Proposal'))     types['Proposal']++;
     else if (t.includes('ก่อสร้าง')) types['ก่อสร้าง']++;
     else if (t.includes('ขออนุญาต')) types['ขออนุญาต']++;
+    else if (t.includes('As-Built')) types['As-Built']++;
     else if (t.includes('Revision')) types['Revision']++;
     else types['อื่นๆ']++;
   });
-  const icons = {'Proposal':'📋','ก่อสร้าง':'🏗️','ขออนุญาต':'🏛️','Revision':'✏️','อื่นๆ':'📁'};
+  const icons = {'Proposal':'📋','ก่อสร้าง':'🏗️','ขออนุญาต':'🏛️','As-Built':'🏁','Revision':'✏️','อื่นๆ':'📁'};
+  const colors = {'Proposal':'var(--sun)','ก่อสร้าง':'#3b82f6','ขออนุญาต':'#8b5cf6','As-Built':'#f59e0b','Revision':'#ec4899','อื่นๆ':'var(--gray-300)'};
   const total = allRequests.length || 1;
   document.getElementById('typeChart').innerHTML = Object.entries(types).map(([k,v]) => `
     <div>
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>${icons[k]} ${k}</span><span style="font-weight:500">${v} (${(v/total*100).toFixed(0)}%)</span></div>
-      <div class="progress-bar-wrap"><div class="progress-bar" style="width:${v/total*100}%"></div></div>
+      <div class="progress-bar-wrap"><div class="progress-bar" style="width:${v/total*100}%;background:${colors[k]}"></div></div>
     </div>`).join('');
 }
 
@@ -3664,6 +3677,7 @@ function renderTable(items) {
         if (currentFilter === 'approved') return ['approved','working','done','delivered'].includes(r.Status);
         if (currentFilter === 'rejected') return r.Status === 'rejected';
         if (currentFilter === 'revision') return (r.IsRevision === 'Yes') || (r.Title||r.Title0||'').includes('-Rev.');
+        if (currentFilter === 'asbuilt')  return (r.ProjectName||'').includes('As-Built');
         return true;
       });
 
@@ -3723,8 +3737,8 @@ function renderTable(items) {
         ${isPending ? `<button onclick="openEditRequest('${r.id}')" title="แก้ไขคำร้องนี้ (ทำได้เฉพาะช่วงรออนุมัติ)"
           style="margin-left:4px;background:var(--sun-light);border:1px solid var(--sun);border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;color:var(--sun-dark);font-weight:500;white-space:nowrap">✏️ แก้ไข</button>` : ''}
       </td>
-      <td>${r.ProjectName0||'—'}</td>
-      <td style="font-weight:500">${r.ProjectName||'—'}</td>
+      <td>${r.ProjectName||'—'}</td>
+      <td style="font-weight:500">${r.ProjectName0||'—'}</td>
       <td>${r.Department||'—'}</td>
       <td style="color:var(--gray-400);white-space:nowrap">${fmtDate(r.SubmittedAt)}</td>
       <td style="white-space:nowrap">${r.DueDate ? `<span style="font-size:12px;${isOverdue?'color:#dc2626;font-weight:600':isDueToday?'color:#d97706;font-weight:600':'color:var(--gray-400)'}">${fmtDate(r.DueDate)}${dueBadge}</span>` : '<span style="color:var(--gray-400)">—</span>'}</td>
@@ -3891,8 +3905,9 @@ function renderAdminList(approvalItems, myWorkItems, isManager) {
     return items.filter(r => {
       const t = (r.Type||r.RequestType||r.ProjectName||'').toLowerCase();
       if (adminFilter==='proposal')     return t.includes('proposal');
-      if (adminFilter==='construction') return t.includes('ก่อสร้าง');
+      if (adminFilter==='construction') return t.includes('ก่อสร้าง') && !t.includes('as-built');
       if (adminFilter==='permit')       return t.includes('ขออนุญาต');
+      if (adminFilter==='asbuilt')      return t.includes('as-built');
       if (adminFilter==='revision')     return t.includes('revision');
       return true;
     });
