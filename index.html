@@ -295,7 +295,9 @@ body.dark .edit-modal { background:#1e2530; }
 .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
 .table-wrap table { min-width: 700px; }
 
-/* ── Scroll bar ด้านบนตาราง ── */
+/* Revision reason required highlight */
+#rev_reason:invalid, #rev_reason.required-error { border-color: #dc2626 !important; }
+#rev_new_revise:focus { border-color: #f59e0b; outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
 .table-scroll-top {
   overflow-x: auto; overflow-y: hidden;
   height: 12px; margin-bottom: -12px;
@@ -648,6 +650,7 @@ tr:hover td { background: var(--sky); }
       <div class="nav-tab" id="adminTab" onclick="showPage('admin',this)" style="display:none">
         <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></svg>
         อนุมัติ (Admin)
+        <span id="adminBadge" style="display:none;background:#e53e3e;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-left:4px">0</span>
       </div>
       <div class="nav-tab" id="sendworkTab" onclick="showPage('sendwork',this)" style="display:none">
         <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -825,8 +828,69 @@ tr:hover td { background: var(--sky); }
         <div class="type-card selected" onclick="selectType(this,'📋','เขียนแบบ Proposal')"><div class="type-card-icon">📋</div><div class="type-card-label">เขียนแบบ Proposal</div><div class="type-card-sub">นำเสนอโครงการ</div></div>
         <div class="type-card" onclick="selectType(this,'🏛️','เขียนแบบขออนุญาตก่อสร้าง')"><div class="type-card-icon">🏛️</div><div class="type-card-label">ขออนุญาตก่อสร้าง</div><div class="type-card-sub">ยื่นขออนุญาต</div></div>
         <div class="type-card" onclick="selectType(this,'🏗️','เขียนแบบก่อสร้าง')"><div class="type-card-icon">🏗️</div><div class="type-card-label">เขียนแบบก่อสร้าง</div><div class="type-card-sub">แบบก่อสร้างจริง</div></div>
-        <div class="type-card" onclick="selectType(this,'✏️','Revision / แก้ไขแบบ')"><div class="type-card-icon">✏️</div><div class="type-card-label">Revision / แก้ไขแบบ</div><div class="type-card-sub">แก้ไขงานเดิม</div></div>
+        <div class="type-card" onclick="selectType(this,'✏️','Revision / แก้ไขแบบ',true)"><div class="type-card-icon">✏️</div><div class="type-card-label">Revision / แก้ไขแบบ</div><div class="type-card-sub">แก้ไขงานเดิม</div></div>
         <div class="type-card" onclick="selectType(this,'📁','อื่นๆ')"><div class="type-card-icon">📁</div><div class="type-card-label">อื่นๆ</div><div class="type-card-sub">ระบุในรายละเอียด</div></div>
+      </div>
+    </div>
+
+    <!-- ── Revision Panel (แสดงเฉพาะเมื่อเลือก Revision) ── -->
+    <div class="card" id="revisionPanel" style="display:none;border:2px solid #f59e0b;background:#fffbeb">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <span style="font-size:20px">✏️</span>
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#92400e">Revision / แก้ไขแบบ</div>
+          <div style="font-size:12px;color:#b45309">ค้นหาจากเลขคำร้องเดิม หรือ Drawing Number เพื่อดึงข้อมูล</div>
+        </div>
+      </div>
+
+      <!-- ค้นหา -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+        <input type="text" id="rev_search" placeholder="พิมพ์เลขคำร้อง DWG-2569-XXXX หรือ Drawing Number..."
+          style="flex:1;min-width:200px;border-color:#f59e0b"
+          onkeydown="if(event.key==='Enter')searchRevisionRef()">
+        <button class="btn btn-primary" onclick="searchRevisionRef()" style="background:#d97706;border-color:#d97706;white-space:nowrap">
+          🔍 ค้นหา
+        </button>
+      </div>
+
+      <!-- ผลการค้นหา + ข้อมูลอ้างอิง -->
+      <div id="rev_ref_result" style="display:none">
+        <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:14px">
+          <div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">📋 ข้อมูลคำร้องอ้างอิง</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px" id="rev_ref_info"></div>
+        </div>
+
+        <!-- Revise Number ใหม่ -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="field" style="margin:0">
+            <label>Revise Number ใหม่ <span class="req">*</span></label>
+            <input type="text" id="rev_new_revise" placeholder="เช่น R1, R2, Rev.01"
+              style="border-color:#f59e0b">
+          </div>
+          <div class="field" style="margin:0">
+            <label>เลขคำร้องใหม่ (อัตโนมัติ)</label>
+            <input type="text" id="rev_new_number" readonly
+              style="background:#f3f4f6;color:var(--gray-500);font-family:var(--mono);font-size:13px">
+          </div>
+        </div>
+
+        <!-- หมายเหตุสาเหตุ — บังคับกรอก -->
+        <div class="field" style="margin-bottom:12px">
+          <label>สาเหตุ / หมายเหตุการแก้ไข <span class="req">*</span>
+            <span style="font-size:11px;color:#dc2626;font-weight:400"> (บังคับกรอก)</span>
+          </label>
+          <textarea id="rev_reason" rows="3" placeholder="อธิบายสาเหตุที่ต้องแก้ไข เช่น ลูกค้าขอเปลี่ยน layout แผง, แก้ตาม comment จาก PEA..."
+            style="border-color:#f59e0b;resize:vertical"></textarea>
+        </div>
+
+        <!-- ประวัติ Revision ทั้งหมด -->
+        <div id="rev_history_wrap" style="display:none">
+          <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px">
+            📅 ประวัติ Revision ทั้งหมด
+            <span id="rev_history_count" style="background:#f59e0b;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:6px">0 ครั้ง</span>
+          </div>
+          <div id="rev_history_list" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
       </div>
     </div>
     <div class="card">
@@ -1256,6 +1320,7 @@ tr:hover td { background: var(--sky); }
         <div style="display:flex;gap:8px;margin-bottom:2px">
           <button class="btn btn-primary" onclick="buildReport()">🔍 สร้างรายงาน</button>
           <button class="btn btn-secondary" onclick="exportReportPDF()" id="rpt_export_btn" style="display:none">📥 Export PDF</button>
+          <button class="btn btn-secondary" onclick="exportReportExcel()" id="rpt_export_excel_btn" style="display:none">📊 Export Excel</button>
         </div>
       </div>
     </div>
@@ -2233,6 +2298,8 @@ async function onSignedIn() {
 
   // ตรวจ DueDate รอบ 08:30
   startDueDateScheduler();
+  // ข้อ 8: Auto refresh dashboard ทุก 10 นาที
+  startAutoRefresh();
 }
 
 function isApprover() {
@@ -2371,6 +2438,30 @@ async function spUpdateItem(itemId, fields) {
   return graphPatch(`/sites/${spSiteId}/lists/${spListId}/items/${itemId}/fields`, fields);
 }
 
+// ── ข้อ 9: Audit Log — บันทึกทุก action ลง SharePoint List "AuditLog" ──
+let auditLogListId = null;
+async function auditLog(action, requestId, detail = '') {
+  try {
+    if (!spSiteId) return;
+    // หา List ID ครั้งแรก
+    if (!auditLogListId) {
+      const r = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq 'AuditLog'`);
+      auditLogListId = r.value[0]?.id || null;
+      if (!auditLogListId) return; // ถ้ายังไม่มี List ก็ข้ามไป
+    }
+    await graphPost(`/sites/${spSiteId}/lists/${auditLogListId}/items`, {
+      fields: {
+        Title:      action,          // เช่น 'ส่งคำร้อง', 'อนุมัติ Lv.1', 'นำส่งงาน'
+        RequestId:  requestId || '',
+        UserEmail:  currentUser?.username || '',
+        UserName:   currentUser?.name || '',
+        Detail:     detail,
+        ActionAt:   new Date().toISOString(),
+      }
+    });
+  } catch(e) { console.warn('auditLog failed (non-critical):', e.message); }
+}
+
 // อัปโหลดไฟล์ไปยัง SharePoint Document Library
 async function spUploadFile(folderPath, fileName, fileBuffer) {
   await refreshToken();
@@ -2406,10 +2497,157 @@ function genRefNumber() {
 }
 
 // ── PAGE: SUBMIT ──
-function selectType(el, icon, label) {
+let isRevisionMode = false;
+let revisionRefData = null; // ข้อมูลคำร้องอ้างอิง
+
+function selectType(el, icon, label, isRevision = false) {
   document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   selectedType = icon + ' ' + label;
+  isRevisionMode = !!isRevision;
+
+  // แสดง/ซ่อน Revision Panel
+  const panel = document.getElementById('revisionPanel');
+  if (panel) panel.style.display = isRevision ? '' : 'none';
+
+  // ถ้าไม่ใช่ revision ล้าง revision data
+  if (!isRevision) {
+    revisionRefData = null;
+    const rResult = document.getElementById('rev_ref_result');
+    if (rResult) rResult.style.display = 'none';
+    const rSearch = document.getElementById('rev_search');
+    if (rSearch) rSearch.value = '';
+  }
+}
+
+// ── ค้นหาคำร้องอ้างอิงสำหรับ Revision ──
+async function searchRevisionRef() {
+  const q = (document.getElementById('rev_search')?.value || '').trim();
+  if (!q) { showToast('⚠️', 'กรุณากรอกเลขคำร้องหรือ Drawing Number'); return; }
+
+  const btn = document.querySelector('#revisionPanel .btn-primary');
+  if (btn) { btn.textContent = '⏳ กำลังค้นหา...'; btn.disabled = true; }
+
+  try {
+    // ค้นหาจาก allRequests ก่อน (เร็ว) ถ้าไม่เจอ ค้นจาก SharePoint
+    let matches = (allRequests || []).filter(r =>
+      r.Title === q ||
+      (r.DrawingNumber || '').toLowerCase() === q.toLowerCase()
+    );
+    if (!matches.length) {
+      const items = await spGetItems();
+      matches = items.filter(r =>
+        r.Title === q ||
+        (r.DrawingNumber || '').toLowerCase() === q.toLowerCase()
+      );
+    }
+
+    if (!matches.length) {
+      showToast('⚠️', 'ไม่พบคำร้องหรือ Drawing Number นี้');
+      return;
+    }
+
+    // เอาคำร้องล่าสุด (ไม่ใช่ Rev) เป็นอ้างอิง
+    const ref = matches.sort((a, b) => new Date(b.SubmittedAt||0) - new Date(a.SubmittedAt||0))[0];
+    revisionRefData = ref;
+
+    // หา Revision ทั้งหมดของ Drawing Number นี้
+    const drawingNum = ref.DrawingNumber || '';
+    const allRevisions = matches.filter(r => r.Title && r.Title.includes('-Rev.'));
+    const revCount = allRevisions.length;
+    const nextRevNum = String(revCount + 1).padStart(2, '0');
+    const newTitle = `${ref.Title}-Rev.${nextRevNum}`;
+
+    // แสดงข้อมูลอ้างอิง
+    document.getElementById('rev_ref_info').innerHTML = `
+      <div><span style="color:#92400e;font-weight:600">เลขคำร้องเดิม:</span><br>${ref.Title||'—'}</div>
+      <div><span style="color:#92400e;font-weight:600">โครงการ:</span><br>${ref.ProjectName0||'—'}</div>
+      <div><span style="color:#92400e;font-weight:600">Drawing Number:</span><br>${ref.DrawingNumber||'—'}</div>
+      <div><span style="color:#92400e;font-weight:600">Drawing Name:</span><br>${ref.DrawingName||'—'}</div>
+      <div><span style="color:#92400e;font-weight:600">kWp:</span><br>${ref.SolarKwp||'—'}</div>
+      <div><span style="color:#92400e;font-weight:600">ผู้เขียนแบบเดิม:</span><br>${ref.AssigneeName||'—'}</div>
+    `;
+
+    // ตั้งค่า Revise Number และเลขคำร้องใหม่
+    document.getElementById('rev_new_revise').value = `Rev.${nextRevNum}`;
+    document.getElementById('rev_new_number').value = newTitle;
+
+    // auto-fill form หลัก
+    const projEl = document.getElementById('f_project');
+    if (projEl) {
+      // หา option ที่ตรง หรือเพิ่มชั่วคราว
+      let found = false;
+      for (let opt of projEl.options) {
+        if (opt.text === ref.ProjectName0 || opt.value === ref.ProjectName0) {
+          projEl.value = opt.value; found = true; break;
+        }
+      }
+      if (!found && ref.ProjectName0) {
+        const opt = new Option(ref.ProjectName0, ref.ProjectName0);
+        projEl.add(opt); projEl.value = ref.ProjectName0;
+      }
+    }
+    const kwpEl = document.getElementById('f_kwp');
+    if (kwpEl && ref.SolarKwp) {
+      for (let opt of kwpEl.options) {
+        if (opt.value === ref.SolarKwp || opt.text === ref.SolarKwp) { kwpEl.value = opt.value; break; }
+      }
+    }
+    // Drawing Number
+    const dnEl = document.getElementById('f_drawing_number');
+    if (dnEl && ref.DrawingNumber) {
+      let found = false;
+      for (let opt of dnEl.options) { if (opt.value === ref.DrawingNumber) { dnEl.value = ref.DrawingNumber; found = true; break; } }
+      if (!found) { const opt = new Option(ref.DrawingNumber, ref.DrawingNumber); dnEl.add(opt); dnEl.value = ref.DrawingNumber; }
+    }
+    // Drawing Name
+    const dNameEl = document.getElementById('f_drawing_name');
+    if (dNameEl && ref.DrawingName) {
+      let found = false;
+      for (let opt of dNameEl.options) { if (opt.value === ref.DrawingName) { dNameEl.value = ref.DrawingName; found = true; break; } }
+      if (!found) { const opt = new Option(ref.DrawingName, ref.DrawingName); dNameEl.add(opt); dNameEl.value = ref.DrawingName; }
+    }
+    // Revise
+    const revEl = document.getElementById('f_revise');
+    if (revEl) revEl.value = `Rev.${nextRevNum}`;
+
+    // ประวัติ Revision
+    const histWrap = document.getElementById('rev_history_wrap');
+    const histList = document.getElementById('rev_history_list');
+    const histCount = document.getElementById('rev_history_count');
+    if (histWrap && histList) {
+      if (allRevisions.length > 0) {
+        histCount.textContent = `${allRevisions.length} ครั้ง`;
+        histList.innerHTML = allRevisions
+          .sort((a, b) => new Date(a.SubmittedAt||0) - new Date(b.SubmittedAt||0))
+          .map(r => `
+            <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:#fff;border:1px solid #fde68a;border-radius:6px;font-size:12px">
+              <span style="background:#f59e0b;color:#fff;border-radius:4px;padding:2px 7px;font-weight:600;white-space:nowrap;font-size:11px">${r.CurrentRevise||r.ReviseNumber||'—'}</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-family:var(--mono);font-size:11px;color:var(--gray-500)">${r.Title}</div>
+                <div style="color:var(--gray-600);margin-top:2px">${r.Detail||r.RevisionReason||'—'}</div>
+              </div>
+              <div style="text-align:right;white-space:nowrap;color:var(--gray-400);font-size:11px">
+                ${r.SubmittedAt ? new Date(r.SubmittedAt).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'}) : '—'}<br>
+                <span style="color:var(--gray-500)">${r.SenderName||r.SenderEmail?.split('@')[0]||'—'}</span>
+              </div>
+            </div>`).join('');
+        histWrap.style.display = '';
+      } else {
+        histCount.textContent = '0 ครั้ง (ยังไม่มี Revision)';
+        histList.innerHTML = `<div style="text-align:center;padding:12px;color:var(--gray-400);font-size:12px">ยังไม่มีประวัติ Revision สำหรับ Drawing Number นี้</div>`;
+        histWrap.style.display = '';
+      }
+    }
+
+    document.getElementById('rev_ref_result').style.display = '';
+    showToast('✅', `พบข้อมูล: ${ref.Title} — ดึงข้อมูลแล้ว`);
+
+  } catch(e) {
+    showToast('❌', 'ค้นหาไม่สำเร็จ: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = '🔍 ค้นหา'; btn.disabled = false; }
+  }
 }
 
 function triggerFileInput() { document.getElementById('fileInput').click(); }
@@ -2497,6 +2735,17 @@ async function submitRequest() {
     : '';
   if (!name || !project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการให้ครบ'); return; }
 
+  // ── Revision validation ──
+  if (isRevisionMode) {
+    if (!revisionRefData) { showToast('⚠️', 'กรุณาค้นหาคำร้องอ้างอิงก่อน'); return; }
+    const reason = document.getElementById('rev_reason')?.value.trim();
+    if (!reason) {
+      showToast('⚠️', 'กรุณากรอกสาเหตุ/หมายเหตุการแก้ไข (บังคับ)');
+      document.getElementById('rev_reason')?.focus();
+      return;
+    }
+  }
+
   const btn = document.getElementById('submitBtn');
 
   // ── ป้องกันกดซ้ำ: เช็ค flag ก่อน ──
@@ -2509,7 +2758,14 @@ async function submitRequest() {
   btn.disabled = true;
 
   try {
-    const refNo = genRefNumber();
+    // ── เลขคำร้อง: Revision ใช้ Rev.XX ต่อท้าย ──
+    const baseRefNo = genRefNumber();
+    const refNo = isRevisionMode && document.getElementById('rev_new_number')?.value
+      ? document.getElementById('rev_new_number').value
+      : baseRefNo;
+
+    const revisionReason = isRevisionMode ? (document.getElementById('rev_reason')?.value.trim() || '') : '';
+    const refRequestId   = isRevisionMode ? (revisionRefData?.Title || '') : '';
     const now   = new Date().toISOString();
 
     // 1. สร้าง item ใน SharePoint List
@@ -2538,6 +2794,10 @@ async function submitRequest() {
       Detail:       detail,
       Status:       'pending',
       SubmittedAt:  now,
+      // ── Revision fields ──
+      RevisionReason: revisionReason,
+      RefRequestId:   refRequestId,
+      IsRevision:     isRevisionMode ? 'Yes' : 'No',
     };
     if (due) createData.DueDate = new Date(due).toISOString();
 
@@ -2604,7 +2864,7 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
-  // reset dropdowns โดยตรง ไม่เรียก onProjectSelect
+  // reset dropdowns
   const projEl = document.getElementById('f_project');
   if (projEl) projEl.selectedIndex = 0;
   const dnEl = document.getElementById('f_drawing_number');
@@ -2620,8 +2880,19 @@ function resetForm() {
   const mpEl = document.getElementById('mapPreview'); if(mpEl) mpEl.style.display = 'none';
   const dlEl = document.getElementById('datalinkPreview'); if(dlEl) dlEl.style.display = 'none';
   selectedFiles = []; renderFiles();
+  // reset type cards → กลับ Proposal
   document.querySelectorAll('.type-card').forEach((c,i) => { c.classList.remove('selected'); if(i===0) c.classList.add('selected'); });
   selectedType = '📋 เขียนแบบ Proposal';
+  // ── ล้าง Revision Panel ──
+  isRevisionMode = false;
+  revisionRefData = null;
+  const revPanel = document.getElementById('revisionPanel'); if(revPanel) revPanel.style.display = 'none';
+  const revSearch = document.getElementById('rev_search'); if(revSearch) revSearch.value = '';
+  const revReason = document.getElementById('rev_reason'); if(revReason) revReason.value = '';
+  const revNewRevise = document.getElementById('rev_new_revise'); if(revNewRevise) revNewRevise.value = '';
+  const revNewNumber = document.getElementById('rev_new_number'); if(revNewNumber) revNewNumber.value = '';
+  const revRefResult = document.getElementById('rev_ref_result'); if(revRefResult) revRefResult.style.display = 'none';
+  const revHistWrap = document.getElementById('rev_history_wrap'); if(revHistWrap) revHistWrap.style.display = 'none';
 }
 
 // ── PAGE: TRACKING ──
@@ -2960,7 +3231,7 @@ function renderTable(items) {
   let filtered = currentFilter === 'all' ? items
     : items.filter(r => {
         if (currentFilter === 'pending')  return ['pending','review','inprogress_lv1','inprogress'].includes(r.Status);
-        if (currentFilter === 'approved') return ['approved','working','done'].includes(r.Status);
+        if (currentFilter === 'approved') return ['approved','working','done','delivered'].includes(r.Status);
         if (currentFilter === 'rejected') return r.Status === 'rejected';
         return true;
       });
@@ -3016,8 +3287,8 @@ function renderTable(items) {
     return `<tr class="${rowClass}">
       <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
         ${r.Title}
-        ${isPending ? `<button onclick="openEditRequest('${r.id}')" title="แก้ไขคำร้อง"
-          style="margin-left:6px;background:none;border:1px solid var(--gray-200);border-radius:5px;padding:1px 6px;font-size:10px;cursor:pointer;color:var(--gray-600)">✏️</button>` : ''}
+        ${isPending ? `<button onclick="openEditRequest('${r.id}')" title="แก้ไขคำร้องนี้ (ทำได้เฉพาะช่วงรออนุมัติ)"
+          style="margin-left:6px;background:var(--sun-light);border:1px solid var(--sun);border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;color:var(--sun-dark);font-weight:500;white-space:nowrap">✏️ แก้ไข</button>` : ''}
       </td>
       <td>${r.ProjectName0||'—'}</td>
       <td style="font-weight:500">${r.ProjectName||'—'}</td>
@@ -3168,6 +3439,8 @@ async function buildAdmin() {
     });
 
     renderAdminList(approvalItems, myWorkItems, isManager);
+    // ข้อ 6: อัปเดต badge จำนวนรออนุมัติ
+    updateAdminBadge(approvalItems.length);
   } catch(e) {
     const msg = e.message || String(e);
     if (list) list.innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-state-icon">❌</div><p style="color:var(--danger);font-size:13px">โหลดไม่สำเร็จ: ${msg}</p></div>`;
@@ -3489,6 +3762,11 @@ function showPage(name, tab) {
   if (name==='review')    setTimeout(() => buildReview(_pendingReviewId), 300);
   if (name==='report')    {}
   if (name==='guide')     {}
+  // ข้อ 4: ล้าง track search เมื่อเปลี่ยน tab (ยกเว้นกดจาก goTrack)
+  if (name !== 'track') {
+    const ts = document.getElementById('trackSearch');
+    if (ts) ts.value = '';
+  }
 }
 
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -4260,9 +4538,77 @@ async function buildReport() {
       </div>`).join('');
 
     document.getElementById('rpt_export_btn').style.display = '';
+    document.getElementById('rpt_export_excel_btn').style.display = '';
   } catch(e) {
     el.innerHTML = `<div style="padding:20px;color:var(--danger)">โหลดไม่สำเร็จ: ${e.message}</div>`;
   }
+}
+
+// ── ข้อ 6: Admin Badge ──
+function updateAdminBadge(count) {
+  // nav tab badge
+  const badge = document.getElementById('adminBadge');
+  if (badge) {
+    badge.textContent = count;
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+  // drawer badge
+  const drawerBadge = document.getElementById('drawerAdminBadge');
+  if (drawerBadge) {
+    drawerBadge.textContent = count;
+    drawerBadge.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+}
+
+// ── ข้อ 7: Export Excel ──
+function exportReportExcel() {
+  try {
+    const periodEl = document.getElementById('rpt_period');
+    const memberEl = document.getElementById('rpt_member');
+    const period   = periodEl?.value || 'month';
+    const memberVal = memberEl?.value || 'all';
+    const periodLabel = { week:'รายสัปดาห์', month:'รายเดือน', year:'รายปี', custom:'กำหนดเอง' }[period];
+
+    // ดึงข้อมูลจาก DOM table ใน reportContent
+    const tables = document.querySelectorAll('#reportContent table');
+    if (!tables.length) { showToast('⚠️', 'กรุณาสร้างรายงานก่อน'); return; }
+
+    // สร้าง CSV
+    const rows = [['เลขคำขอ','ประเภท','โครงการ','ผู้เขียนแบบ','สถานะ','วันที่ส่ง','วันกำหนด','Drawing No.','Drawing Name','Revise']];
+    allRequests.forEach(r => {
+      if (memberVal !== 'all' && (r.AssigneeEmail||'').toLowerCase() !== memberVal.toLowerCase()) return;
+      rows.push([
+        r.Title||'', r.ProjectName||'', r.ProjectName0||'',
+        r.AssigneeName||'', r.Status||'',
+        r.SubmittedAt ? new Date(r.SubmittedAt).toLocaleDateString('th-TH') : '',
+        r.DueDate ? new Date(r.DueDate).toLocaleDateString('th-TH') : '',
+        r.DrawingNumber||'', r.DrawingName||'', r.CurrentRevise||r.ReviseNumber||''
+      ]);
+    });
+
+    const csv = '\uFEFF' + rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `PPG_Report_${periodLabel}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅', 'Export Excel สำเร็จ');
+  } catch(e) { showToast('❌', 'Export ไม่สำเร็จ: ' + e.message); }
+}
+
+// ── ข้อ 8: Auto Refresh Dashboard ทุก 10 นาที ──
+function startAutoRefresh() {
+  setInterval(async () => {
+    // refresh เฉพาะตอนอยู่หน้า dashboard และไม่มี modal เปิดอยู่
+    const isDash = document.getElementById('page-dashboard')?.classList.contains('active');
+    const hasModal = document.querySelector('.modal-overlay.show');
+    if (isDash && !hasModal) {
+      await buildDashboard();
+      console.log('🔄 Auto refresh dashboard:', new Date().toLocaleTimeString('th-TH'));
+    }
+  }, 10 * 60 * 1000); // ทุก 10 นาที
 }
 
 async function exportReportPDF() {
@@ -4722,7 +5068,21 @@ function buildDrawerMenu() {
       style="${item.id ? 'display:none' : ''}">
       <svg viewBox="0 0 24 24">${item.icon}</svg>
       ${item.label}
+      ${item.page==='admin' ? `<span id="drawerAdminBadge" style="display:none;background:#e53e3e;color:#fff;border-radius:50%;min-width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-left:auto;padding:0 4px">0</span>` : ''}
     </div>`).join('');
+
+  // เพิ่มปุ่ม Dark Mode ใน drawer
+  const darkItem = document.createElement('div');
+  darkItem.className = 'nav-drawer-item';
+  darkItem.id = 'drawerDarkMode';
+  darkItem.onclick = () => { toggleDarkMode(); updateDrawerDarkBtn(); };
+  darkItem.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span id="drawerDarkLabel">🌙 Dark Mode</span>`;
+  menu.appendChild(darkItem);
+}
+
+function updateDrawerDarkBtn() {
+  const label = document.getElementById('drawerDarkLabel');
+  if (label) label.textContent = document.body.classList.contains('dark') ? '☀️ Light Mode' : '🌙 Dark Mode';
 }
 
 function drawerNav(page) {
