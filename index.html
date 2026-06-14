@@ -2490,10 +2490,28 @@ async function triggerAutomate(payload) {
 }
 
 // ── GENERATE REF NUMBER ──
-function genRefNumber() {
+async function genRefNumber() {
   const yr = new Date().getFullYear() + 543;
-  const seq = String(allRequests.length + 1).padStart(4, '0');
-  return `DWG-${yr}-${seq}`;
+  const prefix = `DWG-${yr}-`;
+  try {
+    // ดึงเลขล่าสุดจาก SharePoint โดยตรง — ป้องกันซ้ำเมื่อส่งพร้อมกัน
+    const r = await graphGet(
+      `/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$select=fields/Title&$top=5000&$orderby=fields/Title desc`
+    );
+    const titles = r.value
+      .map(i => i.fields?.Title || '')
+      .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
+    let maxSeq = 0;
+    titles.forEach(t => {
+      const n = parseInt(t.replace(prefix, ''), 10);
+      if (!isNaN(n) && n > maxSeq) maxSeq = n;
+    });
+    return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+  } catch(e) {
+    // fallback: ใช้ timestamp ถ้า SharePoint ไม่ตอบ
+    console.warn('genRefNumber fallback to timestamp:', e.message);
+    return `${prefix}${String(allRequests.length + 1).padStart(4, '0')}-${Date.now().toString().slice(-4)}`;
+  }
 }
 
 // ── PAGE: SUBMIT ──
@@ -2759,7 +2777,7 @@ async function submitRequest() {
 
   try {
     // ── เลขคำร้อง: Revision ใช้ Rev.XX ต่อท้าย ──
-    const baseRefNo = genRefNumber();
+    const baseRefNo = await genRefNumber();
     const refNo = isRevisionMode && document.getElementById('rev_new_number')?.value
       ? document.getElementById('rev_new_number').value
       : baseRefNo;
