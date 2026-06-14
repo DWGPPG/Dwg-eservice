@@ -2962,7 +2962,9 @@ async function doSubmitRequest() {
     // 3. ส่ง Teams notification ไปกลุ่ม Drawing Dept. โดยตรง
     try {
       const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${refNo}`;
+      const systemUrl = `${CONFIG.redirectUri}`;
       const isRev = isRevisionMode;
+      const thaiDate = new Date(now).toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
       const lines = [
         isRev
           ? `✏️ <b>Revision เข้ามาแล้ว!</b>`
@@ -2975,13 +2977,13 @@ async function doSubmitRequest() {
         `👤 <b>ผู้ส่ง:</b> ${name}`,
         `🏢 <b>แผนก:</b> ${dept}`,
         `⚡ <b>ความเร่งด่วน:</b> ${urgency}`,
-        `📅 <b>วันที่ส่ง:</b> ${fmtDateTime(now)}`,
+        `📅 <b>วันที่ส่ง:</b> ${thaiDate}`,
       ].filter(Boolean);
       if (isRev && revisionReason) lines.push(`📝 <b>สาเหตุแก้ไข:</b> ${revisionReason}`);
       if (detail)   lines.push(`💬 <b>รายละเอียด:</b> ${detail}`);
       if (datalink) lines.push(`🔗 <b>ลิงก์แนบข้อมูล:</b> <a href="${datalink}">${datalink}</a>`);
-      lines.push(`📁 <a href="${folderUrl}">เปิดโฟลเดอร์เอกสาร / แบบ</a>`);
-      lines.push(`<br>กรุณาเข้าระบบเพื่อตรวจสอบ: <a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`);
+      lines.push(``);
+      lines.push(`<a href="${folderUrl}">📁 เปิดโฟลเดอร์เอกสาร</a> &nbsp;|&nbsp; <a href="${systemUrl}">🖥️ เข้าระบบตรวจสอบ</a>`);
 
       const chatId = CONFIG.drawingTeamChatId;
       if (chatId) {
