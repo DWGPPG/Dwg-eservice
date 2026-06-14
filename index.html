@@ -862,6 +862,7 @@ tr:hover td { background: var(--sky); }
         <div class="type-card selected" onclick="selectType(this,'📋','เขียนแบบ Proposal')"><div class="type-card-icon">📋</div><div class="type-card-label">เขียนแบบ Proposal</div><div class="type-card-sub">นำเสนอโครงการ</div></div>
         <div class="type-card" onclick="selectType(this,'🏛️','เขียนแบบขออนุญาตก่อสร้าง')"><div class="type-card-icon">🏛️</div><div class="type-card-label">ขออนุญาตก่อสร้าง</div><div class="type-card-sub">ยื่นขออนุญาต</div></div>
         <div class="type-card" onclick="selectType(this,'🏗️','เขียนแบบก่อสร้าง')"><div class="type-card-icon">🏗️</div><div class="type-card-label">เขียนแบบก่อสร้าง</div><div class="type-card-sub">แบบก่อสร้างจริง</div></div>
+        <div class="type-card" onclick="selectType(this,'🏁','As-Built Drawing')"><div class="type-card-icon">🏁</div><div class="type-card-label">As-Built Drawing</div><div class="type-card-sub">แบบหลังก่อสร้าง</div></div>
         <div class="type-card" onclick="selectType(this,'✏️','Revision / แก้ไขแบบ',true)"><div class="type-card-icon">✏️</div><div class="type-card-label">Revision / แก้ไขแบบ</div><div class="type-card-sub">แก้ไขงานเดิม</div></div>
         <div class="type-card" onclick="selectType(this,'📁','อื่นๆ')"><div class="type-card-icon">📁</div><div class="type-card-label">อื่นๆ</div><div class="type-card-sub">ระบุในรายละเอียด</div></div>
       </div>
@@ -966,7 +967,9 @@ tr:hover td { background: var(--sky); }
       <div class="card-title">รายละเอียดโครงการ</div>
       <div class="form-grid">
         <div class="field span2">
-          <label>ชื่อโครงการ <span class="req">*</span></label>
+          <label>ชื่อโครงการ <span class="req">*</span>
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400"> — ใส่ชื่อโครงการ หรือ Project Code (แนะนำ 4 ตัวอักษร สำหรับแบบก่อสร้าง/As-Built เช่น BEMV, SCGP)</span>
+          </label>
           <div class="combo-wrap">
             <select id="f_project" onchange="onProjectSelect(this.value)">
               <option value="">-- เลือกหรือเพิ่มโครงการใหม่ --</option>
@@ -1015,20 +1018,45 @@ tr:hover td { background: var(--sky); }
           </div>
         </div>
         <div class="field"><!-- spacer --></div>
+
+        <!-- หมวด Drawing -->
+        <div class="field span2">
+          <label>หมวด Drawing</label>
+          <div class="combo-wrap">
+            <select id="f_drawing_category" onchange="onDrawingCategorySelect(this.value)" style="flex:1">
+              <option value="">-- ทั้งหมด (ไม่กรอง) --</option>
+              <option value="General Drawing">📐 General Drawing</option>
+              <option value="Architectural Drawing">🏛️ Architectural Drawing</option>
+              <option value="Structural Drawing">🏗️ Structural Drawing</option>
+              <option value="Electrical Drawing">⚡ Electrical Drawing</option>
+              <option value="Mechanical Drawing">⚙️ Mechanical Drawing</option>
+            </select>
+            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_category').selectedIndex=0;onDrawingCategorySelect('')" title="ล้างค่า">✕</button>
+          </div>
+        </div>
+
         <div class="field">
           <label>Drawing Number</label>
           <div class="combo-wrap">
             <select id="f_drawing_number">
               <option value="">-- เลือก Drawing Number --</option>
             </select>
-            <button type="button" class="btn-sec-sm" onclick="openManageDrawingNumbers()" title="จัดการรายการ" >⚙️</button>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_number').selectedIndex=0" title="ล้างค่า" >✕</button>
+            <button type="button" class="btn-sec-sm" onclick="openManageDrawingNumbers()" title="จัดการรายการ">⚙️</button>
+            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_number').selectedIndex=0" title="ล้างค่า">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddDrawingNumber()" title="เพิ่ม Drawing Number">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
           <div class="add-item-row" id="addDrawingNumberRow">
-            <input type="text" id="newDrawingNumber" placeholder="Drawing Number ใหม่">
+            <input type="text" id="newDrawingNumber" placeholder="Drawing Number ใหม่" style="flex:1">
+            <select id="newDrawingNumberCategory" style="width:160px;font-size:12px;border:1px solid var(--gray-200);border-radius:8px;padding:6px 8px">
+              <option value="">-- หมวด --</option>
+              <option value="General Drawing">📐 General</option>
+              <option value="Architectural Drawing">🏛️ Architectural</option>
+              <option value="Structural Drawing">🏗️ Structural</option>
+              <option value="Electrical Drawing">⚡ Electrical</option>
+              <option value="Mechanical Drawing">⚙️ Mechanical</option>
+            </select>
             <button class="btn-save-sm" onclick="saveNewDrawingNumber()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
               บันทึก
@@ -1049,14 +1077,22 @@ tr:hover td { background: var(--sky); }
             <select id="f_drawing_name">
               <option value="">-- เลือก Drawing Name --</option>
             </select>
-            <button type="button" class="btn-sec-sm" onclick="openManageDrawingNames()" title="จัดการรายการ" >⚙️</button>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_name').selectedIndex=0" title="ล้างค่า" >✕</button>
+            <button type="button" class="btn-sec-sm" onclick="openManageDrawingNames()" title="จัดการรายการ">⚙️</button>
+            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_name').selectedIndex=0" title="ล้างค่า">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddDrawingName()" title="เพิ่ม Drawing Name">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
           <div class="add-item-row" id="addDrawingNameRow">
-            <input type="text" id="newDrawingName" placeholder="Drawing Name ใหม่">
+            <input type="text" id="newDrawingName" placeholder="Drawing Name ใหม่" style="flex:1">
+            <select id="newDrawingNameCategory" style="width:160px;font-size:12px;border:1px solid var(--gray-200);border-radius:8px;padding:6px 8px">
+              <option value="">-- หมวด --</option>
+              <option value="General Drawing">📐 General</option>
+              <option value="Architectural Drawing">🏛️ Architectural</option>
+              <option value="Structural Drawing">🏗️ Structural</option>
+              <option value="Electrical Drawing">⚡ Electrical</option>
+              <option value="Mechanical Drawing">⚙️ Mechanical</option>
+            </select>
             <button class="btn-save-sm" onclick="saveNewDrawingName()">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
               บันทึก
@@ -1870,37 +1906,40 @@ async function loadDrawingNumberList() {
   } catch(e) { console.warn('loadDrawingNumberList:', e); }
 }
 
-function renderDrawingNumberSelect(filterProject = '') {
+function renderDrawingNumberSelect(filterProject = '', filterCategory = '') {
   const sel = document.getElementById('f_drawing_number');
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- เลือก Drawing Number --</option>';
   drawingNumberCache
     .filter(p => !p.IsHidden)
-    .filter(p => !filterProject || !p.ProjectName || p.ProjectName === filterProject)
+    .filter(p => !filterProject  || !p.ProjectName      || p.ProjectName      === filterProject)
+    .filter(p => !filterCategory || !p.DrawingCategory  || p.DrawingCategory  === filterCategory)
     .forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.Title;
-      opt.textContent = p.Title + (p.ProjectName ? ` (${p.ProjectName})` : '');
+      const catIcon = getCategoryIcon(p.DrawingCategory);
+      opt.textContent = `${catIcon}${p.Title}`;
       sel.appendChild(opt);
     });
   if (current) sel.value = current;
 }
 
 async function saveNewDrawingNumber() {
-  const inp = document.getElementById('newDrawingNumber');
-  const val = inp?.value.trim();
+  const val = document.getElementById('newDrawingNumber')?.value.trim();
   if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Number'); return; }
   if (!spDrawingNumberListId) { showToast('⚠️', 'ไม่พบ DrawingNumberList'); return; }
   try {
-    // บันทึกพร้อม ProjectName ปัจจุบัน
-    const projEl = document.getElementById('f_project');
+    const projEl   = document.getElementById('f_project');
     const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
-    const fields = { Title: val };
-    if (projName) fields.ProjectName = projName;
+    const cat      = document.getElementById('newDrawingNumberCategory')?.value || '';
+    const fields   = { Title: val };
+    if (projName) fields.ProjectName     = projName;
+    if (cat)      fields.DrawingCategory = cat;
     const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields });
-    drawingNumberCache.push({ id: r.id, Title: val, ProjectName: projName });
-    renderDrawingNumberSelect(projName);
+    drawingNumberCache.push({ id: r.id, Title: val, ProjectName: projName, DrawingCategory: cat });
+    const curCat = document.getElementById('f_drawing_category')?.value || '';
+    renderDrawingNumberSelect(projName, curCat);
     document.getElementById('f_drawing_number').value = val;
     toggleAddDrawingNumber();
     showToast('✅', `เพิ่ม Drawing Number "${val}" แล้ว`);
@@ -1908,18 +1947,20 @@ async function saveNewDrawingNumber() {
 }
 
 async function saveNewDrawingName() {
-  const inp = document.getElementById('newDrawingName');
-  const val = inp?.value.trim();
+  const val = document.getElementById('newDrawingName')?.value.trim();
   if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Name'); return; }
   if (!spDrawingNameListId) { showToast('⚠️', 'ไม่พบ DrawingNameList'); return; }
   try {
-    const projEl = document.getElementById('f_project');
+    const projEl   = document.getElementById('f_project');
     const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
-    const fields = { Title: val };
-    if (projName) fields.ProjectName = projName;
+    const cat      = document.getElementById('newDrawingNameCategory')?.value || '';
+    const fields   = { Title: val };
+    if (projName) fields.ProjectName     = projName;
+    if (cat)      fields.DrawingCategory = cat;
     const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items`, { fields });
-    drawingNameCache.push({ id: r.id, Title: val, ProjectName: projName });
-    renderDrawingNameSelect(projName);
+    drawingNameCache.push({ id: r.id, Title: val, ProjectName: projName, DrawingCategory: cat });
+    const curCat = document.getElementById('f_drawing_category')?.value || '';
+    renderDrawingNameSelect(projName, curCat);
     document.getElementById('f_drawing_name').value = val;
     toggleAddDrawingName();
     showToast('✅', `เพิ่ม Drawing Name "${val}" แล้ว`);
@@ -2044,14 +2085,15 @@ async function loadDrawingNameList() {
   } catch(e) { console.warn('loadDrawingNameList:', e); }
 }
 
-function renderDrawingNameSelect(filterProject = '') {
+function renderDrawingNameSelect(filterProject = '', filterCategory = '') {
   const sel = document.getElementById('f_drawing_name');
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- เลือก Drawing Name --</option>';
   drawingNameCache
     .filter(p => !p.IsHidden)
-    .filter(p => !filterProject || !p.ProjectName || p.ProjectName === filterProject)
+    .filter(p => !filterProject  || !p.ProjectName      || p.ProjectName      === filterProject)
+    .filter(p => !filterCategory || !p.DrawingCategory  || p.DrawingCategory  === filterCategory)
     .forEach(p => {
       const opt = document.createElement('option');
       opt.value = p.Title;
@@ -2059,6 +2101,17 @@ function renderDrawingNameSelect(filterProject = '') {
       sel.appendChild(opt);
     });
   if (current) sel.value = current;
+}
+
+function getCategoryIcon(cat) {
+  const icons = {
+    'General Drawing':        '📐 ',
+    'Architectural Drawing':  '🏛️ ',
+    'Structural Drawing':     '🏗️ ',
+    'Electrical Drawing':     '⚡ ',
+    'Mechanical Drawing':     '⚙️ ',
+  };
+  return icons[cat] || '';
 }
 
 function toggleAddDrawingName() {
@@ -2247,37 +2300,41 @@ async function unhideProject(id) {
   } catch(e) { showToast('❌', 'แก้ไขไม่สำเร็จ: ' + e.message); }
 }
 
+function onDrawingCategorySelect(cat) {
+  const projEl  = document.getElementById('f_project');
+  const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
+  renderDrawingNumberSelect(projName, cat);
+  renderDrawingNameSelect(projName, cat);
+  // sync category dropdown ใน add row
+  const dnCat   = document.getElementById('newDrawingNumberCategory');
+  const dnmCat  = document.getElementById('newDrawingNameCategory');
+  if (dnCat  && cat) dnCat.value  = cat;
+  if (dnmCat && cat) dnmCat.value = cat;
+}
+
 function onProjectSelect(val) {
-  if (!val) return;
+  if (!val) { renderDrawingNumberSelect(); renderDrawingNameSelect(); return; }
   const proj = projectListCache.find(p => p.id === val);
   if (!proj) return;
-
-  // ── ข้อ 1: auto-fill kWp และที่ตั้งโครงการ ──
+  // auto-fill kWp และที่ตั้ง
   if (proj.DefaultKwp) {
     const kwpSel = document.getElementById('f_kwp');
     if (kwpSel) {
-      // หา option ที่ตรง
       let found = false;
       for (let opt of kwpSel.options) {
-        if (opt.value === proj.DefaultKwp || opt.text === proj.DefaultKwp) {
-          kwpSel.value = opt.value; found = true; break;
-        }
+        if (opt.value === proj.DefaultKwp || opt.text === proj.DefaultKwp) { kwpSel.value = opt.value; found = true; break; }
       }
-      if (!found) {
-        const opt = new Option(proj.DefaultKwp, proj.DefaultKwp);
-        kwpSel.add(opt); kwpSel.value = proj.DefaultKwp;
-      }
+      if (!found) { const opt = new Option(proj.DefaultKwp, proj.DefaultKwp); kwpSel.add(opt); kwpSel.value = proj.DefaultKwp; }
     }
   }
   if (proj.DefaultLocation) {
     const locEl = document.getElementById('f_location');
     if (locEl && !locEl.value) locEl.value = proj.DefaultLocation;
   }
-
-  // ── ข้อ 2: filter Drawing Number และ Drawing Name เฉพาะโครงการนี้ ──
-  const projName = proj.Title || '';
-  renderDrawingNumberSelect(projName);
-  renderDrawingNameSelect(projName);
+  // filter Drawing โดยใช้ category ที่เลือกอยู่
+  const cat = document.getElementById('f_drawing_category')?.value || '';
+  renderDrawingNumberSelect(proj.Title||'', cat);
+  renderDrawingNameSelect(proj.Title||'', cat);
 }
 
 function toggleAddProject() {
@@ -2768,11 +2825,25 @@ async function triggerAutomate(payload) {
 }
 
 // ── GENERATE REF NUMBER ──
-async function genRefNumber() {
+function getTypePrefix() {
+  const type = selectedType || '';
+  const projEl   = document.getElementById('f_project');
+  const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
+  // จำกัด project code 4 ตัวอักษร uppercase
+  const projCode = projName.replace(/\s+/g,'').toUpperCase().slice(0,4) || 'XXXX';
   const yr = new Date().getFullYear() + 543;
-  const prefix = `DWG-${yr}-`;
+
+  if (type.includes('Proposal'))        return `DWG-DES-${yr}-`;
+  if (type.includes('ขออนุญาต'))        return `DWG-PES-${yr}-`;
+  if (type.includes('ก่อสร้าง'))        return `DWG-${projCode}-${yr}-`;
+  if (type.includes('As-Built'))         return `DWG-ASB-${projCode}-${yr}-`;
+  if (type.includes('อื่น'))            return `DWG-OTH-${yr}-`;
+  return `DWG-${yr}-`; // fallback
+}
+
+async function genRefNumber() {
+  const prefix = getTypePrefix();
   try {
-    // ดึงเลขล่าสุดจาก SharePoint — ไม่ใช้ $select เพื่อให้ได้ทุก field
     const r = await graphGet(
       `/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=5000`
     );
@@ -2781,19 +2852,20 @@ async function genRefNumber() {
       .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
     let maxSeq = 0;
     titles.forEach(t => {
-      const n = parseInt(t.replace(prefix, ''), 10);
+      const seq = t.replace(prefix, '').split('-')[0];
+      const n   = parseInt(seq, 10);
       if (!isNaN(n) && n > maxSeq) maxSeq = n;
     });
     return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
   } catch(e) {
-    // fallback: ใช้ allRequests cache ถ้า SharePoint ไม่ตอบ
     console.warn('genRefNumber fallback:', e.message);
     const existing = (allRequests || [])
       .map(r => r.Title || '')
       .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
     let maxSeq = 0;
     existing.forEach(t => {
-      const n = parseInt(t.replace(prefix, ''), 10);
+      const seq = t.replace(prefix, '').split('-')[0];
+      const n   = parseInt(seq, 10);
       if (!isNaN(n) && n > maxSeq) maxSeq = n;
     });
     return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
@@ -3132,6 +3204,7 @@ async function doSubmitRequest() {
       SolarKwp:      document.getElementById('f_kwp')?.value || '',
       DrawingNumber: document.getElementById('f_drawing_number')?.value || '',
       DrawingName:   document.getElementById('f_drawing_name')?.value || '',
+      DrawingCategory: document.getElementById('f_drawing_category')?.value || '',
       ReviseNumber:  document.getElementById('f_revise')?.value || '',
       Urgency:      urgency,
       Detail:       detail,
@@ -3174,6 +3247,7 @@ async function doSubmitRequest() {
         isRev ? `🔗 <b>อ้างอิงจาก:</b> ${revisionRefData?.Title||'—'}` : '',
         `📦 <b>ประเภท:</b> ${selectedType}`,
         `🏗️ <b>โครงการ:</b> ${project}`,
+        `📐 <b>หมวด Drawing:</b> ${document.getElementById('f_drawing_category')?.options[document.getElementById('f_drawing_category')?.selectedIndex]?.text || '—'}`,
         `👤 <b>ผู้ส่ง:</b> ${name}`,
         `🏢 <b>แผนก:</b> ${dept}`,
         `⚡ <b>ความเร่งด่วน:</b> ${urgency}`,
@@ -3214,6 +3288,9 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
+  const catEl = document.getElementById('f_drawing_category'); if(catEl) catEl.selectedIndex = 0;
+  const newDNCatEl = document.getElementById('newDrawingNumberCategory'); if(newDNCatEl) newDNCatEl.selectedIndex = 0;
+  const newDNmCatEl = document.getElementById('newDrawingNameCategory'); if(newDNmCatEl) newDNmCatEl.selectedIndex = 0;
   // reset dropdowns
   const projEl = document.getElementById('f_project');
   if (projEl) projEl.selectedIndex = 0;
