@@ -718,16 +718,27 @@ tr:hover td { background: var(--sky); }
         <div class="page-title">Dashboard สถานะงาน</div>
         <div class="page-sub">ระบบคำร้องฝ่ายเขียนแบบ PRIME POWER GROUP</div>
       </div>
-      <button id="darkModeBtn" onclick="toggleDarkMode()" title="สลับ Dark/Light mode"
-        style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-600);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font)">
-        🌙 Dark Mode
-      </button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button onclick="buildDashboard()" title="Refresh ข้อมูลล่าสุด"
+          style="display:flex;align-items:center;gap:5px;padding:7px 12px;border-radius:20px;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-600);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font)">
+          🔄 Refresh
+        </button>
+        <button id="darkModeBtn" onclick="toggleDarkMode()" title="สลับ Dark/Light mode"
+          style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:20px;border:1px solid var(--gray-200);background:var(--white);color:var(--gray-600);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--font)">
+          🌙 Dark Mode
+        </button>
+      </div>
     </div>
     <div class="stats-row" id="statsRow">
       <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val skeleton" style="height:30px;width:60px">&nbsp;</div></div>
       <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val skeleton" style="height:30px;width:50px">&nbsp;</div></div>
       <div class="stat-card"><div class="stat-label">อนุมัติแล้ว</div><div class="stat-val skeleton" style="height:30px;width:50px">&nbsp;</div></div>
       <div class="stat-card"><div class="stat-label">เฉลี่ยวันทำการ</div><div class="stat-val skeleton" style="height:30px;width:50px">&nbsp;</div></div>
+    </div>
+    <!-- Personal Stats — แสดงเฉพาะสมาชิกทีมเขียนแบบ -->
+    <div class="card" id="personalStatsCard" style="display:none;margin-bottom:16px;border-left:4px solid var(--sun)">
+      <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:10px" id="personalStatsTitle">📊 สรุปงานของฉัน</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="personalStatsRow"></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px">
       <div class="card" style="margin-bottom:0">
@@ -796,7 +807,7 @@ tr:hover td { background: var(--sky); }
               </span>
             </th>
             <th class="sortable" onclick="sortTable('SubmittedAt')"><span class="th-inner">วันที่ส่ง<span class="sort-icon"></span></span></th>
-            <th>ผู้รับผิดชอบ
+            <th class="sortable" onclick="sortTable('DueDate')"><span class="th-inner">วันกำหนด<span class="sort-icon"></span></span></th>
               <span class="col-filter-wrap">
                 <button class="col-filter-btn" id="cfbtn-assignee" onclick="toggleColFilter(event,'cf-assignee')" title="กรอง">▾</button>
                 <div class="col-filter-dropdown" id="cf-assignee"></div>
@@ -1585,12 +1596,17 @@ tr:hover td { background: var(--sky); }
       <div class="page-title">หน้าอนุมัติคำร้อง</div>
       <div class="page-sub" id="adminRoleText">ดึงรายการจาก SharePoint ที่รออนุมัติจากคุณ</div>
     </div>
-    <div class="filter-row">
-      <button class="filter-btn active" onclick="filterAdmin('all',this)">ทั้งหมด</button>
-      <button class="filter-btn" onclick="filterAdmin('proposal',this)">📋 Proposal</button>
-      <button class="filter-btn" onclick="filterAdmin('construction',this)">🏗️ ก่อสร้าง</button>
-      <button class="filter-btn" onclick="filterAdmin('permit',this)">🏛️ ขออนุญาต</button>
-      <button class="filter-btn" onclick="filterAdmin('revision',this)">✏️ Revision</button>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="filter-row" style="margin-bottom:0;flex:1;flex-wrap:wrap">
+        <button class="filter-btn active" onclick="filterAdmin('all',this)">ทั้งหมด</button>
+        <button class="filter-btn" onclick="filterAdmin('proposal',this)">📋 Proposal</button>
+        <button class="filter-btn" onclick="filterAdmin('construction',this)">🏗️ ก่อสร้าง</button>
+        <button class="filter-btn" onclick="filterAdmin('permit',this)">🏛️ ขออนุญาต</button>
+        <button class="filter-btn" onclick="filterAdmin('revision',this)">✏️ Revision</button>
+      </div>
+      <input type="text" id="adminSearch" placeholder="🔍 ค้นหาเลขคำร้อง โครงการ ชื่อ..."
+        oninput="onAdminSearch(this.value)"
+        style="width:220px;font-size:13px;padding:7px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
     </div>
     <div id="adminList"></div>
   </div>
@@ -1635,7 +1651,18 @@ tr:hover td { background: var(--sky); }
   <span id="toastMsg">สำเร็จ</span>
 </div>
 
-<!-- Edit Request Modal -->
+<!-- Submit Confirm Modal -->
+<div class="modal-overlay" id="submitConfirmModal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-icon">📋</div>
+    <h2>ยืนยันส่งคำร้อง?</h2>
+    <div id="submitConfirmDetail" style="text-align:left;font-size:13px;background:var(--gray-100);border-radius:8px;padding:14px;margin:12px 0;line-height:1.8"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:16px">
+      <button class="btn btn-secondary" onclick="closeModal('submitConfirmModal')">← แก้ไข</button>
+      <button class="btn btn-primary" id="submitConfirmOkBtn" onclick="doSubmitRequest()">✅ ยืนยันส่งคำร้อง</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="editModal">
   <div class="edit-modal">
     <h2 style="font-size:16px;font-weight:700;color:var(--navy);margin-bottom:4px">✏️ แก้ไขคำร้อง</h2>
@@ -2310,6 +2337,13 @@ async function onSignedIn() {
 
   setBanner('ready', `✅ เชื่อมต่อแล้ว — ${currentUser.username} | SharePoint: ${CONFIG.spSite}`);
 
+  // ข้อ 1: Session warning
+  try {
+    const acct = msalInstance.getAccountByUsername(currentUser.username);
+    if (acct?.idTokenClaims?.exp) startSessionWarning(new Date(acct.idTokenClaims.exp * 1000));
+  } catch(e) {}
+  // ข้อ 2: Offline detection
+  initOfflineDetection();
   // ตรวจ DueDate รอบ 08:30
   startDueDateScheduler();
   // ข้อ 8: Auto refresh dashboard ทุก 10 นาที
@@ -2761,7 +2795,6 @@ async function submitRequest() {
     dept = otherEl ? otherEl.value.trim() : '';
     if (!dept) { showToast('⚠️', 'กรุณาระบุชื่อฝ่าย/แผนก'); return; }
   }
-  // f_project เป็น select — ดึงค่าจาก selectedOptions text
   const project = projectEl
     ? (projectEl.options[projectEl.selectedIndex]?.text || projectEl.value || '').replace('-- เลือกหรือเพิ่มโครงการ --','').trim()
     : '';
@@ -2778,9 +2811,34 @@ async function submitRequest() {
     }
   }
 
+  // ── ข้อ 3: แสดง Confirm popup ก่อน submit ──
+  const due      = document.getElementById('f_duedate')?.value || '';
+  const urgency  = document.getElementById('f_urgent')?.value || 'ปกติ';
+  const drawingNo = document.getElementById('f_drawing_number')?.value || '—';
+  const revise   = document.getElementById('f_revise')?.value || '—';
+  const detail   = document.getElementById('submitConfirmDetail');
+  if (detail) {
+    detail.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+        <div><b>ผู้ส่ง:</b> ${name}</div>
+        <div><b>ประเภท:</b> ${selectedType}</div>
+        <div><b>โครงการ:</b> ${project}</div>
+        <div><b>Drawing No.:</b> ${drawingNo}</div>
+        <div><b>Revise:</b> ${revise}</div>
+        <div><b>ความเร่งด่วน:</b> ${urgency}</div>
+        <div><b>วันกำหนด:</b> ${due ? new Date(due).toLocaleDateString('th-TH') : '—'}</div>
+        <div><b>ไฟล์แนบ:</b> ${selectedFiles.length} ไฟล์</div>
+        ${isRevisionMode ? `<div class="span2" style="grid-column:1/-1;color:#d97706"><b>🔄 Revision จาก:</b> ${revisionRefData?.Title||'—'}</div>` : ''}
+      </div>`;
+  }
+  document.getElementById('submitConfirmModal').classList.add('show');
+}
+
+async function doSubmitRequest() {
+  closeModal('submitConfirmModal');
   const btn = document.getElementById('submitBtn');
 
-  // ── ป้องกันกดซ้ำ: เช็ค flag ก่อน ──
+  // ── ป้องกันกดซ้ำ ──
   if (btn.dataset.submitting === 'true') {
     showToast('⏳', 'กำลังส่งคำร้องอยู่ กรุณารอสักครู่...');
     return;
@@ -2788,6 +2846,16 @@ async function submitRequest() {
   btn.dataset.submitting = 'true';
   btn.classList.add('btn-loading');
   btn.disabled = true;
+
+  const nameEl    = document.getElementById('f_name');
+  const deptEl    = document.getElementById('f_dept');
+  const projectEl = document.getElementById('f_project');
+  const name    = nameEl ? nameEl.value.trim() : (currentUser?.name || '');
+  let dept = deptEl ? deptEl.value.trim() : '';
+  if (dept === 'other') dept = document.getElementById('f_dept_other')?.value.trim() || '';
+  const project = projectEl
+    ? (projectEl.options[projectEl.selectedIndex]?.text || projectEl.value || '').replace('-- เลือกหรือเพิ่มโครงการ --','').trim()
+    : '';
 
   try {
     // ── เลขคำร้อง: Revision ใช้ Rev.XX ต่อท้าย ──
@@ -2992,6 +3060,7 @@ async function buildDashboard() {
   try {
     allRequests = await spGetItems();
     renderStats();
+    renderPersonalStats();
     renderTypeChart();
     renderBarChart();
     renderMonthChart();
@@ -3318,14 +3387,17 @@ function renderTable(items) {
       : '';
     return `<tr class="${rowClass}">
       <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">
-        ${r.Title}
+        <span onclick="copyToClipboard('${r.Title}')" title="กดเพื่อ copy เลขคำร้อง" style="cursor:pointer">${r.Title}</span>
+        <button onclick="copyToClipboard('${r.Title}')" title="Copy เลขคำร้อง"
+          style="margin-left:4px;background:none;border:none;cursor:pointer;font-size:11px;color:var(--gray-400);padding:1px 3px">📋</button>
         ${isPending ? `<button onclick="openEditRequest('${r.id}')" title="แก้ไขคำร้องนี้ (ทำได้เฉพาะช่วงรออนุมัติ)"
-          style="margin-left:6px;background:var(--sun-light);border:1px solid var(--sun);border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;color:var(--sun-dark);font-weight:500;white-space:nowrap">✏️ แก้ไข</button>` : ''}
+          style="margin-left:4px;background:var(--sun-light);border:1px solid var(--sun);border-radius:5px;padding:2px 7px;font-size:10px;cursor:pointer;color:var(--sun-dark);font-weight:500;white-space:nowrap">✏️ แก้ไข</button>` : ''}
       </td>
       <td>${r.ProjectName0||'—'}</td>
       <td style="font-weight:500">${r.ProjectName||'—'}</td>
       <td>${r.Department||'—'}</td>
-      <td style="color:var(--gray-400);white-space:nowrap">${fmtDate(r.SubmittedAt)}${dueBadge}</td>
+      <td style="color:var(--gray-400);white-space:nowrap">${fmtDate(r.SubmittedAt)}</td>
+      <td style="white-space:nowrap">${r.DueDate ? `<span style="font-size:12px;${isOverdue?'color:#dc2626;font-weight:600':isDueToday?'color:#d97706;font-weight:600':'color:var(--gray-400)'}">${fmtDate(r.DueDate)}${dueBadge}</span>` : '<span style="color:var(--gray-400)">—</span>'}</td>
       <td>${r.AssigneeName ? `<div class="assignee-chip"><div class="assignee-chip-av">${r.AssigneeName.slice(0,2)}</div>${r.AssigneeName}</div>` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
       <td><span class="badge ${STATUS_CLASS_TABLE[r.Status]||'badge-pending'}">${STATUS_LABEL_TABLE[r.Status]||r.Status}</span></td>
       <td>${r.ReviewResult ? `<span class="badge ${r.ReviewResult==='approved'?'badge-done':r.ReviewResult==='revise'?'badge-pending':'badge-rejected'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ แก้ไข':'❌ Reject'}</span>${r.ReviseComment?`<div style="font-size:11px;color:var(--gray-500);margin-top:2px">${r.ReviseComment}</div>`:r.DeliveryRejectReason?`<div style="font-size:11px;color:var(--danger);margin-top:2px">${r.DeliveryRejectReason}</div>`:''}` : '<span style="color:var(--gray-400);font-size:11px">—</span>'}</td>
@@ -3493,9 +3565,21 @@ function renderAdminList(approvalItems, myWorkItems, isManager) {
       return true;
     });
   }
+  // ── ข้อ 7: Admin Search filter ──
+  function applySearchFilter(items) {
+    if (!adminSearchQuery) return items;
+    return items.filter(r =>
+      (r.Title||'').toLowerCase().includes(adminSearchQuery) ||
+      (r.ProjectName0||'').toLowerCase().includes(adminSearchQuery) ||
+      (r.SenderName||'').toLowerCase().includes(adminSearchQuery) ||
+      (r.SenderEmail||'').toLowerCase().includes(adminSearchQuery) ||
+      (r.AssigneeName||'').toLowerCase().includes(adminSearchQuery) ||
+      (r.Department||'').toLowerCase().includes(adminSearchQuery)
+    );
+  }
 
-  const filtered     = applyTypeFilter(approvalItems);
-  const filteredWork = applyTypeFilter(myWorkItems || []);
+  const filtered     = applySearchFilter(applyTypeFilter(approvalItems));
+  const filteredWork = applySearchFilter(applyTypeFilter(myWorkItems || []));
   const list = document.getElementById('adminList');
 
   let html = '';
@@ -4576,7 +4660,99 @@ async function buildReport() {
   }
 }
 
-// ── ข้อ 6: Admin Badge ──
+// ── ข้อ 1: Session Warning — แจ้งก่อนหมด 5 นาที ──
+let _sessionWarnTimer = null;
+function startSessionWarning(expiresOn) {
+  if (_sessionWarnTimer) clearTimeout(_sessionWarnTimer);
+  if (!expiresOn) return;
+  const msLeft = new Date(expiresOn).getTime() - Date.now() - 5 * 60 * 1000;
+  if (msLeft <= 0) return;
+  _sessionWarnTimer = setTimeout(() => {
+    const stay = confirm('⏰ Session ใกล้หมดอายุใน 5 นาที\n\nกด OK เพื่อต่ออายุอัตโนมัติ');
+    if (stay) refreshToken();
+  }, msLeft);
+}
+
+// ── ข้อ 2: Offline Detection ──
+function initOfflineDetection() {
+  const showOffline = () => setBanner('error', '📵 ไม่มีอินเทอร์เน็ต — กรุณาตรวจสอบการเชื่อมต่อ');
+  const showOnline  = () => setBanner('ready', `✅ เชื่อมต่อแล้ว — ${currentUser?.username || ''} | SharePoint: ${CONFIG.spSite}`);
+  window.addEventListener('offline', showOffline);
+  window.addEventListener('online',  showOnline);
+  if (!navigator.onLine) showOffline();
+}
+
+// ── ข้อ 4: Copy เลขคำร้อง ──
+function copyToClipboard(text) {
+  navigator.clipboard?.writeText(text).then(() => {
+    showToast('📋', `คัดลอก ${text} แล้ว`);
+  }).catch(() => {
+    // fallback
+    const el = document.createElement('textarea');
+    el.value = text; document.body.appendChild(el);
+    el.select(); document.execCommand('copy');
+    document.body.removeChild(el);
+    showToast('📋', `คัดลอก ${text} แล้ว`);
+  });
+}
+
+// ── ข้อ 7: Admin Search ──
+let adminSearchQuery = '';
+function onAdminSearch(val) {
+  adminSearchQuery = val.toLowerCase().trim();
+  buildAdmin();
+}
+
+// ── ข้อ 9: Personal Stats ──
+function renderPersonalStats() {
+  if (!currentUser || !isApprover()) {
+    document.getElementById('personalStatsCard').style.display = 'none';
+    return;
+  }
+  const myEmail = (currentUser.username || '').toLowerCase();
+  const myName  = (currentUser.name || '').toLowerCase();
+  const myItems = allRequests.filter(r => {
+    const e = (r.AssigneeEmail || '').toLowerCase();
+    const n = (r.AssigneeName  || '').toLowerCase();
+    return e === myEmail || (myName && n.includes(myName.split(' ')[0]));
+  });
+  const now = new Date(); now.setHours(0,0,0,0);
+  const active   = myItems.filter(r => ['approved','working','inprogress_lv1'].includes(r.Status)).length;
+  const overdue  = myItems.filter(r => {
+    if (['done','cancelled'].includes(r.Status)) return false;
+    const d = r.DueDate ? new Date(r.DueDate) : null;
+    if (d) d.setHours(0,0,0,0);
+    return d && d < now;
+  }).length;
+  const doneThis = myItems.filter(r => {
+    if (r.Status !== 'done') return false;
+    const d = r.DeliveredAt ? new Date(r.DeliveredAt) : null;
+    return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).length;
+  const total = myItems.length;
+
+  const card = document.getElementById('personalStatsCard');
+  const title = document.getElementById('personalStatsTitle');
+  if (title) title.textContent = `📊 สรุปงานของฉัน — ${currentUser.name || myEmail}`;
+  document.getElementById('personalStatsRow').innerHTML = `
+    <div style="text-align:center;padding:8px;background:var(--gray-100);border-radius:8px">
+      <div style="font-size:22px;font-weight:700;color:var(--navy)">${total}</div>
+      <div style="font-size:11px;color:var(--gray-500)">งานทั้งหมด</div>
+    </div>
+    <div style="text-align:center;padding:8px;background:#eff6ff;border-radius:8px">
+      <div style="font-size:22px;font-weight:700;color:#1e40af">${active}</div>
+      <div style="font-size:11px;color:var(--gray-500)">กำลังดำเนินการ</div>
+    </div>
+    <div style="text-align:center;padding:8px;background:${overdue>0?'#fff1f0':'var(--gray-100)'};border-radius:8px">
+      <div style="font-size:22px;font-weight:700;color:${overdue>0?'#dc2626':'var(--gray-400)'}">${overdue}</div>
+      <div style="font-size:11px;color:var(--gray-500)">เกินกำหนด</div>
+    </div>
+    <div style="text-align:center;padding:8px;background:#f0fdf4;border-radius:8px">
+      <div style="font-size:22px;font-weight:700;color:#15803d">${doneThis}</div>
+      <div style="font-size:11px;color:var(--gray-500)">เสร็จเดือนนี้</div>
+    </div>`;
+  card.style.display = '';
+}
 function updateAdminBadge(count) {
   // nav tab badge
   const badge = document.getElementById('adminBadge');
