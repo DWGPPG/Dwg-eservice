@@ -2351,6 +2351,8 @@ async function onSignedIn() {
   maybeShowReportTab();
   maybeShowGuideTab();
   syncDrawerVisibility();
+  // refresh member dropdown หลัง loadTeamMembers โหลดเสร็จ
+  refreshReportMemberSelect();
 
   await buildDashboard();
   await buildAdmin(); // โหลด admin list สำหรับทุกคน
@@ -4539,16 +4541,21 @@ function maybeShowReportTab() {
   const tab = document.getElementById('reportTab');
   if (tab && isDrawing) {
     tab.style.display = '';
-    const sel = document.getElementById('rpt_member');
-    if (sel && sel.options.length === 1) {
-      CONFIG.teamMembers.forEach(m => {
-        const opt = document.createElement('option');
-        opt.value = m.email;
-        opt.textContent = m.name;
-        sel.appendChild(opt);
-      });
-    }
+    refreshReportMemberSelect();
   }
+}
+
+function refreshReportMemberSelect() {
+  const sel = document.getElementById('rpt_member');
+  if (!sel) return;
+  // ล้าง option เดิมทั้งหมด ยกเว้น "ทุกคน"
+  while (sel.options.length > 1) sel.remove(1);
+  CONFIG.teamMembers.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.email;
+    opt.textContent = m.name;
+    sel.appendChild(opt);
+  });
 }
 
 function onRptPeriodChange(val) {
