@@ -986,6 +986,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_kwp" style="flex:1">
               <option value="">-- เลือก kWp --</option>
             </select>
+            <button type="button" class="btn-add-sm" onclick="openManageKwp()" title="จัดการรายการ" style="background:var(--gray-200);color:var(--gray-600);font-size:11px">⚙️</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddKwp()" title="เพิ่ม kWp ใหม่">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
@@ -1009,6 +1010,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_drawing_number">
               <option value="">-- เลือก Drawing Number --</option>
             </select>
+            <button type="button" class="btn-add-sm" onclick="openManageDrawingNumbers()" title="จัดการรายการ" style="background:var(--gray-200);color:var(--gray-600);font-size:11px">⚙️</button>
             <button type="button" class="btn-add-sm" onclick="document.getElementById('f_drawing_number').selectedIndex=0" title="ล้างค่า" style="background:var(--gray-200);color:var(--gray-600)">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddDrawingNumber()" title="เพิ่ม Drawing Number">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1036,6 +1038,7 @@ tr:hover td { background: var(--sky); }
             <select id="f_drawing_name">
               <option value="">-- เลือก Drawing Name --</option>
             </select>
+            <button type="button" class="btn-add-sm" onclick="openManageDrawingNames()" title="จัดการรายการ" style="background:var(--gray-200);color:var(--gray-600);font-size:11px">⚙️</button>
             <button type="button" class="btn-add-sm" onclick="document.getElementById('f_drawing_name').selectedIndex=0" title="ล้างค่า" style="background:var(--gray-200);color:var(--gray-600)">✕</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddDrawingName()" title="เพิ่ม Drawing Name">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -1672,6 +1675,30 @@ tr:hover td { background: var(--sky); }
   <span id="toastMsg">สำเร็จ</span>
 </div>
 
+<!-- Manage kWp Modal -->
+<div class="modal-overlay" id="manageKwpModal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:420px">
+    <h2>⚙️ จัดการ kWp</h2>
+    <div id="manageKwpList" style="max-height:320px;overflow-y:auto"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;width:100%" onclick="document.getElementById('manageKwpModal').style.display='none'">ปิด</button>
+  </div>
+</div>
+<!-- Manage Drawing Number Modal -->
+<div class="modal-overlay" id="manageDrawingNumberModal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:480px">
+    <h2>⚙️ จัดการ Drawing Number</h2>
+    <div id="manageDrawingNumberList" style="max-height:320px;overflow-y:auto"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;width:100%" onclick="document.getElementById('manageDrawingNumberModal').style.display='none'">ปิด</button>
+  </div>
+</div>
+<!-- Manage Drawing Name Modal -->
+<div class="modal-overlay" id="manageDrawingNameModal" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal" style="max-width:480px">
+    <h2>⚙️ จัดการ Drawing Name</h2>
+    <div id="manageDrawingNameList" style="max-height:320px;overflow-y:auto"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;width:100%" onclick="document.getElementById('manageDrawingNameModal').style.display='none'">ปิด</button>
+  </div>
+</div>
 <!-- Request Detail Popup (กดเลขคำร้องใน Dashboard) -->
 <div class="modal-overlay" id="reqDetailModal">
   <div class="modal-box" style="max-width:600px;width:95vw;max-height:88vh;overflow-y:auto;padding:0">
@@ -1832,17 +1859,20 @@ async function loadDrawingNumberList() {
   } catch(e) { console.warn('loadDrawingNumberList:', e); }
 }
 
-function renderDrawingNumberSelect() {
+function renderDrawingNumberSelect(filterProject = '') {
   const sel = document.getElementById('f_drawing_number');
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- เลือก Drawing Number --</option>';
-  drawingNumberCache.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.Title;
-    opt.textContent = p.Title;
-    sel.appendChild(opt);
-  });
+  drawingNumberCache
+    .filter(p => !p.IsHidden)
+    .filter(p => !filterProject || !p.ProjectName || p.ProjectName === filterProject)
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.Title;
+      opt.textContent = p.Title + (p.ProjectName ? ` (${p.ProjectName})` : '');
+      sel.appendChild(opt);
+    });
   if (current) sel.value = current;
 }
 
@@ -1852,13 +1882,137 @@ async function saveNewDrawingNumber() {
   if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Number'); return; }
   if (!spDrawingNumberListId) { showToast('⚠️', 'ไม่พบ DrawingNumberList'); return; }
   try {
-    const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: { Title: val } });
-    drawingNumberCache.push({ id: r.id, Title: val });
-    renderDrawingNumberSelect();
+    // บันทึกพร้อม ProjectName ปัจจุบัน
+    const projEl = document.getElementById('f_project');
+    const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
+    const fields = { Title: val };
+    if (projName) fields.ProjectName = projName;
+    const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields });
+    drawingNumberCache.push({ id: r.id, Title: val, ProjectName: projName });
+    renderDrawingNumberSelect(projName);
     document.getElementById('f_drawing_number').value = val;
     toggleAddDrawingNumber();
     showToast('✅', `เพิ่ม Drawing Number "${val}" แล้ว`);
   } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
+}
+
+async function saveNewDrawingName() {
+  const inp = document.getElementById('newDrawingName');
+  const val = inp?.value.trim();
+  if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Name'); return; }
+  if (!spDrawingNameListId) { showToast('⚠️', 'ไม่พบ DrawingNameList'); return; }
+  try {
+    const projEl = document.getElementById('f_project');
+    const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
+    const fields = { Title: val };
+    if (projName) fields.ProjectName = projName;
+    const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items`, { fields });
+    drawingNameCache.push({ id: r.id, Title: val, ProjectName: projName });
+    renderDrawingNameSelect(projName);
+    document.getElementById('f_drawing_name').value = val;
+    toggleAddDrawingName();
+    showToast('✅', `เพิ่ม Drawing Name "${val}" แล้ว`);
+  } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
+}
+
+// ── จัดการ kWp ──
+function openManageKwp() {
+  const modal = document.getElementById('manageKwpModal');
+  const list  = document.getElementById('manageKwpList');
+  modal.style.display = 'flex';
+  list.innerHTML = kwpCache.map(p => {
+    const hidden = p.IsHidden;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+      <span style="font-size:13px;${hidden?'color:var(--gray-400);text-decoration:line-through':''}">${p.Title}</span>
+      <button onclick="${hidden?`unhideKwp('${p.id}')`:`hideKwp('${p.id}')`}"
+        style="background:${hidden?'var(--gray-100)':'#fff0f0'};border:1px solid ${hidden?'var(--gray-300)':'#fca5a5'};color:${hidden?'var(--gray-500)':'var(--danger)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px">
+        ${hidden?'👁️ แสดง':'🙈 ซ่อน'}
+      </button>
+    </div>`;
+  }).join('') || '<p style="color:var(--gray-400);font-size:13px">ไม่มีข้อมูล</p>';
+}
+
+async function hideKwp(id) {
+  try {
+    await graphPatch(`/sites/${spSiteId}/lists/${spKwpListId}/items/${id}/fields`, { IsHidden: true });
+    const item = kwpCache.find(p=>p.id===id); if(item) item.IsHidden = true;
+    renderKwpSelect(); openManageKwp(); showToast('✅','ซ่อนแล้ว');
+  } catch(e) { showToast('❌','ซ่อนไม่สำเร็จ: '+e.message); }
+}
+async function unhideKwp(id) {
+  try {
+    await graphPatch(`/sites/${spSiteId}/lists/${spKwpListId}/items/${id}/fields`, { IsHidden: false });
+    const item = kwpCache.find(p=>p.id===id); if(item) item.IsHidden = false;
+    renderKwpSelect(); openManageKwp(); showToast('✅','แสดงแล้ว');
+  } catch(e) { showToast('❌','แก้ไขไม่สำเร็จ: '+e.message); }
+}
+
+// ── จัดการ Drawing Number ──
+function openManageDrawingNumbers() {
+  const modal = document.getElementById('manageDrawingNumberModal');
+  const list  = document.getElementById('manageDrawingNumberList');
+  modal.style.display = 'flex';
+  list.innerHTML = drawingNumberCache.map(p => {
+    const hidden = p.IsHidden;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+      <div>
+        <div style="font-size:13px;font-weight:500;${hidden?'color:var(--gray-400);text-decoration:line-through':''}">${p.Title}</div>
+        ${p.ProjectName?`<div style="font-size:11px;color:var(--gray-400)">${p.ProjectName}</div>`:''}
+      </div>
+      <button onclick="${hidden?`unhideDrawingNumber('${p.id}')`:`hideDrawingNumber('${p.id}')`}"
+        style="background:${hidden?'var(--gray-100)':'#fff0f0'};border:1px solid ${hidden?'var(--gray-300)':'#fca5a5'};color:${hidden?'var(--gray-500)':'var(--danger)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:8px">
+        ${hidden?'👁️ แสดง':'🙈 ซ่อน'}
+      </button>
+    </div>`;
+  }).join('') || '<p style="color:var(--gray-400);font-size:13px">ไม่มีข้อมูล</p>';
+}
+async function hideDrawingNumber(id) {
+  try {
+    await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${id}/fields`, { IsHidden: true });
+    const item = drawingNumberCache.find(p=>p.id===id); if(item) item.IsHidden = true;
+    renderDrawingNumberSelect(); openManageDrawingNumbers(); showToast('✅','ซ่อนแล้ว');
+  } catch(e) { showToast('❌','ซ่อนไม่สำเร็จ: '+e.message); }
+}
+async function unhideDrawingNumber(id) {
+  try {
+    await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${id}/fields`, { IsHidden: false });
+    const item = drawingNumberCache.find(p=>p.id===id); if(item) item.IsHidden = false;
+    renderDrawingNumberSelect(); openManageDrawingNumbers(); showToast('✅','แสดงแล้ว');
+  } catch(e) { showToast('❌','แก้ไขไม่สำเร็จ: '+e.message); }
+}
+
+// ── จัดการ Drawing Name ──
+function openManageDrawingNames() {
+  const modal = document.getElementById('manageDrawingNameModal');
+  const list  = document.getElementById('manageDrawingNameList');
+  modal.style.display = 'flex';
+  list.innerHTML = drawingNameCache.map(p => {
+    const hidden = p.IsHidden;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+      <div>
+        <div style="font-size:13px;font-weight:500;${hidden?'color:var(--gray-400);text-decoration:line-through':''}">${p.Title}</div>
+        ${p.ProjectName?`<div style="font-size:11px;color:var(--gray-400)">${p.ProjectName}</div>`:''}
+      </div>
+      <button onclick="${hidden?`unhideDrawingName('${p.id}')`:`hideDrawingName('${p.id}')`}"
+        style="background:${hidden?'var(--gray-100)':'#fff0f0'};border:1px solid ${hidden?'var(--gray-300)':'#fca5a5'};color:${hidden?'var(--gray-500)':'var(--danger)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:8px">
+        ${hidden?'👁️ แสดง':'🙈 ซ่อน'}
+      </button>
+    </div>`;
+  }).join('') || '<p style="color:var(--gray-400);font-size:13px">ไม่มีข้อมูล</p>';
+}
+async function hideDrawingName(id) {
+  try {
+    await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items/${id}/fields`, { IsHidden: true });
+    const item = drawingNameCache.find(p=>p.id===id); if(item) item.IsHidden = true;
+    renderDrawingNameSelect(); openManageDrawingNames(); showToast('✅','ซ่อนแล้ว');
+  } catch(e) { showToast('❌','ซ่อนไม่สำเร็จ: '+e.message); }
+}
+async function unhideDrawingName(id) {
+  try {
+    await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items/${id}/fields`, { IsHidden: false });
+    const item = drawingNameCache.find(p=>p.id===id); if(item) item.IsHidden = false;
+    renderDrawingNameSelect(); openManageDrawingNames(); showToast('✅','แสดงแล้ว');
+  } catch(e) { showToast('❌','แก้ไขไม่สำเร็จ: '+e.message); }
 }
 
 function toggleAddDrawingNumber() {
@@ -1879,33 +2033,21 @@ async function loadDrawingNameList() {
   } catch(e) { console.warn('loadDrawingNameList:', e); }
 }
 
-function renderDrawingNameSelect() {
+function renderDrawingNameSelect(filterProject = '') {
   const sel = document.getElementById('f_drawing_name');
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- เลือก Drawing Name --</option>';
-  drawingNameCache.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.Title;
-    opt.textContent = p.Title;
-    sel.appendChild(opt);
-  });
+  drawingNameCache
+    .filter(p => !p.IsHidden)
+    .filter(p => !filterProject || !p.ProjectName || p.ProjectName === filterProject)
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.Title;
+      opt.textContent = p.Title;
+      sel.appendChild(opt);
+    });
   if (current) sel.value = current;
-}
-
-async function saveNewDrawingName() {
-  const inp = document.getElementById('newDrawingName');
-  const val = inp?.value.trim();
-  if (!val) { showToast('⚠️', 'กรุณาใส่ Drawing Name'); return; }
-  if (!spDrawingNameListId) { showToast('⚠️', 'ไม่พบ DrawingNameList'); return; }
-  try {
-    const r = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items`, { fields: { Title: val } });
-    drawingNameCache.push({ id: r.id, Title: val });
-    renderDrawingNameSelect();
-    document.getElementById('f_drawing_name').value = val;
-    toggleAddDrawingName();
-    showToast('✅', `เพิ่ม Drawing Name "${val}" แล้ว`);
-  } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
 }
 
 function toggleAddDrawingName() {
@@ -1981,12 +2123,14 @@ function renderKwpSelect() {
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">-- เลือก kWp --</option>';
-  kwpCache.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.Title;
-    opt.textContent = p.Title;
-    sel.appendChild(opt);
-  });
+  kwpCache
+    .filter(p => !p.IsHidden)
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.Title;
+      opt.textContent = p.Title;
+      sel.appendChild(opt);
+    });
   if (current) sel.value = current;
 }
 
@@ -2095,6 +2239,34 @@ async function unhideProject(id) {
 function onProjectSelect(val) {
   if (!val) return;
   const proj = projectListCache.find(p => p.id === val);
+  if (!proj) return;
+
+  // ── ข้อ 1: auto-fill kWp และที่ตั้งโครงการ ──
+  if (proj.DefaultKwp) {
+    const kwpSel = document.getElementById('f_kwp');
+    if (kwpSel) {
+      // หา option ที่ตรง
+      let found = false;
+      for (let opt of kwpSel.options) {
+        if (opt.value === proj.DefaultKwp || opt.text === proj.DefaultKwp) {
+          kwpSel.value = opt.value; found = true; break;
+        }
+      }
+      if (!found) {
+        const opt = new Option(proj.DefaultKwp, proj.DefaultKwp);
+        kwpSel.add(opt); kwpSel.value = proj.DefaultKwp;
+      }
+    }
+  }
+  if (proj.DefaultLocation) {
+    const locEl = document.getElementById('f_location');
+    if (locEl && !locEl.value) locEl.value = proj.DefaultLocation;
+  }
+
+  // ── ข้อ 2: filter Drawing Number และ Drawing Name เฉพาะโครงการนี้ ──
+  const projName = proj.Title || '';
+  renderDrawingNumberSelect(projName);
+  renderDrawingNameSelect(projName);
 }
 
 function toggleAddProject() {
@@ -2116,13 +2288,17 @@ async function saveNewProject() {
   if (!name) { showToast('⚠️', 'กรุณาใส่ชื่อโครงการ'); return; }
   if (!spProjectListId) { showToast('⚠️', 'ไม่พบ ProjectList ใน SharePoint'); return; }
   try {
+    // บันทึกพร้อม DefaultKwp และ DefaultLocation ปัจจุบัน (ถ้ามี)
+    const kwpVal = document.getElementById('f_kwp')?.value || '';
+    const locVal = document.getElementById('f_location')?.value || '';
     const fields = { Title: name };
+    if (kwpVal) fields.DefaultKwp = kwpVal;
+    if (locVal) fields.DefaultLocation = locVal;
     const r = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields });
-    projectListCache.push({ id: r.id, ...r.fields });
+    projectListCache.push({ id: r.id, Title: name, DefaultKwp: kwpVal, DefaultLocation: locVal });
     renderProjectSelect();
-    // เลือกโปรเจกต์ที่เพิ่งเพิ่ม
     const sel = document.getElementById('f_project');
-    if (sel) sel.value = r.id;
+    if (sel) { sel.value = r.id; onProjectSelect(r.id); }
     toggleAddProject();
     showToast('✅', `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว`);
   } catch(e) { showToast('❌', 'เพิ่มโครงการไม่สำเร็จ: ' + e.message); }
