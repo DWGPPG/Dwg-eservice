@@ -1935,20 +1935,28 @@ async function loadTeamMembers() {
     const r = await graphGet(`/sites/${spSiteId}/lists/${tmListId}/items?expand=fields&$top=200`);
     const members = r.value
       .map(i => i.fields)
-      .filter(f => f.IsActive !== false && f.IsActive !== 'No') // กรองเฉพาะ Active
+      .filter(f => {
+        // SharePoint Yes/No column ส่งมาเป็น boolean true/false
+        // กรองเฉพาะ IsActive = true หรือไม่มี field (ถือว่า active)
+        if (f.IsActive === false) return false;
+        if (f.IsActive === 'No') return false;
+        return true;
+      })
       .map((f, idx) => ({
         id:    'sp' + idx,
         name:  f.Title  || '',
         email: (f.Email || '').trim(),
         role:  f.Role   || '',
       }))
-      .filter(m => m.email); // ต้องมี email
+      .filter(m => m.email);
 
     if (members.length > 0) {
       CONFIG.teamMembers = members;
-      console.log(`✅ โหลด DrawingTeam จาก SharePoint: ${members.length} คน`);
+      console.log(`✅ โหลด DrawingTeam จาก SharePoint: ${members.length} คน`, members.map(m=>m.name));
+      // refresh dropdown รายงานทันทีหลังโหลดเสร็จ
+      refreshReportMemberSelect();
     } else {
-      console.warn('DrawingTeam List ว่างเปล่า — using CONFIG.teamMembers fallback');
+      console.warn('DrawingTeam List ว่างเปล่า — raw data:', r.value.map(i=>i.fields));
     }
   } catch(e) {
     console.warn('loadTeamMembers failed:', e.message);
