@@ -1346,7 +1346,7 @@ tr:hover td { background: var(--sky); }
   <div class="page" id="page-guide">
     <div class="page-header">
       <div class="page-title">📖 คู่มือการใช้งาน</div>
-      <div class="page-sub">Workflow และขั้นตอนการทำงานของระบบ PPG Drawing e-Service</div>
+      <div class="page-sub">Workflow และขั้นตอนการทำงานของระบบ PPG Drawing e-Service (อัปเดตล่าสุด)</div>
     </div>
 
     <!-- ภาพรวม Workflow -->
@@ -1369,33 +1369,34 @@ tr:hover td { background: var(--sky); }
         <span style="color:var(--gray-400);font-size:18px">→</span>
         <span style="background:var(--sun-light);border:1px solid var(--sun);border-radius:20px;padding:5px 13px;font-size:12px;font-weight:600;color:var(--sun-dark)">📄 ใบรับงาน PDF</span>
       </div>
+      <div style="margin-top:10px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e">
+        ✏️ <b>Revision Flow:</b> เลือก "Revision / แก้ไขแบบ" → ค้นหาเลขคำร้องเดิม → ระบบออกเลข <code>DWG-YYYY-XXXX-Rev.01</code> อัตโนมัติ → ดำเนินการตาม Flow เดิม
+      </div>
     </div>
 
     <!-- 3 Role Cards -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
-
-      <!-- ผู้ร้องขอ -->
       <div class="card" style="border-top:3px solid #8b5cf6;margin-bottom:0">
         <div style="font-size:13px;font-weight:700;color:#5b21b6;margin-bottom:12px">👤 ผู้ร้องขอ (ทุกฝ่าย)</div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">📝</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ส่งคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เลือกประเภท โครงการ Drawing No./Name kWp ระบุที่ตั้ง วันกำหนด ลิงก์ข้อมูล</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ส่งคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เลือกประเภท (Proposal / ก่อสร้าง / Revision / อื่นๆ) กรอกโครงการ Drawing kWp วันกำหนด ลิงก์ข้อมูล</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-          <span style="font-size:16px;flex-shrink:0">💾</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ระบบออกเลขอัตโนมัติ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">สร้างเลขคำขอ DWG-YYYY-XXXX บันทึกลง SharePoint</div></div>
+          <span style="font-size:16px;flex-shrink:0">✏️</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Revision — ดึงข้อมูลเดิมอัตโนมัติ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ค้นหาเลขคำร้องเดิม ข้อมูลขึ้นอัตโนมัติ ระบุสาเหตุแก้ไข (บังคับ) ดูประวัติ Revision ทั้งหมด</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-          <span style="font-size:16px;flex-shrink:0">🔔</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Teams แจ้งกลุ่ม</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ส่งไปกลุ่ม Drawing Dept. นะจ๊ะ อัตโนมัติทันที</div></div>
+          <span style="font-size:16px;flex-shrink:0">🖊️</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">แก้ไขคำร้อง</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">กดปุ่ม ✏️ แก้ไข ในตาราง Dashboard ได้เฉพาะช่วง "รออนุมัติ" เท่านั้น</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">🔍</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ติดตามสถานะ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ดูความคืบหน้าใน Dashboard หรือค้นหาด้วยเลขคำขอ</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ติดตามสถานะ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ค้นหาใน Dashboard หรือหน้า "ติดตามสถานะ" แบบ step-by-step</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">✅</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ตรวจรับงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เมื่องานนำส่งแล้ว กด อนุมัติ / ขอแก้ไข / Reject พร้อมหมายเหตุ</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ตรวจรับงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">กด อนุมัติ / ขอแก้ไข / Reject พร้อมหมายเหตุ Teams แจ้งผู้เขียนแบบอัตโนมัติ</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0">
           <span style="font-size:16px;flex-shrink:0">📥</span>
@@ -1403,12 +1404,11 @@ tr:hover td { background: var(--sky); }
         </div>
       </div>
 
-      <!-- Admin -->
       <div class="card" style="border-top:3px solid #ef4444;margin-bottom:0">
         <div style="font-size:13px;font-weight:700;color:#991b1b;margin-bottom:12px">⚙️ Admin / ผู้จัดการ</div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-          <span style="font-size:16px;flex-shrink:0">📋</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">รับคำร้องใหม่</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เห็นทุกคำร้อง ดูรายละเอียด ไฟล์แนบ ลิงก์ข้อมูล</div></div>
+          <span style="font-size:16px;flex-shrink:0">🔴</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Badge แจ้งคำร้องรออนุมัติ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">Tab "อนุมัติ (Admin)" มีตัวเลขแดงแสดงจำนวนรออนุมัติ อัปเดตอัตโนมัติ</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">✅</span>
@@ -1416,23 +1416,22 @@ tr:hover td { background: var(--sky); }
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">✅</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">อนุมัติ Lv.2 (ผู้จัดการ)</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">jeerapat / narakorn / archan ยืนยัน Teams แจ้ง 1:1 อีกครั้ง</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">อนุมัติ Lv.2 (ผู้จัดการ)</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">Jeerapat / Narakorn / Archan ยืนยัน Teams แจ้ง 1:1 อีกครั้ง</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">↩️</span>
           <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ส่งกลับ / Reject</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ใส่หมายเหตุ Teams แจ้งผู้ร้องขอโดยตรง</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-          <span style="font-size:16px;flex-shrink:0">👁️</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">ตรวจรับงาน (Admin)</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เห็นทุก item Export ใบรับงาน PDF ได้ทุกรายการ</div></div>
+          <span style="font-size:16px;flex-shrink:0">⚙️</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">จัดการ Master Data</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เพิ่ม/ซ่อนโครงการ DrawingNo DrawingName kWp สมาชิกทีมใน SharePoint — ไม่ต้องแตะโค้ด</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0">
-          <span style="font-size:16px;flex-shrink:0">⚙️</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">จัดการ Master Data</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เพิ่ม/ซ่อนโครงการ DrawingNo DrawingName kWp และสมาชิกทีมใน SharePoint</div></div>
+          <span style="font-size:16px;flex-shrink:0">📋</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Audit Log</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ทุก action บันทึกลง SharePoint List "AuditLog" อัตโนมัติ ดูประวัติการเปลี่ยนแปลงได้ตลอด</div></div>
         </div>
       </div>
 
-      <!-- ฝ่ายเขียนแบบ -->
       <div class="card" style="border-top:3px solid #16a34a;margin-bottom:0">
         <div style="font-size:13px;font-weight:700;color:#15803d;margin-bottom:12px">✏️ ฝ่ายเขียนแบบ</div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
@@ -1441,23 +1440,23 @@ tr:hover td { background: var(--sky); }
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">⏰</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">แจ้งเตือน DueDate</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ระบบแจ้งกลุ่มอัตโนมัติ 08:30 ทุกวัน (โดย Narakorn)</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">แจ้งเตือน DueDate 08:30</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ระบบแจ้งกลุ่มอัตโนมัติทุกวัน 08:30 (โดย Narakorn) งานเกินกำหนด + ใกล้กำหนด ≤3 วัน</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">📤</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">นำส่งงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ค้นหาเลขคำขอ → Upload DWG+PDF ไฟล์ หรือวาง SharePoint link → ระบุ Revise</div></div>
-        </div>
-        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-          <span style="font-size:16px;flex-shrink:0">🔔</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Teams แจ้งผู้ร้องขอ</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ส่ง 1:1 พร้อมลิงก์ไฟล์และลิงก์ใบรับงานอัตโนมัติ</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">นำส่งงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ค้นหาเลขคำขอ → Upload DWG+PDF หรือวาง SharePoint link → ระบุ Revise → Teams แจ้งอัตโนมัติ</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
           <span style="font-size:16px;flex-shrink:0">📊</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Dashboard ปริมาณงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">เห็น Workload ทั้งทีม สถานะ เกินกำหนด ใกล้กำหนด</div></div>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Dashboard + Auto Refresh</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">Workload ทั้งทีม กราฟรายสัปดาห์ + รายเดือน 12 เดือน DueDate badge เตือน Refresh ทุก 10 นาที</div></div>
+        </div>
+        <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+          <span style="font-size:16px;flex-shrink:0">📑</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">รายงาน Export PDF / Excel</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">สรุปงานรายบุคคล เลือกช่วงเวลา Export ได้ทั้ง PDF และ Excel (.csv)</div></div>
         </div>
         <div style="display:flex;gap:10px;padding:8px 0">
-          <span style="font-size:16px;flex-shrink:0">📑</span>
-          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">รายงาน</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">ดูสรุปงานรายบุคคล Export Excel/PDF</div></div>
+          <span style="font-size:16px;flex-shrink:0">🌙</span>
+          <div><div style="font-size:12px;font-weight:600;color:var(--navy)">Dark Mode</div><div style="font-size:11px;color:var(--gray-500);margin-top:2px">กดปุ่ม 🌙 มุมขวาบน Dashboard หรือใน drawer menu มือถือ ระบบจำค่าไว้อัตโนมัติ</div></div>
         </div>
       </div>
     </div>
@@ -1468,7 +1467,7 @@ tr:hover td { background: var(--sky); }
       <div style="display:flex;flex-direction:column;gap:0">
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:start">
           <span class="badge badge-pending" style="justify-content:center">⏳ รออนุมัติ</span>
-          <span style="font-size:12px;color:var(--gray-600)">คำร้องใหม่เข้ามา รอ Admin เลือกผู้รับผิดชอบ</span>
+          <span style="font-size:12px;color:var(--gray-600)">คำร้องใหม่เข้ามา รอ Admin เลือกผู้รับผิดชอบ — <b>แก้ไขคำร้องได้ในช่วงนี้</b></span>
         </div>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:start">
           <span class="badge badge-inprog-lv1" style="justify-content:center">🔄 อนุมัติ Lv.1</span>
@@ -1480,24 +1479,28 @@ tr:hover td { background: var(--sky); }
         </div>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:start">
           <span class="badge badge-working" style="justify-content:center">✏️ กำลังเขียนแบบ</span>
-          <span style="font-size:12px;color:var(--gray-600)">อยู่ระหว่างดำเนินการ (ผู้เขียนแบบอัปเดตสถานะเอง)</span>
+          <span style="font-size:12px;color:var(--gray-600)">อยู่ระหว่างดำเนินการ ผู้เขียนแบบอัปเดตสถานะเอง</span>
         </div>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:start">
           <span class="badge badge-done" style="justify-content:center">📤 นำส่งแล้ว</span>
-          <span style="font-size:12px;color:var(--gray-600)">ผู้เขียนแบบนำส่งงาน Teams แจ้งผู้ร้องขออัตโนมัติ</span>
+          <span style="font-size:12px;color:var(--gray-600)">ผู้เขียนแบบนำส่งงาน Teams แจ้งผู้ร้องขออัตโนมัติพร้อมลิงก์ไฟล์</span>
         </div>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:start">
           <span class="badge badge-review" style="justify-content:center">🔍 ตรวจรับแล้ว</span>
-          <span style="font-size:12px;color:var(--gray-600)">ผู้ร้องขออนุมัติรับงาน Teams แจ้งผู้เขียนแบบกลับ</span>
+          <span style="font-size:12px;color:var(--gray-600)">ผู้ร้องขออนุมัติรับงาน Teams แจ้งผู้เขียนแบบกลับ พร้อมออกใบรับงาน PDF</span>
         </div>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--gray-100);align-items:start">
           <span class="badge badge-rejected" style="justify-content:center">↩️ ส่งกลับแก้ไข</span>
-          <span style="font-size:12px;color:var(--gray-600)">ขอแก้ไขหรือ Reject — Teams แจ้งพร้อมหมายเหตุ</span>
+          <span style="font-size:12px;color:var(--gray-600)">ขอแก้ไขหรือ Reject — Teams แจ้งพร้อมหมายเหตุ ผู้เขียนแบบส่งใหม่ได้</span>
         </div>
         <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;padding:10px 0;align-items:start">
           <span class="badge badge-cancelled" style="justify-content:center">🚫 ยกเลิก</span>
           <span style="font-size:12px;color:var(--gray-600)">Admin ยกเลิกคำร้อง</span>
         </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--gray-600)"><div style="width:14px;height:14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:3px"></div>🟡 วันนี้ = ถึงกำหนดวันนี้ (highlight สีส้มในตาราง)</div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--gray-600)"><div style="width:14px;height:14px;background:#fff1f0;border:1px solid #fecaca;border-radius:3px"></div>🔴 เกิน = เกินกำหนดแล้ว (highlight สีแดงในตาราง)</div>
       </div>
     </div>
 
@@ -1518,28 +1521,34 @@ tr:hover td { background: var(--sky); }
             <tr style="border-bottom:1px solid var(--gray-200)">
               <td style="padding:8px 12px;font-family:monospace;font-weight:600;color:var(--navy)">DrawingRequests</td>
               <td style="padding:8px 12px;color:var(--gray-600)">เก็บคำร้องทั้งหมด</td>
-              <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title, Status0, AssigneeName, DueDate, SenderEmail ...</td>
+              <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title, Status0, AssigneeName, DueDate, RevisionReason, RefRequestId, IsRevision ...</td>
               <td style="padding:8px 12px;color:var(--gray-600)">ระบบอัตโนมัติ</td>
             </tr>
             <tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200)">
               <td style="padding:8px 12px;font-family:monospace;font-weight:600;color:var(--navy)">DrawingTeam</td>
               <td style="padding:8px 12px;color:var(--gray-600)">รายชื่อสมาชิกฝ่ายเขียนแบบ</td>
-              <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title (ชื่อ), Email, Role, IsActive</td>
+              <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title, Email, Role, IsActive</td>
               <td style="padding:8px 12px;color:#15803d;font-weight:500">✏️ Admin แก้ไขเองได้</td>
             </tr>
             <tr style="border-bottom:1px solid var(--gray-200)">
+              <td style="padding:8px 12px;font-family:monospace;font-weight:600;color:var(--navy)">AuditLog</td>
+              <td style="padding:8px 12px;color:var(--gray-600)">บันทึกทุก action ในระบบ</td>
+              <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title (action), RequestId, UserEmail, UserName, Detail, ActionAt</td>
+              <td style="padding:8px 12px;color:var(--gray-600)">ระบบอัตโนมัติ</td>
+            </tr>
+            <tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200)">
               <td style="padding:8px 12px;font-family:monospace;font-weight:600;color:var(--navy)">ProjectList</td>
               <td style="padding:8px 12px;color:var(--gray-600)">รายชื่อโครงการ</td>
               <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title, IsHidden</td>
               <td style="padding:8px 12px;color:#15803d;font-weight:500">✏️ Admin แก้ไขเองได้</td>
             </tr>
-            <tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200)">
+            <tr style="border-bottom:1px solid var(--gray-200)">
               <td style="padding:8px 12px;font-family:monospace;font-weight:600;color:var(--navy)">DrawingNumberList</td>
               <td style="padding:8px 12px;color:var(--gray-600)">รายการ Drawing Number</td>
               <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title</td>
               <td style="padding:8px 12px;color:#15803d;font-weight:500">✏️ Admin แก้ไขเองได้</td>
             </tr>
-            <tr style="border-bottom:1px solid var(--gray-200)">
+            <tr style="background:var(--gray-50);border-bottom:1px solid var(--gray-200)">
               <td style="padding:8px 12px;font-family:monospace;font-weight:600;color:var(--navy)">DrawingNameList</td>
               <td style="padding:8px 12px;color:var(--gray-600)">รายการ Drawing Name</td>
               <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:var(--gray-500)">Title</td>
@@ -1554,8 +1563,13 @@ tr:hover td { background: var(--sky); }
           </tbody>
         </table>
       </div>
-      <div style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#15803d">
-        💡 <b>เพิ่ม/ลบพนักงาน:</b> แก้ที่ SharePoint List <code style="background:#dcfce7;padding:1px 6px;border-radius:4px">DrawingTeam</code> เปลี่ยน <b>IsActive = No</b> สำหรับคนลาออก หรือเพิ่ม item ใหม่สำหรับพนักงานใหม่ — ระบบโหลดอัตโนมัติทุกครั้งที่ Login ไม่ต้องแก้โค้ด
+      <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="padding:10px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:12px;color:#15803d">
+          💡 <b>เพิ่ม/ลบพนักงาน:</b> แก้ที่ <code style="background:#dcfce7;padding:1px 6px;border-radius:4px">DrawingTeam</code> — IsActive = No สำหรับคนลาออก ระบบโหลดอัตโนมัติทุก Login
+        </div>
+        <div style="padding:10px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af">
+          💡 <b>เลขคำร้องไม่ซ้ำ:</b> ระบบดึงเลขล่าสุดจาก SharePoint ก่อน submit ทุกครั้ง ป้องกันส่งพร้อมกันแล้วเลขชน
+        </div>
       </div>
     </div>
 
@@ -1564,7 +1578,7 @@ tr:hover td { background: var(--sky); }
         PPG Drawing e-Service | PRIME POWER GROUP | Microsoft Graph API + SharePoint + Teams
       </div>
     </div>
-  </div>
+  </div><!-- /page-guide -->
 
   <div class="page" id="page-admin">
     <div class="page-header">
