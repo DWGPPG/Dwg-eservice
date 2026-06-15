@@ -2412,41 +2412,15 @@ function onDrawingNumberSelect(val) {
       dnSel.add(opt); dnSel.value = item.DrawingName;
     }
   }
-}
-  const projEl  = document.getElementById('f_project');
+function onDrawingCategorySelect(cat) {
+  const projEl   = document.getElementById('f_project');
   const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
   renderDrawingNumberSelect(projName, cat);
   renderDrawingNameSelect(projName, cat);
-  // sync category dropdown ใน add row
-  const dnCat   = document.getElementById('newDrawingNumberCategory');
-  const dnmCat  = document.getElementById('newDrawingNameCategory');
+  const dnCat  = document.getElementById('newDrawingNumberCategory');
+  const dnmCat = document.getElementById('newDrawingNameCategory');
   if (dnCat  && cat) dnCat.value  = cat;
   if (dnmCat && cat) dnmCat.value = cat;
-}
-
-function onProjectSelect(val) {
-  if (!val) { renderDrawingNumberSelect(); renderDrawingNameSelect(); return; }
-  const proj = projectListCache.find(p => p.id === val);
-  if (!proj) return;
-  // auto-fill kWp และที่ตั้ง
-  if (proj.DefaultKwp) {
-    const kwpSel = document.getElementById('f_kwp');
-    if (kwpSel) {
-      let found = false;
-      for (let opt of kwpSel.options) {
-        if (opt.value === proj.DefaultKwp || opt.text === proj.DefaultKwp) { kwpSel.value = opt.value; found = true; break; }
-      }
-      if (!found) { const opt = new Option(proj.DefaultKwp, proj.DefaultKwp); kwpSel.add(opt); kwpSel.value = proj.DefaultKwp; }
-    }
-  }
-  if (proj.DefaultLocation) {
-    const locEl = document.getElementById('f_location');
-    if (locEl && !locEl.value) locEl.value = proj.DefaultLocation;
-  }
-  // filter Drawing โดยใช้ category ที่เลือกอยู่
-  const cat = document.getElementById('f_drawing_category')?.value || '';
-  renderDrawingNumberSelect(proj.Title||'', cat);
-  renderDrawingNameSelect(proj.Title||'', cat);
 }
 
 function toggleAddProject() {
