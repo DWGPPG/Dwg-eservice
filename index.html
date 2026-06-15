@@ -1115,7 +1115,6 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
     <!-- /Construction Panel -->
-    </div>
     <div id="mainProjectForm">
     <div class="card">
       <div class="card-title">รายละเอียดโครงการ</div>
@@ -1905,7 +1904,7 @@ tr:hover td { background: var(--sky); }
 
 <!-- CP Add Project Modal -->
 <div class="modal-overlay" id="cpAddProjectModal" onclick="if(event.target===this)closeCpAddProject()">
-  <div class="modal" style="max-width:560px;width:95vw;max-height:90vh;overflow-y:auto">
+  <div class="modal" style="max-width:580px;width:95vw;max-height:90vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div style="font-size:16px;font-weight:700;color:var(--navy)">➕ เพิ่มโครงการใหม่</div>
       <button onclick="closeCpAddProject()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400)">✕</button>
@@ -1924,42 +1923,47 @@ tr:hover td { background: var(--sky); }
         <input type="text" id="cpap_loc" placeholder="วาง link...">
       </div>
     </div>
-    <div style="font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Drawing Number + Drawing Name (กรอกถ้ามี)</div>
+    <div style="font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px">Drawing Number + Drawing Name</div>
 
-    <div style="margin-bottom:12px">
-      <div style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px">📐 General</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input type="text" id="cpap_no_General_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-        <input type="text" id="cpap_nm_General_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <!-- General -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#6b7280">📐 General</span>
+        <button type="button" onclick="addCpRow('General Drawing')" style="font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;font-family:var(--font)">+ เพิ่มแถว</button>
       </div>
+      <div id="cpap_rows_General_Drawing"></div>
     </div>
-    <div style="margin-bottom:12px">
-      <div style="display:inline-flex;align-items:center;gap:6px;background:#ede9fe;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:6px">🏛️ Architectural</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input type="text" id="cpap_no_Architectural_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-        <input type="text" id="cpap_nm_Architectural_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <!-- Architectural -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#ede9fe;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#7c3aed">🏛️ Architectural</span>
+        <button type="button" onclick="addCpRow('Architectural Drawing')" style="font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;font-family:var(--font)">+ เพิ่มแถว</button>
       </div>
+      <div id="cpap_rows_Architectural_Drawing"></div>
     </div>
-    <div style="margin-bottom:12px">
-      <div style="display:inline-flex;align-items:center;gap:6px;background:#dcfce7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#15803d;margin-bottom:6px">🏗️ Structural</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input type="text" id="cpap_no_Structural_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-        <input type="text" id="cpap_nm_Structural_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <!-- Structural -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#dcfce7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#15803d">🏗️ Structural</span>
+        <button type="button" onclick="addCpRow('Structural Drawing')" style="font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;font-family:var(--font)">+ เพิ่มแถว</button>
       </div>
+      <div id="cpap_rows_Structural_Drawing"></div>
     </div>
-    <div style="margin-bottom:12px">
-      <div style="display:inline-flex;align-items:center;gap:6px;background:#dbeafe;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#1d4ed8;margin-bottom:6px">⚡ Electrical</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input type="text" id="cpap_no_Electrical_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-        <input type="text" id="cpap_nm_Electrical_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <!-- Electrical -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#dbeafe;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#1d4ed8">⚡ Electrical</span>
+        <button type="button" onclick="addCpRow('Electrical Drawing')" style="font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;font-family:var(--font)">+ เพิ่มแถว</button>
       </div>
+      <div id="cpap_rows_Electrical_Drawing"></div>
     </div>
-    <div style="margin-bottom:12px">
-      <div style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#b45309;margin-bottom:6px">⚙️ Mechanical</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <input type="text" id="cpap_no_Mechanical_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-        <input type="text" id="cpap_nm_Mechanical_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <!-- Mechanical -->
+    <div style="margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#b45309">⚙️ Mechanical</span>
+        <button type="button" onclick="addCpRow('Mechanical Drawing')" style="font-size:11px;color:var(--info);background:none;border:none;cursor:pointer;font-family:var(--font)">+ เพิ่มแถว</button>
       </div>
+      <div id="cpap_rows_Mechanical_Drawing"></div>
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--gray-200)">
@@ -2665,20 +2669,52 @@ function selectCpDwg(no, name, cat) {
 }
 
 // ── CP Add Project Popup ──
+let cpRowCounters = {};
+
+function addCpRow(cat) {
+  const key = cat.replace(/ /g,'_');
+  if (!cpRowCounters[key]) cpRowCounters[key] = 0;
+  const idx = cpRowCounters[key]++;
+  const container = document.getElementById(`cpap_rows_${key}`);
+  if (!container) return;
+  const row = document.createElement('div');
+  row.id = `cpap_row_${key}_${idx}`;
+  row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 28px;gap:6px;margin-bottom:6px;align-items:center';
+  row.innerHTML = `
+    <input type="text" data-cat="${cat}" data-field="no" placeholder="Drawing Number"
+      style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <input type="text" data-cat="${cat}" data-field="nm" placeholder="Drawing Name"
+      style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+    <button type="button" onclick="removeCpRow('${key}',${idx})"
+      style="background:none;border:1px solid #fca5a5;border-radius:6px;color:#ef4444;cursor:pointer;font-size:14px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>`;
+  container.appendChild(row);
+}
+
+function removeCpRow(key, idx) {
+  const row = document.getElementById(`cpap_row_${key}_${idx}`);
+  if (row) row.remove();
+}
+
 function openCpAddProject() {
-  ['cpap_name','cpap_kwp','cpap_loc',
-   'cpap_no_General_Drawing','cpap_nm_General_Drawing',
-   'cpap_no_Architectural_Drawing','cpap_nm_Architectural_Drawing',
-   'cpap_no_Structural_Drawing','cpap_nm_Structural_Drawing',
-   'cpap_no_Electrical_Drawing','cpap_nm_Electrical_Drawing',
-   'cpap_no_Mechanical_Drawing','cpap_nm_Mechanical_Drawing',
-  ].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  cpRowCounters = {};
+  const cats = ['General_Drawing','Architectural_Drawing','Structural_Drawing','Electrical_Drawing','Mechanical_Drawing'];
+  cats.forEach(k => {
+    const c = document.getElementById(`cpap_rows_${k}`);
+    if (c) c.innerHTML = '';
+  });
+  ['cpap_name','cpap_kwp','cpap_loc'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  // เพิ่ม 1 แถวเริ่มต้นให้แต่ละหมวด
+  cats.forEach(k => addCpRow(k.replace(/_/g,' ')));
   document.getElementById('cpAddProjectModal').classList.add('show');
   setTimeout(() => document.getElementById('cpap_name')?.focus(), 100);
 }
+
 function closeCpAddProject() {
   document.getElementById('cpAddProjectModal').classList.remove('show');
 }
+
 async function saveCpNewProject() {
   const name = document.getElementById('cpap_name')?.value.trim();
   if (!name) { showToast('⚠️','กรุณาใส่ชื่อโครงการ'); return; }
@@ -2693,23 +2729,27 @@ async function saveCpNewProject() {
     const projRes = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields: projFields });
     projectListCache.push({ id: projRes.id, Title: name, DefaultKwp: kwp, SolarKwp: kwp, DefaultLocation: loc });
 
-    const cats = [
-      { key: 'General_Drawing',       cat: 'General Drawing' },
-      { key: 'Architectural_Drawing', cat: 'Architectural Drawing' },
-      { key: 'Structural_Drawing',    cat: 'Structural Drawing' },
-      { key: 'Electrical_Drawing',    cat: 'Electrical Drawing' },
-      { key: 'Mechanical_Drawing',    cat: 'Mechanical Drawing' },
-    ];
-    for (const { key, cat } of cats) {
-      const no = document.getElementById(`cpap_no_${key}`)?.value.trim();
-      const nm = document.getElementById(`cpap_nm_${key}`)?.value.trim();
-      if (no && spDrawingNumberListId) {
-        const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
-        if (nm) dwgFields.DrawingName = nm;
-        const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
-        drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm || '' });
+    // ดึง Drawing rows ทั้งหมดจาก container แต่ละหมวด
+    const cats = ['General Drawing','Architectural Drawing','Structural Drawing','Electrical Drawing','Mechanical Drawing'];
+    for (const cat of cats) {
+      const key = cat.replace(/ /g,'_');
+      const container = document.getElementById(`cpap_rows_${key}`);
+      if (!container) continue;
+      const rows = container.querySelectorAll('div[id^="cpap_row_"]');
+      for (const row of rows) {
+        const noEl = row.querySelector('input[data-field="no"]');
+        const nmEl = row.querySelector('input[data-field="nm"]');
+        const no = noEl?.value.trim() || '';
+        const nm = nmEl?.value.trim() || '';
+        if (no && spDrawingNumberListId) {
+          const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
+          if (nm) dwgFields.DrawingName = nm;
+          const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
+          drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm });
+        }
       }
     }
+
     closeCpAddProject();
     selectCpProject(projRes.id, name);
     showToast('✅', `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว`);
