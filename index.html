@@ -297,6 +297,26 @@ body.dark .edit-modal { background:#1e2530; }
 
 .modal-box { background:var(--white);border-radius:var(--radius-lg);box-shadow:0 20px 60px rgba(0,0,0,.25); }
 body.dark .modal-box { background:#1e2530; }
+/* ── Category Icon Cards ── */
+.cat-card {
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:8px 12px;border-radius:10px;border:2px solid var(--gray-200);
+  background:var(--white);cursor:pointer;font-size:20px;
+  transition:all .15s;min-width:68px;line-height:1.2;
+}
+.cat-card span { font-size:11px;font-family:var(--font);color:var(--gray-600);font-weight:500;display:block;text-align:center; }
+.cat-card:hover { border-color:var(--sun);background:var(--sun-light); }
+.cat-card.active { border-color:var(--sun);background:var(--sun-light);box-shadow:0 0 0 3px rgba(13,177,75,.2); }
+.cat-card.active span { color:var(--sun-dark);font-weight:700; }
+body.dark .cat-card { background:var(--gray-100);border-color:var(--gray-200); }
+body.dark .cat-card.active { background:var(--sun-light);border-color:var(--sun); }
+
+/* ── Autocomplete dropdown ── */
+.ac-item { padding:9px 14px;cursor:pointer;font-size:13px;font-family:var(--font);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--gray-100); }
+.ac-item:hover { background:var(--sun-light);color:var(--sun-dark); }
+.ac-item:last-child { border-bottom:none; }
+.ac-badge { font-size:10px;color:var(--gray-400);margin-left:8px;white-space:nowrap; }
+
 /* Revision reason required highlight */
 #rev_reason:invalid, #rev_reason.required-error { border-color: #dc2626 !important; }
 #rev_new_revise:focus { border-color: #f59e0b; outline: none; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
@@ -972,11 +992,18 @@ tr:hover td { background: var(--sky); }
             <span style="font-size:11px;color:var(--gray-400);font-weight:400"> — ใส่ชื่อโครงการ หรือ Project Code (แนะนำ 4 ตัวอักษร สำหรับแบบก่อสร้าง/As-Built เช่น BEMV, SCGP)</span>
           </label>
           <div class="combo-wrap">
-            <select id="f_project" onchange="onProjectSelect(this.value)">
-              <option value="">-- เลือกหรือเพิ่มโครงการใหม่ --</option>
-            </select>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_project').selectedIndex=0;renderDrawingNumberSelect();renderDrawingNameSelect()" title="ล้างค่า">✕</button>
-            <button type="button" class="btn-sec-sm" onclick="openManageProjects()" title="จัดการรายการ" >⚙️</button>
+            <div style="flex:1;position:relative">
+              <input type="text" id="f_project_input" placeholder="พิมพ์เพื่อค้นหาโครงการ..."
+                oninput="onProjectSearch(this.value)"
+                onfocus="onProjectSearch(this.value)"
+                onblur="setTimeout(()=>{const d=document.getElementById('f_project_dropdown');if(d)d.style.display='none'},200)"
+                autocomplete="off"
+                style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+              <input type="hidden" id="f_project">
+              <div id="f_project_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:2px"></div>
+            </div>
+            <button type="button" class="btn-sec-sm" onclick="clearProjectSelect()" title="ล้างค่า">✕</button>
+            <button type="button" class="btn-sec-sm" onclick="openManageProjects()" title="จัดการรายการ">⚙️</button>
             <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
@@ -1020,26 +1047,24 @@ tr:hover td { background: var(--sky); }
         </div>
         <div class="field"><!-- spacer --></div>
 
-        <!-- หมวด Drawing -->
+        <!-- หมวด Drawing — Icon Cards -->
         <div class="field span2">
           <label>หมวด Drawing</label>
-          <div class="combo-wrap">
-            <select id="f_drawing_category" onchange="onDrawingCategorySelect(this.value)" style="flex:1">
-              <option value="">-- ทั้งหมด (ไม่กรอง) --</option>
-              <option value="General Drawing">📐 General Drawing</option>
-              <option value="Architectural Drawing">🏛️ Architectural Drawing</option>
-              <option value="Structural Drawing">🏗️ Structural Drawing</option>
-              <option value="Electrical Drawing">⚡ Electrical Drawing</option>
-              <option value="Mechanical Drawing">⚙️ Mechanical Drawing</option>
-            </select>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_category').selectedIndex=0;onDrawingCategorySelect('')" title="ล้างค่า">✕</button>
+          <div id="f_drawing_category_cards" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <button type="button" class="cat-card active" data-cat="" onclick="selectDrawingCategory(this,'')">🗂️<span>ทั้งหมด</span></button>
+            <button type="button" class="cat-card" data-cat="General Drawing" onclick="selectDrawingCategory(this,'General Drawing')">📐<span>General</span></button>
+            <button type="button" class="cat-card" data-cat="Architectural Drawing" onclick="selectDrawingCategory(this,'Architectural Drawing')">🏛️<span>Arch</span></button>
+            <button type="button" class="cat-card" data-cat="Structural Drawing" onclick="selectDrawingCategory(this,'Structural Drawing')">🏗️<span>Structural</span></button>
+            <button type="button" class="cat-card" data-cat="Electrical Drawing" onclick="selectDrawingCategory(this,'Electrical Drawing')">⚡<span>Electrical</span></button>
+            <button type="button" class="cat-card" data-cat="Mechanical Drawing" onclick="selectDrawingCategory(this,'Mechanical Drawing')">⚙️<span>Mechanical</span></button>
           </div>
+          <input type="hidden" id="f_drawing_category">
         </div>
 
         <div class="field">
           <label>Drawing Number</label>
           <div class="combo-wrap">
-            <select id="f_drawing_number">
+            <select id="f_drawing_number" onchange="onDrawingNumberSelect(this.value)">
               <option value="">-- เลือก Drawing Number --</option>
             </select>
             <button type="button" class="btn-sec-sm" onclick="openManageDrawingNumbers()" title="จัดการรายการ">⚙️</button>
@@ -2247,18 +2272,13 @@ async function loadProjectList() {
 }
 
 function renderProjectSelect() {
-  const sel = document.getElementById('f_project');
-  if (!sel) return;
-  const current = sel.value;
-  sel.innerHTML = '<option value="">-- เลือกหรือเพิ่มโครงการ --</option>';
-  // กรองเฉพาะรายการที่ไม่ได้ซ่อน
-  projectListCache.filter(p => !p.IsHidden).forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = p.Title;
-    sel.appendChild(opt);
-  });
-  if (current) sel.value = current;
+  // Autocomplete — cache พร้อมแล้ว ไม่ต้อง render select
+  // ถ้ามี value อยู่แล้ว sync input text
+  const currentId = document.getElementById('f_project')?.value;
+  if (currentId) {
+    const proj = projectListCache.find(p => p.id === currentId);
+    if (proj) { const inp = document.getElementById('f_project_input'); if(inp) inp.value = proj.Title||''; }
+  }
 }
 
 async function hideProjectItem(id) {
@@ -2311,7 +2331,88 @@ async function unhideProject(id) {
   } catch(e) { showToast('❌', 'แก้ไขไม่สำเร็จ: ' + e.message); }
 }
 
-function onDrawingCategorySelect(cat) {
+// ── ข้อ 4: Autocomplete ชื่อโครงการ ──
+function onProjectSearch(q) {
+  const dd = document.getElementById('f_project_dropdown');
+  if (!dd) return;
+  const filtered = projectListCache
+    .filter(p => !p.IsHidden)
+    .filter(p => !q || (p.Title||'').toLowerCase().includes(q.toLowerCase()));
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.map(p => `
+    <div class="ac-item" onmousedown="selectProjectFromDropdown('${p.id}','${(p.Title||'').replace(/'/g,"\\'")}')">
+      <span>${p.Title||''}</span>
+      <span class="ac-badge">${p.DefaultKwp||p.SolarKwp||''}</span>
+    </div>`).join('');
+  dd.style.display = 'block';
+}
+function selectProjectFromDropdown(id, title) {
+  document.getElementById('f_project').value = id;
+  document.getElementById('f_project_input').value = title;
+  document.getElementById('f_project_dropdown').style.display = 'none';
+  onProjectSelect(id);
+}
+function clearProjectSelect() {
+  document.getElementById('f_project').value = '';
+  document.getElementById('f_project_input').value = '';
+  document.getElementById('f_project_dropdown').style.display = 'none';
+  renderDrawingNumberSelect(); renderDrawingNameSelect();
+}
+
+// ── ข้อ 2: เลือก Category ด้วย Icon Card ──
+function selectDrawingCategory(el, cat) {
+  document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('f_drawing_category').value = cat;
+  onDrawingCategorySelect(cat);
+}
+
+// ── ข้อ 1: แก้ onProjectSelect ให้ดึง DefaultKwp หรือ SolarKwp ──
+function onProjectSelect(val) {
+  if (!val) { renderDrawingNumberSelect(); renderDrawingNameSelect(); return; }
+  const proj = projectListCache.find(p => p.id === val);
+  if (!proj) return;
+  // auto-fill kWp — ลอง DefaultKwp ก่อน ถ้าไม่มีใช้ SolarKwp
+  const kwpVal = proj.DefaultKwp || proj.SolarKwp || '';
+  if (kwpVal) {
+    const kwpSel = document.getElementById('f_kwp');
+    if (kwpSel) {
+      let found = false;
+      for (let opt of kwpSel.options) {
+        if (opt.value === kwpVal || opt.text === kwpVal) { kwpSel.value = opt.value; found = true; break; }
+      }
+      if (!found) { const opt = new Option(kwpVal, kwpVal); kwpSel.add(opt); kwpSel.value = kwpVal; }
+    }
+  }
+  // auto-fill ที่ตั้ง
+  if (proj.DefaultLocation) {
+    const locEl = document.getElementById('f_location');
+    if (locEl && !locEl.value) locEl.value = proj.DefaultLocation;
+  }
+  // filter Drawing
+  const cat = document.getElementById('f_drawing_category')?.value || '';
+  renderDrawingNumberSelect(proj.Title||'', cat);
+  renderDrawingNameSelect(proj.Title||'', cat);
+}
+
+// ── ข้อ 3: เลือก Drawing Number → Drawing Name อัตโนมัติ ──
+function onDrawingNumberSelect(val) {
+  if (!val) return;
+  const item = drawingNumberCache.find(p => p.Title === val);
+  if (!item || !item.DrawingName) return;
+  // auto-fill Drawing Name
+  const dnSel = document.getElementById('f_drawing_name');
+  if (dnSel) {
+    let found = false;
+    for (let opt of dnSel.options) {
+      if (opt.value === item.DrawingName) { dnSel.value = item.DrawingName; found = true; break; }
+    }
+    if (!found) {
+      const opt = new Option(item.DrawingName, item.DrawingName);
+      dnSel.add(opt); dnSel.value = item.DrawingName;
+    }
+  }
+}
   const projEl  = document.getElementById('f_project');
   const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
   renderDrawingNumberSelect(projName, cat);
@@ -2849,18 +2950,17 @@ async function triggerAutomate(payload) {
 // ── GENERATE REF NUMBER ──
 function getTypePrefix() {
   const type = selectedType || '';
-  const projEl   = document.getElementById('f_project');
-  const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
-  // จำกัด project code 4 ตัวอักษร uppercase
+  const projId   = document.getElementById('f_project')?.value || '';
+  const projName = projId ? (projectListCache.find(p=>p.id===projId)?.Title||'') : 
+                   (document.getElementById('f_project_input')?.value || '');
   const projCode = projName.replace(/\s+/g,'').toUpperCase().slice(0,4) || 'XXXX';
   const yr = new Date().getFullYear() + 543;
-
-  if (type.includes('Proposal'))        return `DWG-DES-${yr}-`;
-  if (type.includes('ขออนุญาต'))        return `DWG-PES-${yr}-`;
-  if (type.includes('ก่อสร้าง'))        return `DWG-${projCode}-${yr}-`;
-  if (type.includes('As-Built'))         return `DWG-ASB-${projCode}-${yr}-`;
-  if (type.includes('อื่น'))            return `DWG-OTH-${yr}-`;
-  return `DWG-${yr}-`; // fallback
+  if (type.includes('Proposal'))    return `DWG-DES-${yr}-`;
+  if (type.includes('ขออนุญาต'))   return `DWG-PES-${yr}-`;
+  if (type.includes('ก่อสร้าง'))   return `DWG-${projCode}-${yr}-`;
+  if (type.includes('As-Built'))    return `DWG-ASB-${projCode}-${yr}-`;
+  if (type.includes('อื่น'))       return `DWG-OTH-${yr}-`;
+  return `DWG-${yr}-`;
 }
 
 async function genRefNumber() {
@@ -3132,9 +3232,10 @@ async function submitRequest() {
     dept = otherEl ? otherEl.value.trim() : '';
     if (!dept) { showToast('⚠️', 'กรุณาระบุชื่อฝ่าย/แผนก'); return; }
   }
-  const project = projectEl
-    ? (projectEl.options[projectEl.selectedIndex]?.text || projectEl.value || '').replace('-- เลือกหรือเพิ่มโครงการ --','').trim()
-    : '';
+  const projectId = projectEl?.value || '';
+  const project = projectId
+    ? (projectListCache.find(p=>p.id===projectId)?.Title || document.getElementById('f_project_input')?.value || '').trim()
+    : (document.getElementById('f_project_input')?.value || '').trim();
   if (!name || !project) { showToast('⚠️', 'กรุณากรอกชื่อโครงการให้ครบ'); return; }
 
   // ── Revision validation ──
@@ -3190,9 +3291,10 @@ async function doSubmitRequest() {
   const name    = nameEl ? nameEl.value.trim() : (currentUser?.name || '');
   let dept = deptEl ? deptEl.value.trim() : '';
   if (dept === 'other') dept = document.getElementById('f_dept_other')?.value.trim() || '';
-  const project = projectEl
-    ? (projectEl.options[projectEl.selectedIndex]?.text || projectEl.value || '').replace('-- เลือกหรือเพิ่มโครงการ --','').trim()
-    : '';
+  const projectId2 = projectEl?.value || '';
+  const project = projectId2
+    ? (projectListCache.find(p=>p.id===projectId2)?.Title || document.getElementById('f_project_input')?.value || '').trim()
+    : (document.getElementById('f_project_input')?.value || '').trim();
 
   try {
     // ── เลขคำร้อง: Revision ใช้ Rev.XX ต่อท้าย ──
@@ -3274,7 +3376,7 @@ async function doSubmitRequest() {
         isRev ? `🔗 <b>อ้างอิงจาก:</b> ${revisionRefData?.Title||'—'}` : '',
         `📦 <b>ประเภท:</b> ${selectedType}`,
         `🏗️ <b>โครงการ:</b> ${project}`,
-        `📐 <b>หมวด Drawing:</b> ${document.getElementById('f_drawing_category')?.options[document.getElementById('f_drawing_category')?.selectedIndex]?.text || '—'}`,
+        `📐 <b>หมวด Drawing:</b> ${document.getElementById('f_drawing_category')?.value || '—'}`,
         `👤 <b>ผู้ส่ง:</b> ${name}`,
         `🏢 <b>แผนก:</b> ${dept}`,
         `⚡ <b>ความเร่งด่วน:</b> ${urgency}`,
@@ -3315,7 +3417,13 @@ function resetForm() {
     const el = document.getElementById(id);
     if (el && !el.readOnly) el.value = '';
   });
-  const catEl = document.getElementById('f_drawing_category'); if(catEl) catEl.selectedIndex = 0;
+  // reset project autocomplete
+  const projInp = document.getElementById('f_project_input'); if(projInp) projInp.value = '';
+  const projHid = document.getElementById('f_project'); if(projHid) projHid.value = '';
+  const projDd  = document.getElementById('f_project_dropdown'); if(projDd) projDd.style.display = 'none';
+  // reset category cards → ทั้งหมด
+  document.querySelectorAll('.cat-card').forEach((c,i) => { c.classList.toggle('active', i===0); });
+  const catHid = document.getElementById('f_drawing_category'); if(catHid) catHid.value = '';
   const newDNCatEl = document.getElementById('newDrawingNumberCategory'); if(newDNCatEl) newDNCatEl.selectedIndex = 0;
   const newDNmCatEl = document.getElementById('newDrawingNameCategory'); if(newDNmCatEl) newDNmCatEl.selectedIndex = 0;
   // reset dropdowns
