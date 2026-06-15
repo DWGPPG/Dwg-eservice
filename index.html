@@ -983,6 +983,40 @@ tr:hover td { background: var(--sky); }
         </div>
       </div>
     </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>ชื่อ-นามสกุล <span class="req">*</span></label>
+          <input type="text" id="f_name" placeholder="กรอกชื่อ-นามสกุล">
+        </div>
+        <div class="field">
+          <label>ฝ่าย / แผนก <span class="req">*</span></label>
+          <select id="f_dept" onchange="toggleDeptOther(this.value)">
+            <option value="">-- เลือกฝ่าย/แผนก --</option>
+            <option>ฝ่ายขายและการตลาด</option>
+            <option>ฝ่ายวิศวกรรมและพัฒนาโครงการ</option>
+            <option>ฝ่ายเขียนแบบ</option>
+            <option>ฝ่ายจัดซื้อและคลังสินค้า</option>
+            <option>ฝ่ายขออนุญาตและใบอนุญาต</option>
+            <option>ฝ่ายบริหารโครงการ</option>
+            <option>ฝ่ายควบคุมการเดินระบบและบำรุงรักษา</option>
+            <option>ฝ่ายความปลอดภัย อาชีวอนามัย และสิ่งแวดล้อม</option>
+            <option>ฝ่ายบัญชีและการเงิน</option>
+            <option>ฝ่ายทรัพยากรบุคคล</option>
+            <option>ฝ่ายประสานงานและอำนวยการ</option>
+            <option>ฝ่ายระบบบริหารคุณภาพ</option>
+            <option value="other">อื่นๆ โปรดระบุ</option>
+          </select>
+          <div id="deptOtherWrap" style="display:none;margin-top:8px">
+            <input type="text" id="f_dept_other" placeholder="กรุณาระบุชื่อฝ่าย/แผนก">
+          </div>
+        </div>
+        <div class="field span2">
+          <label>อีเมล</label>
+          <input type="email" id="f_email" readonly>
+        </div>
+      </div>
+
     <!-- ── Construction / As-Built Panel ── -->
     <div id="constructionPanel" style="display:none">
       <!-- Project info card -->
@@ -1006,7 +1040,7 @@ tr:hover td { background: var(--sky); }
               <div id="cp_project_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:2px"></div>
             </div>
             <button type="button" class="btn-sec-sm" onclick="clearCpProject()" title="ล้างค่า">✕</button>
-            <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">
+            <button type="button" class="btn-add-sm" onclick="openCpAddProject()" title="เพิ่มโครงการใหม่พร้อม Drawing">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
@@ -1081,38 +1115,6 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
     <!-- /Construction Panel -->
-      <div class="form-grid">
-        <div class="field">
-          <label>ชื่อ-นามสกุล <span class="req">*</span></label>
-          <input type="text" id="f_name" placeholder="กรอกชื่อ-นามสกุล">
-        </div>
-        <div class="field">
-          <label>ฝ่าย / แผนก <span class="req">*</span></label>
-          <select id="f_dept" onchange="toggleDeptOther(this.value)">
-            <option value="">-- เลือกฝ่าย/แผนก --</option>
-            <option>ฝ่ายขายและการตลาด</option>
-            <option>ฝ่ายวิศวกรรมและพัฒนาโครงการ</option>
-            <option>ฝ่ายเขียนแบบ</option>
-            <option>ฝ่ายจัดซื้อและคลังสินค้า</option>
-            <option>ฝ่ายขออนุญาตและใบอนุญาต</option>
-            <option>ฝ่ายบริหารโครงการ</option>
-            <option>ฝ่ายควบคุมการเดินระบบและบำรุงรักษา</option>
-            <option>ฝ่ายความปลอดภัย อาชีวอนามัย และสิ่งแวดล้อม</option>
-            <option>ฝ่ายบัญชีและการเงิน</option>
-            <option>ฝ่ายทรัพยากรบุคคล</option>
-            <option>ฝ่ายประสานงานและอำนวยการ</option>
-            <option>ฝ่ายระบบบริหารคุณภาพ</option>
-            <option value="other">อื่นๆ โปรดระบุ</option>
-          </select>
-          <div id="deptOtherWrap" style="display:none;margin-top:8px">
-            <input type="text" id="f_dept_other" placeholder="กรุณาระบุชื่อฝ่าย/แผนก">
-          </div>
-        </div>
-        <div class="field span2">
-          <label>อีเมล</label>
-          <input type="email" id="f_email" readonly>
-        </div>
-      </div>
     </div>
     <div id="mainProjectForm">
     <div class="card">
@@ -1901,6 +1903,71 @@ tr:hover td { background: var(--sky); }
   <span id="toastMsg">สำเร็จ</span>
 </div>
 
+<!-- CP Add Project Modal -->
+<div class="modal-overlay" id="cpAddProjectModal" onclick="if(event.target===this)closeCpAddProject()">
+  <div class="modal" style="max-width:560px;width:95vw;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:16px;font-weight:700;color:var(--navy)">➕ เพิ่มโครงการใหม่</div>
+      <button onclick="closeCpAddProject()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400)">✕</button>
+    </div>
+    <div class="form-grid" style="margin-bottom:16px">
+      <div class="field span2">
+        <label>ชื่อโครงการ / Project Code <span class="req">*</span></label>
+        <input type="text" id="cpap_name" placeholder="เช่น BEMV, TMAT, SCGP (แนะนำ 4 ตัวอักษร)">
+      </div>
+      <div class="field">
+        <label>ขนาด Solar (kWp)</label>
+        <input type="text" id="cpap_kwp" placeholder="เช่น 500">
+      </div>
+      <div class="field">
+        <label>ที่ตั้ง (Google Maps link)</label>
+        <input type="text" id="cpap_loc" placeholder="วาง link...">
+      </div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--gray-500);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Drawing Number + Drawing Name (กรอกถ้ามี)</div>
+
+    <div style="margin-bottom:12px">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#f3f4f6;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px">📐 General</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input type="text" id="cpap_no_General_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+        <input type="text" id="cpap_nm_General_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#ede9fe;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:6px">🏛️ Architectural</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input type="text" id="cpap_no_Architectural_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+        <input type="text" id="cpap_nm_Architectural_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#dcfce7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#15803d;margin-bottom:6px">🏗️ Structural</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input type="text" id="cpap_no_Structural_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+        <input type="text" id="cpap_nm_Structural_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#dbeafe;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#1d4ed8;margin-bottom:6px">⚡ Electrical</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input type="text" id="cpap_no_Electrical_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+        <input type="text" id="cpap_nm_Electrical_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border-radius:99px;padding:4px 12px;font-size:12px;font-weight:600;color:#b45309;margin-bottom:6px">⚙️ Mechanical</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <input type="text" id="cpap_no_Mechanical_Drawing" placeholder="Drawing Number" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+        <input type="text" id="cpap_nm_Mechanical_Drawing" placeholder="Drawing Name" style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--gray-200)">
+      <button class="btn btn-secondary" onclick="closeCpAddProject()">ยกเลิก</button>
+      <button class="btn btn-primary" id="cpapSaveBtn" onclick="saveCpNewProject()">✅ บันทึกโครงการ</button>
+    </div>
+  </div>
+</div>
 <!-- Manage kWp Modal -->
 <div class="modal-overlay" id="manageKwpModal" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal" style="max-width:420px">
@@ -2595,6 +2662,62 @@ function selectCpDwg(no, name, cat) {
   cpSelectedDwgNo   = no;
   cpSelectedDwgName = name;
   renderCpDrawings();
+}
+
+// ── CP Add Project Popup ──
+function openCpAddProject() {
+  ['cpap_name','cpap_kwp','cpap_loc',
+   'cpap_no_General_Drawing','cpap_nm_General_Drawing',
+   'cpap_no_Architectural_Drawing','cpap_nm_Architectural_Drawing',
+   'cpap_no_Structural_Drawing','cpap_nm_Structural_Drawing',
+   'cpap_no_Electrical_Drawing','cpap_nm_Electrical_Drawing',
+   'cpap_no_Mechanical_Drawing','cpap_nm_Mechanical_Drawing',
+  ].forEach(id => { const el = document.getElementById(id); if(el) el.value = ''; });
+  document.getElementById('cpAddProjectModal').classList.add('show');
+  setTimeout(() => document.getElementById('cpap_name')?.focus(), 100);
+}
+function closeCpAddProject() {
+  document.getElementById('cpAddProjectModal').classList.remove('show');
+}
+async function saveCpNewProject() {
+  const name = document.getElementById('cpap_name')?.value.trim();
+  if (!name) { showToast('⚠️','กรุณาใส่ชื่อโครงการ'); return; }
+  const btn = document.getElementById('cpapSaveBtn');
+  btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+  try {
+    const kwp = document.getElementById('cpap_kwp')?.value.trim() || '';
+    const loc = document.getElementById('cpap_loc')?.value.trim() || '';
+    const projFields = { Title: name };
+    if (kwp) { projFields.DefaultKwp = kwp; projFields.SolarKwp = kwp; }
+    if (loc) projFields.DefaultLocation = loc.slice(0, 255);
+    const projRes = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields: projFields });
+    projectListCache.push({ id: projRes.id, Title: name, DefaultKwp: kwp, SolarKwp: kwp, DefaultLocation: loc });
+
+    const cats = [
+      { key: 'General_Drawing',       cat: 'General Drawing' },
+      { key: 'Architectural_Drawing', cat: 'Architectural Drawing' },
+      { key: 'Structural_Drawing',    cat: 'Structural Drawing' },
+      { key: 'Electrical_Drawing',    cat: 'Electrical Drawing' },
+      { key: 'Mechanical_Drawing',    cat: 'Mechanical Drawing' },
+    ];
+    for (const { key, cat } of cats) {
+      const no = document.getElementById(`cpap_no_${key}`)?.value.trim();
+      const nm = document.getElementById(`cpap_nm_${key}`)?.value.trim();
+      if (no && spDrawingNumberListId) {
+        const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
+        if (nm) dwgFields.DrawingName = nm;
+        const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
+        drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm || '' });
+      }
+    }
+    closeCpAddProject();
+    selectCpProject(projRes.id, name);
+    showToast('✅', `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว`);
+  } catch(e) {
+    showToast('❌','บันทึกไม่สำเร็จ: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '✅ บันทึกโครงการ';
+  }
 }
 
 // ── Reset Construction Panel ──
