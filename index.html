@@ -1081,7 +1081,6 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
     <!-- /Construction Panel -->
-    <div id="mainProjectForm">
       <div class="form-grid">
         <div class="field">
           <label>ชื่อ-นามสกุล <span class="req">*</span></label>
@@ -1115,6 +1114,7 @@ tr:hover td { background: var(--sky); }
         </div>
       </div>
     </div>
+    <div id="mainProjectForm">
     <div class="card">
       <div class="card-title">รายละเอียดโครงการ</div>
       <div class="form-grid">
@@ -3340,7 +3340,7 @@ function selectType(el, icon, label, isRevision = false) {
   el.classList.add('selected');
   selectedType = icon + ' ' + label;
   isRevisionMode    = !!isRevision;
-  isConstructionMode = label.includes('ก่อสร้าง') || label.includes('As-Built');
+  isConstructionMode = label === 'เขียนแบบก่อสร้าง' || label === 'As-Built Drawing';
 
   // Revision panel
   const revPanel = document.getElementById('revisionPanel');
