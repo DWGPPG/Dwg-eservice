@@ -1114,6 +1114,26 @@ tr:hover td { background: var(--sky); }
         </div>
       </div>
     </div>
+
+      <!-- แนบเอกสาร / แบบ -->
+      <div class="card">
+        <div class="card-title">แนบเอกสาร / แบบ</div>
+        <div class="file-drop" id="cpFileDrop" onclick="document.getElementById('cpFileInput').click()">
+          <div style="font-size:28px;margin-bottom:8px">📎</div>
+          <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
+          <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 1GB</p>
+        </div>
+        <input type="file" id="cpFileInput" multiple accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.dwf,.ifc,.rvt" style="display:none" onchange="handleFiles(this.files)">
+        <div class="file-list" id="cpFileList"></div>
+        <div class="form-actions" style="margin-top:16px">
+          <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
+          <button class="btn btn-primary" id="cpSubmitBtn" onclick="submitCpRequest()">
+            <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ส่งคำร้อง
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- /Construction Panel -->
     <div id="mainProjectForm">
     <div class="card">
@@ -1313,17 +1333,6 @@ tr:hover td { background: var(--sky); }
         </button>
       </div>
     </div><!-- /mainProjectForm -->
-
-    <!-- Construction Submit Button -->
-    <div id="cpSubmitArea" style="display:none;margin-top:8px">
-      <div class="form-actions">
-        <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
-        <button class="btn btn-primary" id="cpSubmitBtn" onclick="submitCpRequest()">
-          <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          ส่งคำร้อง
-        </button>
-      </div>
-    </div>
     </div>
   </div>
 
@@ -3512,8 +3521,6 @@ function selectType(el, icon, label, isRevision = false) {
 
   // Construction/As-Built panel
   showConstructionPanel(isConstructionMode);
-  const cpSubmit = document.getElementById('cpSubmitArea');
-  if (cpSubmit) cpSubmit.style.display = isConstructionMode ? '' : 'none';
   if (isConstructionMode) resetConstructionPanel();
 }
 
@@ -3662,25 +3669,26 @@ function handleFiles(files) {
 }
 
 function renderFiles() {
-  document.getElementById('fileList').innerHTML = selectedFiles.map((f,i) => `
+  const html = selectedFiles.map((f,i) => `
     <div class="file-item">
       <span>📄</span><span>${f.name}</span>
       <span style="color:var(--gray-400);margin-left:4px;font-size:11px">${(f.size/1024/1024).toFixed(1)} MB</span>
       <span class="file-remove" onclick="removeFile(${i})">×</span>
     </div>`).join('');
+  const el  = document.getElementById('fileList');
+  const cel = document.getElementById('cpFileList');
+  if (el)  el.innerHTML  = html;
+  if (cel) cel.innerHTML = html;
 }
 function removeFile(i) { selectedFiles.splice(i,1); renderFiles(); }
 
 // ── DRAG & DROP ──
-const dropZone = document.getElementById('fileDrop');
-if (dropZone) {
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--sun)'; });
-  dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; });
-  dropZone.addEventListener('drop', e => {
-    e.preventDefault(); dropZone.style.borderColor = '';
-    handleFiles(e.dataTransfer.files);
-  });
-}
+[document.getElementById('fileDrop'), document.getElementById('cpFileDrop')].forEach(dz => {
+  if (!dz) return;
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.style.borderColor = 'var(--sun)'; });
+  dz.addEventListener('dragleave', () => { dz.style.borderColor = ''; });
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.style.borderColor = ''; handleFiles(e.dataTransfer.files); });
+});
 
 function toggleDeptOther(val) {
   const wrap = document.getElementById('deptOtherWrap');
