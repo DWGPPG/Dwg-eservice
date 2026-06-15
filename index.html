@@ -3221,9 +3221,8 @@ async function doSubmitRequest() {
       Department:   dept,
       SenderName:   name || currentUser.name || currentUser.username.split('@')[0],
       SenderEmail:  currentUser.username,
-      Location:     location,
       DataLink:     datalink,
-      SolarKwp:      document.getElementById('f_kwp')?.value || '',
+      SolarKwp:     document.getElementById('f_kwp')?.value || '',
       DrawingNumber: document.getElementById('f_drawing_number')?.value || '',
       DrawingName:   document.getElementById('f_drawing_name')?.value || '',
       DrawingCategory: document.getElementById('f_drawing_category')?.value || '',
@@ -3232,12 +3231,18 @@ async function doSubmitRequest() {
       Detail:       detail,
       Status:       'pending',
       SubmittedAt:  now,
-      // ── Revision fields ──
       RevisionReason: revisionReason,
       RefRequestId:   refRequestId,
       IsRevision:     isRevisionMode ? 'Yes' : 'No',
     };
+    // Location — ตัดให้ไม่เกิน 255 ตัวอักษร (SharePoint Single line limit)
+    if (location) createData.Location = location.slice(0, 255);
     if (due) createData.DueDate = new Date(due).toISOString();
+
+    // ลบ field ที่เป็น empty string ออก เพื่อป้องกัน SharePoint ปฏิเสธ field ที่ไม่มีอยู่
+    Object.keys(createData).forEach(k => {
+      if (createData[k] === '') delete createData[k];
+    });
 
     const item = await spCreateItem(createData);
 
