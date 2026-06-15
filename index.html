@@ -297,7 +297,41 @@ body.dark .edit-modal { background:#1e2530; }
 
 .modal-box { background:var(--white);border-radius:var(--radius-lg);box-shadow:0 20px 60px rgba(0,0,0,.25); }
 body.dark .modal-box { background:#1e2530; }
-/* ── Category Icon Cards ── */
+/* ── Construction/As-Built Panel ── */
+.proj-info-card { background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px 16px;margin-top:8px;display:none; }
+.proj-info-card.show { display:block; }
+.proj-info-grid { display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px; }
+.proj-info-row { display:flex;gap:8px;align-items:flex-start;padding:3px 0; }
+.proj-info-label { min-width:80px;color:var(--gray-500);font-weight:500;flex-shrink:0; }
+.proj-info-val { color:var(--gray-700);word-break:break-all; }
+
+.cat-pill-wrap { display:flex;gap:8px;flex-wrap:wrap;margin:10px 0; }
+.cat-pill { padding:6px 16px;border-radius:99px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--gray-200);background:var(--gray-100);color:var(--gray-500);font-family:var(--font);transition:all .15s; }
+.cat-pill:hover { border-color:var(--sun);color:var(--sun-dark);background:var(--sun-light); }
+.cat-pill.active-e { background:#ebf4ff;border-color:#4299e1;color:#2b6cb0; }
+.cat-pill.active-c { background:#fffaf0;border-color:#dd8a1a;color:#7b4f00; }
+.cat-pill.active-s { background:#f0fff4;border-color:#38a169;color:#276749; }
+.cat-pill.active-m { background:#fdf4ff;border-color:#9f7aea;color:#553c9a; }
+.cat-pill.active-g { background:var(--gray-100);border-color:var(--gray-400);color:var(--gray-700); }
+
+.dwg-table-wrap { overflow-x:auto;margin-top:8px; }
+.dwg-table { width:100%;border-collapse:collapse;font-size:12px; }
+.dwg-table thead tr { background:var(--navy);color:#fff; }
+.dwg-table th { padding:8px 12px;text-align:left;font-weight:600;font-size:11px; }
+.dwg-table td { padding:8px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle; }
+.dwg-table tr.dwg-sel td { background:#f0fdf4;border-color:#86efac; }
+.dwg-table tr:hover td { background:var(--gray-50); }
+.dwg-no { font-family:var(--mono);font-weight:600;font-size:12px; }
+.dwg-badge { font-size:10px;padding:1px 7px;border-radius:99px;font-weight:600;display:inline-block;margin-left:4px; }
+.dwg-badge-e { background:#ebf4ff;color:#2b6cb0; }
+.dwg-badge-c { background:#fffaf0;color:#7b4f00; }
+.dwg-badge-s { background:#f0fff4;color:#276749; }
+.dwg-badge-m { background:#fdf4ff;color:#553c9a; }
+.dwg-badge-g { background:var(--gray-100);color:var(--gray-600); }
+body.dark .proj-info-card { background:#0a3320;border-color:#166534; }
+body.dark .dwg-table thead tr { background:#0f2d52; }
+body.dark .dwg-table td { border-color:var(--gray-200); }
+body.dark .dwg-table tr.dwg-sel td { background:#0a3320; }
 .cat-card {
   display:flex;flex-direction:column;align-items:center;gap:4px;
   padding:8px 12px;border-radius:10px;border:2px solid var(--gray-200);
@@ -949,8 +983,105 @@ tr:hover td { background: var(--sky); }
         </div>
       </div>
     </div>
-    <div class="card">
-      <div class="card-title">ข้อมูลผู้ส่ง</div>
+    <!-- ── Construction / As-Built Panel ── -->
+    <div id="constructionPanel" style="display:none">
+      <!-- Project info card -->
+      <div class="card">
+        <div class="card-title">🏗️ รายละเอียดโครงการ</div>
+
+        <!-- Autocomplete โครงการ (ซ้ำ แต่ผูก Panel นี้) -->
+        <div class="field">
+          <label>ชื่อโครงการ <span class="req">*</span>
+            <span style="font-size:11px;color:var(--gray-400);font-weight:400"> — ใช้ Project Code 4 ตัวอักษร เช่น BEMV, TMAT</span>
+          </label>
+          <div class="combo-wrap">
+            <div style="flex:1;position:relative">
+              <input type="text" id="cp_project_input" placeholder="พิมพ์เพื่อค้นหาโครงการ..."
+                oninput="onCpProjectSearch(this.value)"
+                onfocus="onCpProjectSearch(this.value)"
+                onblur="setTimeout(()=>{const d=document.getElementById('cp_project_dropdown');if(d)d.style.display='none'},200)"
+                autocomplete="off"
+                style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+              <input type="hidden" id="cp_project">
+              <div id="cp_project_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:2px"></div>
+            </div>
+            <button type="button" class="btn-sec-sm" onclick="clearCpProject()" title="ล้างค่า">✕</button>
+            <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Project info card -->
+        <div class="proj-info-card" id="cp_proj_info">
+          <div class="proj-info-grid">
+            <div class="proj-info-row"><span class="proj-info-label">⚡ kWp:</span><span class="proj-info-val" id="cp_info_kwp">—</span></div>
+            <div class="proj-info-row"><span class="proj-info-label">📍 ที่ตั้ง:</span><span class="proj-info-val" id="cp_info_loc">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drawing selector -->
+      <div class="card">
+        <div class="card-title">📐 เลือก Drawing</div>
+
+        <!-- Category pills -->
+        <div class="cat-pill-wrap" id="cp_cat_pills">
+          <button class="cat-pill active-g" data-cpcat="" onclick="selectCpCat(this,'')">🗂️ ทั้งหมด</button>
+          <button class="cat-pill" data-cpcat="General Drawing" onclick="selectCpCat(this,'General Drawing')">📐 General</button>
+          <button class="cat-pill" data-cpcat="Architectural Drawing" onclick="selectCpCat(this,'Architectural Drawing')">🏛️ Arch</button>
+          <button class="cat-pill" data-cpcat="Structural Drawing" onclick="selectCpCat(this,'Structural Drawing')">🏗️ Structural</button>
+          <button class="cat-pill" data-cpcat="Electrical Drawing" onclick="selectCpCat(this,'Electrical Drawing')">⚡ Electrical</button>
+          <button class="cat-pill" data-cpcat="Mechanical Drawing" onclick="selectCpCat(this,'Mechanical Drawing')">⚙️ Mechanical</button>
+        </div>
+
+        <!-- Drawing table -->
+        <div class="dwg-table-wrap">
+          <table class="dwg-table">
+            <thead><tr>
+              <th style="width:32px"></th>
+              <th>Drawing Number</th>
+              <th>Drawing Name</th>
+            </tr></thead>
+            <tbody id="cp_dwg_tbody">
+              <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gray-400)">เลือกโครงการก่อนครับ</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="cp_no_dwg" style="display:none;font-size:12px;color:var(--gray-400);padding:12px 0;text-align:center">ไม่มี Drawing ในหมวดนี้ — กด + เพิ่มใหม่ได้เลย</div>
+      </div>
+
+      <!-- Revise Number + ที่ตั้ง + ลิงก์ -->
+      <div class="card">
+        <div class="card-title">📋 รายละเอียดเพิ่มเติม</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Revise Number</label>
+            <input type="text" id="cp_revise" placeholder="เช่น R0, R1, A, B">
+          </div>
+          <div class="field">
+            <label>วันที่ต้องการรับงาน</label>
+            <input type="date" id="cp_duedate">
+          </div>
+          <div class="field">
+            <label>ระดับความเร่งด่วน</label>
+            <select id="cp_urgent">
+              <option>ปกติ</option><option>เร่งด่วน</option><option>เร่งด่วนมาก</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>แนบลิงก์ข้อมูล</label>
+            <input type="text" id="cp_datalink" placeholder="Link Google Drive, OneDrive...">
+          </div>
+          <div class="field span2">
+            <label>รายละเอียดเพิ่มเติม</label>
+            <textarea id="cp_detail" rows="3" placeholder="อธิบายรายละเอียดงาน ข้อกำหนดพิเศษ..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- /Construction Panel -->
+    <div id="mainProjectForm">
       <div class="form-grid">
         <div class="field">
           <label>ชื่อ-นามสกุล <span class="req">*</span></label>
@@ -1180,6 +1311,18 @@ tr:hover td { background: var(--sky); }
           ส่งคำร้อง
         </button>
       </div>
+    </div><!-- /mainProjectForm -->
+
+    <!-- Construction Submit Button -->
+    <div id="cpSubmitArea" style="display:none;margin-top:8px">
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
+        <button class="btn btn-primary" id="cpSubmitBtn" onclick="submitCpRequest()">
+          <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ส่งคำร้อง
+        </button>
+      </div>
+    </div>
     </div>
   </div>
 
@@ -2338,7 +2481,137 @@ async function unhideProject(id) {
   } catch(e) { showToast('❌', 'แก้ไขไม่สำเร็จ: ' + e.message); }
 }
 
-// ── ข้อ 4: Autocomplete ชื่อโครงการ ──
+// ── Construction / As-Built Panel ──
+let cpSelectedProjId = '';
+let cpSelectedCat    = '';
+let cpSelectedDwgNo  = '';
+let cpSelectedDwgName = '';
+
+function showConstructionPanel(show) {
+  const panel = document.getElementById('constructionPanel');
+  const mainForm = document.getElementById('mainProjectForm');
+  if (panel) panel.style.display = show ? '' : 'none';
+  if (mainForm) mainForm.style.display = show ? 'none' : '';
+}
+
+function onCpProjectSearch(q) {
+  const dd = document.getElementById('cp_project_dropdown');
+  if (!dd) return;
+  const filtered = projectListCache
+    .filter(p => !p.IsHidden)
+    .filter(p => !q || (p.Title||'').toLowerCase().includes(q.toLowerCase()));
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.map(p => `
+    <div class="ac-item" onmousedown="selectCpProject('${p.id}','${(p.Title||'').replace(/'/g,"\\'")}')">
+      <span>${p.Title||''}</span>
+      <span class="ac-badge">${p.DefaultKwp||p.SolarKwp||''}</span>
+    </div>`).join('');
+  dd.style.display = 'block';
+}
+
+function selectCpProject(id, title) {
+  cpSelectedProjId = id;
+  cpSelectedDwgNo  = '';
+  cpSelectedDwgName = '';
+  document.getElementById('cp_project').value = id;
+  document.getElementById('cp_project_input').value = title;
+  document.getElementById('cp_project_dropdown').style.display = 'none';
+  // แสดง info card
+  const proj = projectListCache.find(p => p.id === id);
+  if (proj) {
+    const kwp = proj.DefaultKwp || proj.SolarKwp || '—';
+    const loc  = proj.DefaultLocation || '—';
+    document.getElementById('cp_info_kwp').textContent = kwp;
+    const locEl = document.getElementById('cp_info_loc');
+    locEl.innerHTML = loc !== '—' && loc.startsWith('http')
+      ? `<a href="${loc}" target="_blank" style="color:var(--info);word-break:break-all">เปิดแผนที่ 📍</a>`
+      : loc;
+    document.getElementById('cp_proj_info').classList.add('show');
+  }
+  renderCpDrawings();
+}
+
+function clearCpProject() {
+  cpSelectedProjId = ''; cpSelectedDwgNo = ''; cpSelectedDwgName = '';
+  document.getElementById('cp_project').value = '';
+  document.getElementById('cp_project_input').value = '';
+  document.getElementById('cp_project_dropdown').style.display = 'none';
+  document.getElementById('cp_proj_info').classList.remove('show');
+  renderCpDrawings();
+}
+
+function selectCpCat(el, cat) {
+  document.querySelectorAll('.cat-pill').forEach(p => {
+    p.className = 'cat-pill';
+  });
+  const clsMap = { 'General Drawing':'active-g','Architectural Drawing':'active-g',
+    'Structural Drawing':'active-s','Electrical Drawing':'active-e','Mechanical Drawing':'active-m','' :'active-g' };
+  el.className = 'cat-pill ' + (clsMap[cat]||'active-g');
+  cpSelectedCat = cat;
+  cpSelectedDwgNo = ''; cpSelectedDwgName = '';
+  renderCpDrawings();
+}
+
+function renderCpDrawings() {
+  const tbody = document.getElementById('cp_dwg_tbody');
+  const noMsg = document.getElementById('cp_no_dwg');
+  if (!tbody) return;
+  if (!cpSelectedProjId) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gray-400)">เลือกโครงการก่อนครับ</td></tr>';
+    if (noMsg) noMsg.style.display = 'none';
+    return;
+  }
+  const proj = projectListCache.find(p => p.id === cpSelectedProjId);
+  const projName = proj?.Title || '';
+  const items = drawingNumberCache
+    .filter(d => !d.IsHidden)
+    .filter(d => !projName || !d.ProjectName || d.ProjectName === projName)
+    .filter(d => !cpSelectedCat || !d.DrawingCategory || d.DrawingCategory === cpSelectedCat);
+
+  if (!items.length) {
+    tbody.innerHTML = '';
+    if (noMsg) noMsg.style.display = '';
+    return;
+  }
+  if (noMsg) noMsg.style.display = 'none';
+  const badgeClass = { 'Electrical Drawing':'dwg-badge-e','Structural Drawing':'dwg-badge-s',
+    'Mechanical Drawing':'dwg-badge-m','Architectural Drawing':'dwg-badge-g','General Drawing':'dwg-badge-g' };
+  tbody.innerHTML = items.map(d => {
+    const safeNo   = (d.Title||'').replace(/'/g,'&#39;');
+    const safeName = (d.DrawingName||'').replace(/'/g,'&#39;');
+    const safeCat  = (d.DrawingCategory||'').replace(/'/g,'&#39;');
+    const isSelected = cpSelectedDwgNo === d.Title;
+    const bc = badgeClass[d.DrawingCategory] || 'dwg-badge-g';
+    const catShort = (d.DrawingCategory||'').replace(' Drawing','');
+    return `<tr class="${isSelected?'dwg-sel':''}" onclick="selectCpDwg('${safeNo}','${safeName}','${safeCat}')" style="cursor:pointer">
+      <td><input type="radio" name="cp_dwg_radio" ${isSelected?'checked':''} style="accent-color:#0DB14B;width:15px;height:15px"></td>
+      <td><span class="dwg-no">${d.Title||'—'}</span>${d.DrawingCategory?`<span class="dwg-badge ${bc}">${catShort}</span>`:''}</td>
+      <td style="color:var(--gray-600)">${d.DrawingName||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function selectCpDwg(no, name, cat) {
+  cpSelectedDwgNo   = no;
+  cpSelectedDwgName = name;
+  renderCpDrawings();
+}
+
+// ── Reset Construction Panel ──
+function resetConstructionPanel() {
+  cpSelectedProjId = ''; cpSelectedCat = ''; cpSelectedDwgNo = ''; cpSelectedDwgName = '';
+  const inp = document.getElementById('cp_project_input'); if(inp) inp.value='';
+  const hid = document.getElementById('cp_project'); if(hid) hid.value='';
+  const dd  = document.getElementById('cp_project_dropdown'); if(dd) dd.style.display='none';
+  const info= document.getElementById('cp_proj_info'); if(info) info.classList.remove('show');
+  ['cp_revise','cp_datalink','cp_detail'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const due = document.getElementById('cp_duedate'); if(due) due.value='';
+  const urg = document.getElementById('cp_urgent'); if(urg) urg.value='ปกติ';
+  // reset category pills
+  document.querySelectorAll('.cat-pill').forEach((p,i)=>{ p.className='cat-pill'+(i===0?' active-g':''); });
+  cpSelectedCat='';
+  renderCpDrawings();
+}
 function onProjectSearch(q) {
   const dd = document.getElementById('f_project_dropdown');
   if (!dd) return;
@@ -2374,7 +2647,87 @@ function selectDrawingCategory(el, cat) {
   onDrawingCategorySelect(cat);
 }
 
-// ── ข้อ 1: แก้ onProjectSelect ให้ดึง DefaultKwp หรือ SolarKwp ──
+async function submitCpRequest() {
+  // Validate
+  if (!cpSelectedProjId) { showToast('⚠️','กรุณาเลือกโครงการ'); return; }
+  if (!cpSelectedDwgNo)  { showToast('⚠️','กรุณาเลือก Drawing Number จากตาราง'); return; }
+
+  const btn = document.getElementById('cpSubmitBtn');
+  if (btn.dataset.submitting === 'true') { showToast('⏳','กำลังส่งอยู่...'); return; }
+  btn.dataset.submitting = 'true'; btn.classList.add('btn-loading'); btn.disabled = true;
+
+  try {
+    const proj     = projectListCache.find(p=>p.id===cpSelectedProjId);
+    const projName = proj?.Title || '';
+    const refNo    = await genRefNumber();
+    const now      = new Date().toISOString();
+    const due      = document.getElementById('cp_duedate')?.value || '';
+    const nameEl   = document.getElementById('f_name');
+    const deptEl   = document.getElementById('f_dept');
+    const name     = nameEl?.value || currentUser?.name || '';
+    const dept     = deptEl?.value || '';
+
+    const createData = {
+      Title:          refNo,
+      ProjectName:    selectedType,
+      ProjectName0:   projName,
+      Department:     dept,
+      SenderName:     name,
+      SenderEmail:    currentUser.username,
+      SolarKwp:       proj?.DefaultKwp || proj?.SolarKwp || '',
+      DrawingNumber:  cpSelectedDwgNo,
+      DrawingName:    cpSelectedDwgName,
+      DrawingCategory: cpSelectedCat,
+      ReviseNumber:   document.getElementById('cp_revise')?.value || '',
+      DataLink:       document.getElementById('cp_datalink')?.value || '',
+      Detail:         document.getElementById('cp_detail')?.value || '',
+      Urgency:        document.getElementById('cp_urgent')?.value || 'ปกติ',
+      Status:         'pending',
+      SubmittedAt:    now,
+      IsRevision:     'No',
+    };
+    if (due) createData.DueDate = new Date(due).toISOString();
+    // ลบ empty string
+    Object.keys(createData).forEach(k => { if (createData[k] === '') delete createData[k]; });
+
+    await spCreateItem(createData);
+
+    // Teams notification
+    try {
+      const chatId = CONFIG.drawingTeamChatId;
+      const thaiDate = new Date(now).toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      if (chatId) {
+        const lines = [
+          `📋 <b>คำร้องใหม่เข้ามาแล้ว!</b>`,
+          `🔖 <b>เลขที่:</b> ${refNo}`,
+          `📦 <b>ประเภท:</b> ${selectedType}`,
+          `🏗️ <b>โครงการ:</b> ${projName}`,
+          `📐 <b>Drawing:</b> ${cpSelectedDwgNo} — ${cpSelectedDwgName}`,
+          `👤 <b>ผู้ส่ง:</b> ${name}`,
+          `📅 <b>วันที่ส่ง:</b> ${thaiDate}`,
+          ``,
+          `<a href="${CONFIG.redirectUri}">🖥️ เข้าระบบตรวจสอบ</a>`,
+        ].filter(Boolean);
+        await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+          body: JSON.stringify({body:{contentType:'html',content:lines.join('<br>')}})
+        });
+      }
+    } catch(te) { console.warn('Teams notify failed:', te.message); }
+
+    showToast('✅', `ส่งคำร้อง ${refNo} สำเร็จ!`);
+    resetConstructionPanel();
+    // กลับไป type card แรก
+    selectType(document.querySelector('.type-card'), '📋', 'เขียนแบบ Proposal');
+    document.querySelector('.type-card').classList.add('selected');
+
+  } catch(e) {
+    showToast('❌','เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    btn.dataset.submitting = 'false'; btn.classList.remove('btn-loading'); btn.disabled = false;
+  }
+}
 function onProjectSelect(val) {
   if (!val) { renderDrawingNumberSelect(); renderDrawingNameSelect(); return; }
   const proj = projectListCache.find(p => p.id === val);
@@ -2979,26 +3332,26 @@ async function genRefNumber() {
 
 // ── PAGE: SUBMIT ──
 let isRevisionMode = false;
-let revisionRefData = null; // ข้อมูลคำร้องอ้างอิง
+let revisionRefData = null;
+let isConstructionMode = false;
 
 function selectType(el, icon, label, isRevision = false) {
   document.querySelectorAll('.type-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   selectedType = icon + ' ' + label;
-  isRevisionMode = !!isRevision;
+  isRevisionMode    = !!isRevision;
+  isConstructionMode = label.includes('ก่อสร้าง') || label.includes('As-Built');
 
-  // แสดง/ซ่อน Revision Panel
-  const panel = document.getElementById('revisionPanel');
-  if (panel) panel.style.display = isRevision ? '' : 'none';
+  // Revision panel
+  const revPanel = document.getElementById('revisionPanel');
+  if (revPanel) revPanel.style.display = isRevisionMode ? '' : 'none';
+  if (!isRevisionMode) { revisionRefData = null; }
 
-  // ถ้าไม่ใช่ revision ล้าง revision data
-  if (!isRevision) {
-    revisionRefData = null;
-    const rResult = document.getElementById('rev_ref_result');
-    if (rResult) rResult.style.display = 'none';
-    const rSearch = document.getElementById('rev_search');
-    if (rSearch) rSearch.value = '';
-  }
+  // Construction/As-Built panel
+  showConstructionPanel(isConstructionMode);
+  const cpSubmit = document.getElementById('cpSubmitArea');
+  if (cpSubmit) cpSubmit.style.display = isConstructionMode ? '' : 'none';
+  if (isConstructionMode) resetConstructionPanel();
 }
 
 // ── ค้นหาคำร้องอ้างอิงสำหรับ Revision ──
@@ -4145,7 +4498,7 @@ function renderApprovalCard(item, isManager) {
           <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
           ส่งกลับ
         </button>
-        <button class="btn btn-success" onclick="openAssignModal('${item.id}','${(item.ProjectName||item.Title).replace(/'/g,"\\'")}','${isManager}')">
+        <button class="btn btn-success" onclick="openAssignModal('${item.id}','${(item.ProjectName||item.Title||'').replace(/[<>'"]/g,'')}','${isManager}')">
           <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           ${approveLabel}
         </button>
