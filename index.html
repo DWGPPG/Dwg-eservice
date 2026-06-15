@@ -2412,6 +2412,8 @@ function onDrawingNumberSelect(val) {
       dnSel.add(opt); dnSel.value = item.DrawingName;
     }
   }
+}
+
 function onDrawingCategorySelect(cat) {
   const projEl   = document.getElementById('f_project');
   const projName = projEl ? (projectListCache.find(p=>p.id===projEl.value)?.Title||'') : '';
