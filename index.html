@@ -2678,7 +2678,12 @@ async function graphPost(path, body) {
     headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (!r.ok) throw new Error(`Graph POST ${path} → ${r.status}`);
+  if (!r.ok) {
+    let errDetail = '';
+    try { const e = await r.json(); errDetail = e?.error?.message || JSON.stringify(e); } catch(x) {}
+    console.error('graphPost error body:', errDetail);
+    throw new Error(`Graph POST ${path} → ${r.status}: ${errDetail}`);
+  }
   return r.json();
 }
 
@@ -2776,8 +2781,14 @@ async function spSearchByTitle(title) {
 }
 
 async function spCreateItem(fields) {
-  const r = await graphPost(`/sites/${spSiteId}/lists/${spListId}/items`, { fields });
-  return r.fields;
+  console.log('spCreateItem fields:', JSON.stringify(fields, null, 2));
+  try {
+    const r = await graphPost(`/sites/${spSiteId}/lists/${spListId}/items`, { fields });
+    return r.fields;
+  } catch(e) {
+    console.error('spCreateItem error:', e.message, e.response || '');
+    throw e;
+  }
 }
 
 async function spUpdateItem(itemId, fields) {
