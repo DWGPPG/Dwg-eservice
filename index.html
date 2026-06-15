@@ -2059,7 +2059,14 @@ async function hideDrawingNumber(id) {
     await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${id}/fields`, { IsHidden: true });
     const item = drawingNumberCache.find(p=>p.id===id); if(item) item.IsHidden = true;
     renderDrawingNumberSelect(); openManageDrawingNumbers(); showToast('✅','ซ่อนแล้ว');
-  } catch(e) { showToast('❌','ซ่อนไม่สำเร็จ: '+e.message); }
+  } catch(e) {
+    // ถ้าไม่มี column IsHidden ให้ลบออกจาก cache แทน
+    if (e.message.includes('not recognized') || e.message.includes('400')) {
+      drawingNumberCache = drawingNumberCache.filter(p=>p.id!==id);
+      renderDrawingNumberSelect(); openManageDrawingNumbers();
+      showToast('🗑️','ลบออกจากรายการแล้ว (ไม่มี column IsHidden)');
+    } else { showToast('❌','ซ่อนไม่สำเร็จ: '+e.message); }
+  }
 }
 async function unhideDrawingNumber(id) {
   try {
@@ -3323,6 +3330,42 @@ async function doSubmitRequest() {
     });
 
     const item = await spCreateItem(createData);
+
+    // ── Auto-save DefaultKwp + DefaultLocation กลับ ProjectList ──
+    try {
+      const projId  = document.getElementById('f_project')?.value;
+      const kwpVal  = document.getElementById('f_kwp')?.value || '';
+      const locVal  = location || '';
+      if (projId && spProjectListId) {
+        const proj = projectListCache.find(p => p.id === projId);
+        const needUpdate =
+          (kwpVal && kwpVal !== (proj?.DefaultKwp||'') && kwpVal !== (proj?.SolarKwp||'')) ||
+          (locVal && locVal !== (proj?.DefaultLocation||''));
+        if (needUpdate) {
+          const updateFields = {};
+          if (kwpVal) { updateFields.DefaultKwp = kwpVal; updateFields.SolarKwp = kwpVal; }
+          if (locVal) updateFields.DefaultLocation = locVal.slice(0, 255);
+          await graphPatch(`/sites/${spSiteId}/lists/${spProjectListId}/items/${projId}/fields`, updateFields);
+          // อัปเดต cache ด้วย
+          if (proj) { proj.DefaultKwp = kwpVal; proj.SolarKwp = kwpVal; proj.DefaultLocation = locVal; }
+          console.log(`✅ บันทึก DefaultKwp="${kwpVal}" และ DefaultLocation กลับ ProjectList แล้ว`);
+        }
+      }
+    } catch(saveErr) { console.warn('Auto-save ProjectList (non-critical):', saveErr.message); }
+
+    // ── Auto-save DrawingName กลับ DrawingNumberList ──
+    try {
+      const dnVal   = document.getElementById('f_drawing_number')?.value || '';
+      const dNameVal = document.getElementById('f_drawing_name')?.value || '';
+      if (dnVal && dNameVal && spDrawingNumberListId) {
+        const dnItem = drawingNumberCache.find(p => p.Title === dnVal);
+        if (dnItem && !dnItem.DrawingName && dNameVal) {
+          await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${dnItem.id}/fields`, { DrawingName: dNameVal });
+          dnItem.DrawingName = dNameVal;
+          console.log(`✅ บันทึก DrawingName="${dNameVal}" กลับ DrawingNumberList แล้ว`);
+        }
+      }
+    } catch(saveErr) { console.warn('Auto-save DrawingName (non-critical):', saveErr.message); }
 
     // 2. อัปโหลดไฟล์แนบไปยัง SharePoint (โฟลเดอร์ตามเลขคำร้อง)
     // ไฟล์แนบเป็น optional — ไม่บังคับ
