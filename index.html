@@ -3580,19 +3580,19 @@ async function searchRevisionRef() {
     document.getElementById('rev_new_revise').value = `Rev.${nextRevNum}`;
     document.getElementById('rev_new_number').value = newTitle;
 
-    // auto-fill form หลัก
-    const projEl = document.getElementById('f_project');
-    if (projEl) {
-      // หา option ที่ตรง หรือเพิ่มชั่วคราว
-      let found = false;
-      for (let opt of projEl.options) {
-        if (opt.text === ref.ProjectName0 || opt.value === ref.ProjectName0) {
-          projEl.value = opt.value; found = true; break;
-        }
-      }
-      if (!found && ref.ProjectName0) {
-        const opt = new Option(ref.ProjectName0, ref.ProjectName0);
-        projEl.add(opt); projEl.value = ref.ProjectName0;
+    // auto-fill form หลัก — f_project ตอนนี้เป็น hidden input + autocomplete
+    if (ref.ProjectName0) {
+      const projHid = document.getElementById('f_project');
+      const projInp = document.getElementById('f_project_input');
+      // หา id จาก cache
+      const proj = projectListCache.find(p => (p.Title||'') === ref.ProjectName0);
+      if (proj) {
+        if (projHid) projHid.value = proj.id;
+        if (projInp) projInp.value = proj.Title;
+        onProjectSelect(proj.id);
+      } else {
+        // ยังไม่มีใน cache ใส่ชื่อไว้ก่อน
+        if (projInp) projInp.value = ref.ProjectName0;
       }
     }
     const kwpEl = document.getElementById('f_kwp');
