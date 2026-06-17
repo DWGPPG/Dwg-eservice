@@ -1360,9 +1360,10 @@ tr:hover td { background: var(--sky); }
       <div id="trackResult"></div>
     </div>
 
-    <!-- โหมดฝ่ายเขียนแบบ (auto-detect) -->
+    <!-- โหมดฝ่ายเขียนแบบ (auto-detect จาก login) -->
     <div id="track-drawing-mode" style="display:none">
-      <!-- Stats -->
+
+      <!-- Stats Cards -->
       <div id="dwgStats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
 
       <!-- Filters -->
@@ -1387,18 +1388,18 @@ tr:hover td { background: var(--sky); }
           </div>
           <div style="flex:2;min-width:200px">
             <label style="font-size:11px;font-weight:500;color:var(--gray-600);display:block;margin-bottom:4px">ค้นหา</label>
-            <input type="text" id="dwgSearchText" placeholder="ค้นหาชื่อโครงการ เลขคำร้อง Drawing..." oninput="renderDwgCards()" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+            <input type="text" id="dwgSearchText" placeholder="ชื่อโครงการ เลขคำร้อง Drawing..." oninput="renderDwgCards()" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
           </div>
         </div>
         <!-- Status tabs -->
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
-          <button class="filter-btn active" id="dwgTab-all" onclick="setDwgTab('all',this)">ทั้งหมด</button>
-          <button class="filter-btn" id="dwgTab-overdue" onclick="setDwgTab('overdue',this)">🔴 เกินกำหนด</button>
-          <button class="filter-btn" id="dwgTab-notstarted" onclick="setDwgTab('notstarted',this)">📋 ยังไม่ดำเนินการ</button>
-          <button class="filter-btn" id="dwgTab-inprog" onclick="setDwgTab('inprog',this)">🔵 กำลังดำเนินการ</button>
-          <button class="filter-btn" id="dwgTab-duetoday" onclick="setDwgTab('duetoday',this)">🟡 ส่งวันนี้</button>
-          <button class="filter-btn" id="dwgTab-done" onclick="setDwgTab('done',this)">✅ เสร็จสิ้น</button>
-          <button class="filter-btn" id="dwgTab-cancelled" onclick="setDwgTab('cancelled',this)">❌ ยกเลิก</button>
+          <button class="filter-btn active" id="dwgTab-all"        onclick="setDwgTab('all',this)">ทั้งหมด</button>
+          <button class="filter-btn"         id="dwgTab-overdue"   onclick="setDwgTab('overdue',this)">🔴 เกินกำหนด</button>
+          <button class="filter-btn"         id="dwgTab-notstarted" onclick="setDwgTab('notstarted',this)">📋 ยังไม่ดำเนินการ</button>
+          <button class="filter-btn"         id="dwgTab-inprog"    onclick="setDwgTab('inprog',this)">🔵 กำลังดำเนินการ</button>
+          <button class="filter-btn"         id="dwgTab-duetoday"  onclick="setDwgTab('duetoday',this)">🟡 ส่งวันนี้</button>
+          <button class="filter-btn"         id="dwgTab-done"      onclick="setDwgTab('done',this)">✅ เสร็จสิ้น</button>
+          <button class="filter-btn"         id="dwgTab-cancelled" onclick="setDwgTab('cancelled',this)">❌ ยกเลิก</button>
         </div>
       </div>
 
@@ -1421,7 +1422,7 @@ tr:hover td { background: var(--sky); }
         </select>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-secondary" onclick="closeModal('updateStatusModal')">ยกเลิก</button>
+        <button class="btn btn-secondary" onclick="closeUpdateStatusModal()">ยกเลิก</button>
         <button class="btn btn-primary" id="updateStatusConfirmBtn" onclick="confirmUpdateStatus()">✅ ยืนยัน</button>
       </div>
     </div>
@@ -4075,16 +4076,10 @@ function resetForm() {
   const revHistWrap = document.getElementById('rev_history_wrap'); if(revHistWrap) revHistWrap.style.display = 'none';
 }
 
-// ── PAGE: TRACKING ──
+// ── PAGE: TRACKING — DRAWING TEAM MODE ──
 let dwgStatusTab = 'all';
 let _pendingUpdateStatusId = null;
-
-function setDwgTab(tab, btn) {
-  dwgStatusTab = tab;
-  document.querySelectorAll('#track-drawing-mode .filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderDwgCards();
-}
+let _dwgMyItems = [];
 
 function isDrawingTeamMember() {
   if (!currentUser || !CONFIG.teamMembers.length) return false;
@@ -4109,18 +4104,16 @@ function buildTrackPage() {
   }
 }
 
-let _dwgMyItems = [];
-
 async function loadDwgTrackData() {
   const listEl = document.getElementById('dwgCardList');
   if (listEl) listEl.innerHTML = '<div style="padding:24px;color:var(--gray-400);font-size:13px">⏳ กำลังโหลด...</div>';
   try {
-    const all = allRequests.length ? allRequests : await spGetItems();
+    const all = (allRequests && allRequests.length) ? allRequests : await spGetItems();
     const myEmail = (currentUser?.username || '').toLowerCase();
     const myName  = (currentUser?.name || '').toLowerCase().split(' ')[0];
     _dwgMyItems = all.filter(r => {
       const emailMatch = myEmail && (r.AssigneeEmail||'').toLowerCase() === myEmail;
-      const nameMatch  = myName  && (r.AssigneeName ||'').toLowerCase().includes(myName);
+      const nameMatch  = myName  && (r.AssigneeName||'').toLowerCase().includes(myName);
       return emailMatch || nameMatch;
     });
 
@@ -4128,9 +4121,9 @@ async function loadDwgTrackData() {
     const projSel = document.getElementById('dwgFilterProject');
     if (projSel) {
       const projects = [...new Set(_dwgMyItems.map(r => r.ProjectName0||'').filter(Boolean))].sort();
-      projSel.innerHTML = '<option value="">ทุกโครงการ</option>' + projects.map(p => `<option value="${p}">${p}</option>`).join('');
+      projSel.innerHTML = '<option value="">ทุกโครงการ</option>' +
+        projects.map(p => `<option value="${p.replace(/"/g,'&quot;')}">${p}</option>`).join('');
     }
-
     renderDwgStats();
     renderDwgCards();
   } catch(e) {
@@ -4138,33 +4131,45 @@ async function loadDwgTrackData() {
   }
 }
 
+function setDwgTab(tab, btn) {
+  dwgStatusTab = tab;
+  document.querySelectorAll('#track-drawing-mode .filter-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderDwgCards();
+}
+
 function renderDwgStats() {
   const today = new Date(); today.setHours(0,0,0,0);
-  const overdue   = _dwgMyItems.filter(r => { const d=r.DueDate?new Date(r.DueDate):null; if(d)d.setHours(0,0,0,0); return d&&d<today&&!['done','cancelled'].includes(r.Status); }).length;
-  const duetoday  = _dwgMyItems.filter(r => { const d=r.DueDate?new Date(r.DueDate):null; if(d)d.setHours(0,0,0,0); return d&&d.getTime()===today.getTime()&&!['done','cancelled'].includes(r.Status); }).length;
-  const inprog    = _dwgMyItems.filter(r => ['approved','working','inprogress_lv1'].includes(r.Status)).length;
-  const done      = _dwgMyItems.filter(r => r.Status==='done').length;
-  document.getElementById('dwgStats').innerHTML = [
-    { label:'เกินกำหนด', val:overdue, color:'#dc2626', bg:'#fef2f2', tab:'overdue' },
-    { label:'ส่งวันนี้',  val:duetoday, color:'#d97706', bg:'#fff7ed', tab:'duetoday' },
-    { label:'กำลังดำเนินการ', val:inprog, color:'#2563eb', bg:'#eff6ff', tab:'inprog' },
-    { label:'เสร็จสิ้น',  val:done,    color:'#16a34a', bg:'#f0fdf4', tab:'done' },
-  ].map(s => `<div onclick="setDwgTab('${s.tab}',document.getElementById('dwgTab-${s.tab}'))" style="background:${s.bg};border-radius:10px;padding:14px;text-align:center;cursor:pointer;border:1px solid transparent;transition:all .15s" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''">
-    <div style="font-size:26px;font-weight:700;color:${s.color}">${s.val}</div>
-    <div style="font-size:11px;color:#666;margin-top:4px">${s.label}</div>
-  </div>`).join('');
+  const overdue  = _dwgMyItems.filter(r => { const d=r.DueDate?new Date(r.DueDate):null; if(d)d.setHours(0,0,0,0); return d&&d<today&&!['done','cancelled'].includes(r.Status); }).length;
+  const duetoday = _dwgMyItems.filter(r => { const d=r.DueDate?new Date(r.DueDate):null; if(d)d.setHours(0,0,0,0); return d&&d.getTime()===today.getTime()&&!['done','cancelled'].includes(r.Status); }).length;
+  const inprog   = _dwgMyItems.filter(r => ['approved','working','inprogress_lv1'].includes(r.Status)).length;
+  const done     = _dwgMyItems.filter(r => r.Status==='done').length;
+  const statData = [
+    { label:'เกินกำหนด',        val:overdue,  color:'#dc2626', bg:'#fef2f2', tab:'overdue'  },
+    { label:'ส่งวันนี้',         val:duetoday, color:'#d97706', bg:'#fff7ed', tab:'duetoday' },
+    { label:'กำลังดำเนินการ',   val:inprog,   color:'#2563eb', bg:'#eff6ff', tab:'inprog'   },
+    { label:'เสร็จสิ้น',         val:done,     color:'#16a34a', bg:'#f0fdf4', tab:'done'     },
+  ];
+  document.getElementById('dwgStats').innerHTML = statData.map(s =>
+    `<div onclick="setDwgTab('${s.tab}',document.getElementById('dwgTab-${s.tab}'))"
+      style="background:${s.bg};border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:box-shadow .15s"
+      onmouseover="this.style.boxShadow='0 2px 10px rgba(0,0,0,.1)'" onmouseout="this.style.boxShadow=''">
+      <div style="font-size:28px;font-weight:700;color:${s.color}">${s.val}</div>
+      <div style="font-size:11px;color:#555;margin-top:4px">${s.label}</div>
+    </div>`
+  ).join('');
 }
 
 function renderDwgCards() {
-  const today = new Date(); today.setHours(0,0,0,0);
-  const projFilter = document.getElementById('dwgFilterProject')?.value || '';
-  const catFilter  = document.getElementById('dwgFilterCategory')?.value || '';
-  const searchQ    = (document.getElementById('dwgSearchText')?.value || '').toLowerCase().trim();
+  const today   = new Date(); today.setHours(0,0,0,0);
+  const projF   = document.getElementById('dwgFilterProject')?.value  || '';
+  const catF    = document.getElementById('dwgFilterCategory')?.value || '';
+  const searchQ = (document.getElementById('dwgSearchText')?.value || '').toLowerCase().trim();
 
   let items = _dwgMyItems.filter(r => {
-    if (projFilter && (r.ProjectName0||'') !== projFilter) return false;
-    if (catFilter  && (r.DrawingCategory||'') !== catFilter) return false;
-    if (searchQ && !((r.Title||'').toLowerCase().includes(searchQ) || (r.ProjectName0||'').toLowerCase().includes(searchQ) || (r.DrawingNumber||'').toLowerCase().includes(searchQ) || (r.DrawingName||'').toLowerCase().includes(searchQ))) return false;
+    if (projF   && (r.ProjectName0||'')      !== projF)   return false;
+    if (catF    && (r.DrawingCategory||'')   !== catF)    return false;
+    if (searchQ && ![r.Title,r.ProjectName0,r.DrawingNumber,r.DrawingName,r.SenderName,r.AssigneeName].some(v=>(v||'').toLowerCase().includes(searchQ))) return false;
     return true;
   });
 
@@ -4172,18 +4177,18 @@ function renderDwgCards() {
   items = items.filter(r => {
     const d = r.DueDate ? new Date(r.DueDate) : null;
     if (d) d.setHours(0,0,0,0);
-    const isActive = !['done','cancelled'].includes(r.Status);
+    const active = !['done','cancelled'].includes(r.Status);
     if (dwgStatusTab === 'all')        return true;
-    if (dwgStatusTab === 'overdue')    return d && d < today && isActive;
+    if (dwgStatusTab === 'overdue')    return d && d < today && active;
     if (dwgStatusTab === 'notstarted') return ['pending','inprogress_lv1'].includes(r.Status);
     if (dwgStatusTab === 'inprog')     return ['approved','working'].includes(r.Status);
-    if (dwgStatusTab === 'duetoday')   return d && d.getTime() === today.getTime() && isActive;
+    if (dwgStatusTab === 'duetoday')   return d && d.getTime() === today.getTime() && active;
     if (dwgStatusTab === 'done')       return r.Status === 'done';
     if (dwgStatusTab === 'cancelled')  return r.Status === 'cancelled';
     return true;
   });
 
-  // sort: overdue first, then by DueDate
+  // sort: overdue first → by DueDate asc
   items.sort((a,b) => {
     const da = a.DueDate ? new Date(a.DueDate) : new Date('9999-12-31');
     const db = b.DueDate ? new Date(b.DueDate) : new Date('9999-12-31');
@@ -4196,51 +4201,117 @@ function renderDwgCards() {
     return;
   }
 
+  // icon map for drawing category
+  const catIcon = { 'General Drawing':'📋','Architectural Drawing':'🏛️','Structural Drawing':'🏗️','Electrical Drawing':'⚡','Mechanical Drawing':'⚙️' };
+
   listEl.innerHTML = items.map(r => {
     const d = r.DueDate ? new Date(r.DueDate) : null;
     if (d) d.setHours(0,0,0,0);
     const isOverdue  = d && d < today && !['done','cancelled'].includes(r.Status);
     const isDueToday = d && d.getTime() === today.getTime() && !['done','cancelled'].includes(r.Status);
     const borderColor = isOverdue ? '#dc2626' : isDueToday ? '#f59e0b' : 'var(--gray-200)';
-    const dueLabel = !d ? '—' : isOverdue
-      ? `<span style="color:#dc2626;font-weight:600">⚠️ เกินกำหนด ${Math.ceil((today-d)/86400000)} วัน (${fmtDate(r.DueDate)})</span>`
+
+    const dueLabel = !d ? '<span style="color:var(--gray-400)">—</span>'
+      : isOverdue  ? `<span style="color:#dc2626;font-weight:600">⚠️ เกินกำหนด ${Math.ceil((today-d)/86400000)} วัน (${fmtDate(r.DueDate)})</span>`
       : isDueToday ? `<span style="color:#d97706;font-weight:600">🔔 ครบกำหนดวันนี้!</span>`
       : fmtDate(r.DueDate);
-    const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
-    const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+
+    const dwgUrl  = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
+    const pdfUrl  = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+    const revise  = r.CurrentRevise || r.ReviseNumber || '';
+    const catLbl  = r.DrawingCategory || '';
+    const catI    = catIcon[catLbl] || '📄';
+
+    // status badge
+    const STATUS_LBL = { pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'กำลังดำเนินการ รอผจก.', approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ', done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับ' };
+    const STATUS_CLS  = { pending:'badge-pending', inprogress_lv1:'badge-inprog-lv1', approved:'badge-approved', working:'badge-working', done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected' };
+
     return `<div class="card" style="margin-bottom:12px;border-left:4px solid ${borderColor}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-        <div>
-          <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:var(--navy)">${r.Title}</span>
-          <span class="badge ${STATUS_CLASS[r.Status]||'badge-pending'}" style="margin-left:8px">${STATUS_LABEL[r.Status]||r.Status}</span>
-          ${isOverdue?'<span style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:6px;font-weight:600">เกินกำหนด</span>':''}
+
+      <!-- Header row -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--navy)">${r.Title}</span>
+          <span class="badge ${STATUS_CLS[r.Status]||'badge-pending'}">${STATUS_LBL[r.Status]||r.Status}</span>
+          ${isOverdue?'<span style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600">⚠️ เกินกำหนด</span>':''}
+          ${isDueToday?'<span style="background:#fff7ed;color:#c2410c;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600">🔔 วันนี้</span>':''}
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="openUpdateStatusModal('${r.id}','${(r.Title||'').replace(/'/g,"\\'")}')">
+          <button class="btn btn-secondary" style="font-size:12px;padding:5px 11px" onclick="openUpdateStatusModal('${r.id}','${(r.Title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
             🔄 อัปเดตสถานะ
           </button>
-          <button class="btn btn-secondary" style="font-size:12px;padding:5px 10px" onclick="goToSendwork('${r.Title}')">
-            📤 ไปหน้านำส่งงาน
+          <button class="btn btn-secondary" style="font-size:12px;padding:5px 11px" onclick="goToSendwork('${r.Title}')">
+            📤 นำส่งงาน
           </button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:10px">
-        <div><span style="color:var(--gray-400)">โครงการ:</span> <b>${r.ProjectName0||'—'}</b></div>
-        <div><span style="color:var(--gray-400)">Drawing No.:</span> ${r.DrawingNumber||'—'} ${r.CurrentRevise||r.ReviseNumber?`<span style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:4px">${r.CurrentRevise||r.ReviseNumber}</span>`:''}</div>
-        <div><span style="color:var(--gray-400)">Drawing Name:</span> ${r.DrawingName||'—'}</div>
-        <div><span style="color:var(--gray-400)">หมวด:</span> ${r.DrawingCategory||'—'}</div>
-        <div><span style="color:var(--gray-400)">กำหนดส่ง:</span> ${dueLabel}</div>
-        <div><span style="color:var(--gray-400)">วันที่รับงาน:</span> ${fmtDate(r.SubmittedAt)||'—'}</div>
+
+      <!-- Info grid -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12px;margin-bottom:12px">
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">โครงการ</div>
+          <div style="font-weight:600">${r.ProjectName0||'—'}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ประเภทแบบ</div>
+          <div>${catI} ${catLbl||'—'}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">Drawing Number</div>
+          <div style="font-family:var(--mono)">${r.DrawingNumber||'—'} ${revise?`<span style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:2px">${revise}</span>`:''}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">Drawing Name</div>
+          <div>${r.DrawingName||'—'}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ผู้ส่งคำร้อง (ชื่อ)</div>
+          <div>${r.SenderName||'—'}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ผู้ส่งคำร้อง (อีเมล)</div>
+          <div style="font-size:11px;word-break:break-all">${r.SenderEmail||'—'}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ผู้รับผิดชอบ (เขียนแบบ)</div>
+          <div style="display:flex;align-items:center;gap:5px">
+            ${r.AssigneeName?`<div style="width:20px;height:20px;border-radius:50%;background:var(--sun);color:var(--navy);font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">${r.AssigneeName.slice(0,2)}</div>`:''}
+            <span>${r.AssigneeName||'—'}</span>
+          </div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">กำหนดส่ง</div>
+          <div>${dueLabel}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">วันที่รับงาน</div>
+          <div>${fmtDate(r.SubmittedAt)||'—'}</div>
+        </div>
+        <div>
+          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ความเร่งด่วน</div>
+          <div>${r.Urgency||r.Priority||'ปกติ'}</div>
+        </div>
       </div>
-      ${r.DataLink||r.Location?`<div style="background:var(--sky);border:1px solid #bee3f8;border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px">
-        <span style="font-weight:500;color:var(--navy)">📎 ลิงก์ผู้ส่ง:</span>
-        ${r.DataLink?`<a href="${r.DataLink}" target="_blank" style="color:var(--info);margin-left:6px">🔗 ลิงก์ข้อมูล</a>`:''}
-        ${r.Location?`<a href="${r.Location}" target="_blank" style="color:var(--info);margin-left:10px">🗺️ แผนที่</a>`:''}
+
+      <!-- รายละเอียด -->
+      ${r.Detail?`<div style="padding:8px 10px;background:var(--gray-100);border-radius:8px;font-size:12px;color:var(--gray-600);margin-bottom:10px;line-height:1.5">
+        <span style="font-size:10px;font-weight:600;color:var(--gray-400);display:block;margin-bottom:3px">รายละเอียด</span>
+        ${r.Detail}
       </div>`:''}
-      ${dwgUrl||pdfUrl?`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:8px 10px;font-size:12px">
-        <span style="font-weight:500;color:var(--success)">📤 ไฟล์ที่นำส่ง:</span>
-        ${dwgUrl?`<a href="${dwgUrl}" target="_blank" style="color:var(--info);margin-left:6px">📐 DWG</a>`:''}
-        ${pdfUrl?`<a href="${pdfUrl}" target="_blank" style="color:var(--info);margin-left:10px">📄 PDF</a>`:''}
+
+      <!-- ลิงก์ผู้ส่ง -->
+      ${(r.DataLink||r.Location)?`<div style="background:var(--sky);border:1px solid #bee3f8;border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:8px">
+        <div style="font-weight:600;color:var(--navy);margin-bottom:5px">📎 เอกสาร/ลิงก์ผู้ส่งคำร้อง</div>
+        ${r.DataLink?`<div style="margin-bottom:3px">🔗 <a href="${r.DataLink}" target="_blank" style="color:var(--info);word-break:break-all">${r.DataLink}</a></div>`:''}
+        ${r.Location?`<div>🗺️ <a href="${r.Location}" target="_blank" style="color:var(--info)">ดูแผนที่โครงการ</a></div>`:''}
+      </div>`:''}
+
+      <!-- ไฟล์ที่นำส่งแล้ว -->
+      ${(dwgUrl||pdfUrl)?`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px 12px;font-size:12px">
+        <div style="font-weight:600;color:var(--success);margin-bottom:5px">📤 ไฟล์ที่นำส่งแล้ว</div>
+        ${dwgUrl?`<span style="margin-right:12px">📐 <a href="${dwgUrl}" target="_blank" style="color:var(--info)">DWG</a></span>`:''}
+        ${pdfUrl?`<span>📄 <a href="${pdfUrl}" target="_blank" style="color:var(--info)">PDF</a></span>`:''}
+        ${r.NoteFromDrawing?`<div style="margin-top:5px;color:var(--gray-600)">📌 หมายเหตุ: ${r.NoteFromDrawing}</div>`:''}
       </div>`:''}
     </div>`;
   }).join('');
@@ -4249,29 +4320,36 @@ function renderDwgCards() {
 function openUpdateStatusModal(itemId, title) {
   _pendingUpdateStatusId = itemId;
   document.getElementById('updateStatusMsg').textContent = `คำร้อง: ${title}`;
-  const r = (allRequests||[]).find(x=>x.id===itemId)||_dwgMyItems.find(x=>x.id===itemId);
-  if (r) document.getElementById('updateStatusSelect').value = r.Status === 'done' ? 'done' : (r.Status === 'working' ? 'working' : 'approved');
+  const r = (_dwgMyItems||[]).find(x=>x.id===itemId) || (allRequests||[]).find(x=>x.id===itemId);
+  if (r) {
+    const sel = document.getElementById('updateStatusSelect');
+    sel.value = (['done','working','approved','cancelled'].includes(r.Status)) ? r.Status : 'approved';
+  }
   document.getElementById('updateStatusModal').style.display = 'flex';
 }
 
+function closeUpdateStatusModal() {
+  document.getElementById('updateStatusModal').style.display = 'none';
+}
+
 async function confirmUpdateStatus() {
-  const btn = document.getElementById('updateStatusConfirmBtn');
+  const btn    = document.getElementById('updateStatusConfirmBtn');
   const status = document.getElementById('updateStatusSelect').value;
   btn.disabled = true; btn.textContent = '⏳ กำลังอัปเดต...';
   try {
     await spUpdateItem(_pendingUpdateStatusId, { Status: status });
-    const statusLabels = { approved:'กำลังดำเนินการ', working:'กำลังดำเนินการ (อัปเดต)', done:'เสร็จสิ้น', cancelled:'ยกเลิก' };
-    showToast('✅', `อัปเดตสถานะเป็น "${statusLabels[status]||status}" แล้ว`);
-    closeModal('updateStatusModal');
-    // update local cache
-    [allRequests, _dwgMyItems].forEach(arr => {
-      const idx = arr.findIndex(x=>x.id===_pendingUpdateStatusId);
-      if (idx>=0) arr[idx].Status = status;
+    const lbl = { approved:'กำลังดำเนินการ', working:'กำลังดำเนินการ (อัปเดต)', done:'เสร็จสิ้น', cancelled:'ยกเลิก' };
+    showToast('✅', `อัปเดตสถานะเป็น "${lbl[status]||status}" แล้ว`);
+    closeUpdateStatusModal();
+    // อัปเดต local caches
+    [_dwgMyItems, allRequests].forEach(arr => {
+      const idx = (arr||[]).findIndex(x => x.id === _pendingUpdateStatusId);
+      if (idx >= 0) arr[idx].Status = status;
     });
     renderDwgStats();
     renderDwgCards();
-    // refresh dashboard workload
-    renderWorkload();
+    // refresh Dashboard Workload
+    if (typeof renderWorkload === 'function') renderWorkload();
   } catch(e) {
     showToast('❌', 'อัปเดตไม่สำเร็จ: ' + e.message);
   } finally {
@@ -4280,20 +4358,19 @@ async function confirmUpdateStatus() {
 }
 
 function goToSendwork(requestId) {
-  // navigate to sendwork page and pre-fill the request ID
   const swTab = document.getElementById('sendworkTab');
   if (swTab && swTab.style.display !== 'none') {
     showPage('sendwork', swTab);
     setTimeout(() => {
       const inp = document.getElementById('sw_search_input');
       if (inp) { inp.value = requestId; swLookup(requestId); }
-    }, 300);
+    }, 350);
   } else {
-    showToast('⚠️', 'กรุณาติดต่อ Admin เพื่อเปิดสิทธิ์หน้านำส่งงาน');
+    showToast('⚠️', 'ไม่พบสิทธิ์หน้านำส่งงาน — กรุณาติดต่อ Admin');
   }
 }
 
-
+// ── PAGE: TRACKING ──
 async function searchRequest() {
   const q = (document.getElementById('trackSearch')?.value || '').trim();
   if (!q) { showToast('⚠️', 'กรุณากรอกเลขที่คำร้อง'); return; }
@@ -4654,8 +4731,8 @@ function renderTable(items) {
   }
 
   // ── Column filters ──
-  if (colFilters.type.length)     filtered = filtered.filter(r => colFilters.type.includes(r.ProjectName0||'—'));
-  if (colFilters.project.length)  filtered = filtered.filter(r => colFilters.project.includes(r.ProjectName||'—'));
+  if (colFilters.type.length)     filtered = filtered.filter(r => colFilters.type.includes(r.ProjectName||'—'));
+  if (colFilters.project.length)  filtered = filtered.filter(r => colFilters.project.includes(r.ProjectName0||'—'));
   if (colFilters.dept.length)     filtered = filtered.filter(r => colFilters.dept.includes(r.Department||'—'));
   if (colFilters.assignee.length) filtered = filtered.filter(r => colFilters.assignee.includes(r.AssigneeName||'—'));
   if (colFilters.status.length)   filtered = filtered.filter(r => colFilters.status.includes(STATUS_LABEL_TABLE[r.Status]||r.Status));
@@ -4749,8 +4826,8 @@ function filterTable(f, btn) {
 
 // ── Column filter dropdown ──
 const COL_KEYS = {
-  'cf-type':     { key:'type',     getValue: r => r.ProjectName0||'—' },
-  'cf-project':  { key:'project',  getValue: r => r.ProjectName||'—' },
+  'cf-type':     { key:'type',     getValue: r => r.ProjectName||'—' },   // ประเภท = ProjectName
+  'cf-project':  { key:'project',  getValue: r => r.ProjectName0||'—' },  // โครงการ = ProjectName0
   'cf-dept':     { key:'dept',     getValue: r => r.Department||'—' },
   'cf-assignee': { key:'assignee', getValue: r => r.AssigneeName||'—' },
   'cf-status':   { key:'status',   getValue: r => STATUS_LABEL_TABLE[r.Status]||r.Status },
@@ -4956,14 +5033,9 @@ function renderApprovalCard(item, isManager) {
         ${item.Department||'—'}
       </span>
       <span class="req-card-meta" style="margin-left:10px">
-        <svg viewBox="0 0 24 24"><path d="M4 4h16v14H4z"/><polyline points="22 6 12 13 2 6"/></svg>
-        ${item.SenderName||'—'} ${item.SenderEmail?`<span style="font-size:11px;color:var(--gray-400)">(${item.SenderEmail})</span>`:''}
-      </span>
-      <span class="req-card-meta" style="margin-left:10px">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        ส่ง: ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
+        ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
       </span>
-      ${item.DueDate?`<span class="req-card-meta" style="margin-left:10px;color:${new Date(item.DueDate)<new Date()?'#dc2626':'#d97706'};font-weight:600">📅 กำหนด: ${fmtDate(item.DueDate)}</span>`:''}
       ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
       ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="margin-left:6px;text-decoration:none;font-size:12px;padding:4px 10px">🔗 ลิงก์แนบ</a>` : ''}
       ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="margin-left:2px;text-decoration:none;font-size:12px;padding:4px 10px">📎 เอกสาร/แบบ</a>` : ''}
@@ -5203,12 +5275,7 @@ function showPage(name, tab) {
   }
 }
 
-function closeModal(id) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.classList.remove('show');
-  if (el.style.display) el.style.display = 'none';
-}
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
 function goTrack() {
   closeModal('successModal');
@@ -6099,33 +6166,24 @@ function openReqDetail(itemId) {
       <div><span style="color:var(--gray-400);font-size:11px">ประเภท</span><br>${r.ProjectName||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">โครงการ</span><br><b>${r.ProjectName0||'—'}</b></div>
       <div><span style="color:var(--gray-400);font-size:11px">ฝ่าย/แผนก</span><br>${r.Department||'—'}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">ผู้ส่ง (ชื่อ)</span><br>${r.SenderName||'—'}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">ผู้ส่ง (อีเมล)</span><br><span style="font-size:12px">${r.SenderEmail||'—'}</span></div>
+      <div><span style="color:var(--gray-400);font-size:11px">ผู้ส่ง</span><br>${r.SenderName||r.SenderEmail||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">ผู้รับผิดชอบ</span><br>${r.AssigneeName||'—'}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">ผู้อนุมัติ Lv.1</span><br>${r.ReviewerLv1||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">Drawing Number</span><br>${r.DrawingNumber||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">Revise</span><br>${r.CurrentRevise||r.ReviseNumber||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">Drawing Name</span><br>${r.DrawingName||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">kWp</span><br>${r.SolarKwp||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">วันที่ส่ง</span><br>${fmtDate(r.SubmittedAt)}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">วันที่ต้องการรับงาน</span><br><b style="color:${r.DueDate&&new Date(r.DueDate)<new Date()?'#dc2626':'inherit'}">${fmtDate(r.DueDate)||'—'}</b></div>
+      <div><span style="color:var(--gray-400);font-size:11px">วันกำหนด</span><br><b style="color:${r.DueDate&&new Date(r.DueDate)<new Date()?'#dc2626':'inherit'}">${fmtDate(r.DueDate)||'—'}</b></div>
       ${r.DeliveredAt?`<div><span style="color:var(--gray-400);font-size:11px">วันนำส่ง</span><br>${fmtDate(r.DeliveredAt)}</div>`:''}
       <div><span style="color:var(--gray-400);font-size:11px">ผลตรวจรับ</span><br>${reviewBadge}</div>
     </div>
     ${r.IsRevision==='Yes'||(r.Title||r.Title0||'')?.includes('-Rev.')?`<div style="padding:10px 14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;margin-bottom:12px">✏️ <b>Revision</b> อ้างอิงจาก: ${r.RefRequestId||'—'}<br>📝 สาเหตุ: ${r.RevisionReason||'—'}</div>`:''}
     ${r.Detail?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">รายละเอียด</div><div style="font-size:13px;line-height:1.6;padding:10px;background:var(--gray-100);border-radius:8px">${r.Detail}</div></div>`:''}
+    ${r.DataLink?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">ลิงก์ข้อมูล</div><a href="${r.DataLink}" target="_blank" style="font-size:12px;color:var(--info);word-break:break-all">${r.DataLink}</a></div>`:''}
     ${r.ReviseComment||r.DeliveryRejectReason?`<div style="padding:10px 14px;background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;font-size:12px;margin-bottom:12px;color:#dc2626">💬 หมายเหตุ: ${r.ReviseComment||r.DeliveryRejectReason}</div>`:''}
-    <div style="background:var(--sky);border:1px solid #bee3f8;border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px">
-      <div style="font-weight:600;color:var(--navy);margin-bottom:8px">📎 เอกสาร/ลิงก์ของผู้ส่งคำร้อง</div>
-      ${r.DataLink?`<div style="margin-bottom:4px">🔗 <a href="${r.DataLink}" target="_blank" style="color:var(--info);word-break:break-all">${r.DataLink}</a></div>`:'<span style="color:var(--gray-400)">ไม่มีลิงก์แนบ</span>'}
-      ${r.Location?`<div>🗺️ <a href="${r.Location}" target="_blank" style="color:var(--info)">ดูแผนที่โครงการ</a></div>`:''}
-    </div>
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px">
-      <div style="font-weight:600;color:var(--success);margin-bottom:8px">📤 เอกสาร/ไฟล์ที่นำส่ง</div>
-      ${dwgUrl?`<div style="margin-bottom:4px">📐 <a href="${dwgUrl}" target="_blank" style="color:var(--info)">ไฟล์ DWG</a></div>`:''}
-      ${pdfUrl && pdfUrl!==dwgUrl?`<div style="margin-bottom:4px">📄 <a href="${pdfUrl}" target="_blank" style="color:var(--info)">ไฟล์ PDF</a></div>`:''}
-      ${!dwgUrl && !pdfUrl?'<span style="color:var(--gray-400)">ยังไม่มีไฟล์นำส่ง</span>':''}
-      ${r.NoteFromDrawing?`<div style="margin-top:6px;color:var(--gray-600)">📌 หมายเหตุจากผู้เขียนแบบ: ${r.NoteFromDrawing}</div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${dwgUrl?`<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📐 ดาวน์โหลด DWG</a>`:''}
+      ${pdfUrl?`<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📄 ดาวน์โหลด PDF</a>`:''}
     </div>`;
   document.getElementById('reqDetailModal').classList.add('show');
 }
@@ -6379,8 +6437,7 @@ async function buildReview(highlightId) {
             ${history.map(r => `
               <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:#fff;border-radius:8px;border:1px solid var(--gray-200);margin-bottom:8px">
                 <div style="display:flex;align-items:center;gap:12px">
-                  <span style="font-family:var(--mono);font-size:12px;color:var(--navy);font-weight:500;cursor:pointer;text-decoration:underline;text-decoration-style:dotted"
-                    onclick="openReqDetail('${r.id}')">${r.Title}</span>
+                  <span style="font-family:var(--mono);font-size:12px;color:var(--navy);font-weight:500">${r.Title}</span>
                   <span style="font-size:11px;color:var(--gray-400)">${r.DrawingNumber||''} ${r.DrawingName?'· '+r.DrawingName:''}</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:10px">
