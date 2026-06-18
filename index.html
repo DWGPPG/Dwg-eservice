@@ -1873,6 +1873,55 @@ tr:hover td { background: var(--sky); }
   </div>
 </div>
 
+<!-- Sendwork from Track Modal -->
+<div class="modal-overlay" id="swFromTrackModal" onclick="if(event.target===this)this.classList.remove('show')">
+  <div class="modal-box" style="max-width:500px;width:95vw;max-height:90vh;overflow-y:auto;padding:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--gray-200);background:var(--white);position:sticky;top:0;z-index:1">
+      <div style="font-size:15px;font-weight:700;color:var(--navy)">📤 นำส่งงาน</div>
+      <button onclick="document.getElementById('swFromTrackModal').classList.remove('show')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);line-height:1">✕</button>
+    </div>
+    <div style="padding:16px 18px">
+      <!-- Auto-filled info -->
+      <div style="background:var(--sky);border:1px solid #bee3f8;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12px">
+        <div style="font-weight:600;color:var(--navy);margin-bottom:8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em">📋 ข้อมูลคำร้อง (อัตโนมัติ)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <div><span style="color:var(--gray-400)">เลขที่:</span> <b id="swt_title" style="font-family:var(--mono)"></b></div>
+          <div><span style="color:var(--gray-400)">โครงการ:</span> <b id="swt_project"></b></div>
+          <div><span style="color:var(--gray-400)">Drawing No.:</span> <span id="swt_dwgno" style="font-family:var(--mono)"></span></div>
+          <div><span style="color:var(--gray-400)">Drawing Name:</span> <span id="swt_dwgname"></span></div>
+          <div><span style="color:var(--gray-400)">ผู้ส่ง:</span> <span id="swt_sender"></span></div>
+          <div><span style="color:var(--gray-400)">ความเร่งด่วน:</span> <span id="swt_urgency"></span></div>
+          <div><span style="color:var(--gray-400)">กำหนดส่ง:</span> <span id="swt_due"></span></div>
+          <div class="span2" style="grid-column:1/-1"><span style="color:var(--gray-400)">รายละเอียด:</span> <span id="swt_detail"></span></div>
+        </div>
+      </div>
+      <input type="hidden" id="swt_itemid">
+      <!-- File links -->
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+        <div class="field">
+          <label>ลิงก์ไฟล์ DWG <span style="font-size:10px;color:var(--gray-400)">(SharePoint / OneDrive)</span></label>
+          <input type="text" id="swt_dwgurl" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label>ลิงก์ไฟล์ PDF <span style="font-size:10px;color:var(--gray-400)">(SharePoint / OneDrive)</span></label>
+          <input type="text" id="swt_pdfurl" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label>หมายเหตุจากฝ่ายเขียนแบบ</label>
+          <textarea id="swt_note" rows="2" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-secondary" onclick="document.getElementById('swFromTrackModal').classList.remove('show')">ยกเลิก</button>
+        <button class="btn btn-primary" id="swtConfirmBtn" onclick="confirmSendworkFromTrack()">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ยืนยันนำส่ง
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Submit Confirm Modal -->
 <div class="modal-overlay" id="submitConfirmModal">
   <div class="modal" style="max-width:460px">
@@ -3995,13 +4044,6 @@ function nsToggleDwg(key, no, name, cat, prevRev) {
   nsRenderQueueCard();
 }
 
-function nsUpdateRev(key, val) {
-  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
-  // sync queue card
-  const qRevEl = document.getElementById('ns_qrev_' + key);
-  if (qRevEl) qRevEl.textContent = val || '—';
-}
-
 // ── Queue Card ──
 function nsRenderQueueCard() {
   const card = document.getElementById('ns_queue_card');
@@ -4053,7 +4095,6 @@ function nsRenderQueueCard() {
 
 function nsRemoveItem(key) {
   delete nsSelectedItems[key];
-  // uncheck in drawing table
   const row = document.getElementById('ns_row_' + key);
   if (row) { row.classList.remove('dwg-sel'); const cb = row.querySelector('input[type=checkbox]'); if(cb) cb.checked=false; const rev = row.querySelector('.dwg-rev-input'); if(rev){rev.value='';rev.disabled=true;} }
   nsRenderQueueCard();
@@ -4061,26 +4102,8 @@ function nsRemoveItem(key) {
 
 function nsUpdateRev(key, val) {
   if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
-}
-
-function nsUpdateRevFromQueue(key, val) {
-  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
   const tableRev = document.getElementById('ns_rev_' + key);
   if (tableRev) tableRev.value = val;
-}
-
-function nsUpdateRev(key, val) {
-  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
-}
-
-function nsUpdateRevFromQueue(key, val) {
-  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
-  const tableRev = document.getElementById('ns_rev_' + key);
-  if (tableRev) tableRev.value = val;
-}
-
-function nsUpdateRev(key, val) {
-  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
 }
 
 function nsSaveDetail(key, field, val) {
@@ -4213,8 +4236,7 @@ async function nsDoSubmit() {
 }
 
 function nsReset() {
-  nsSelectedProjId = ''; nsSelectedCat = ''; nsSelectedItems = '';
-  nsSelectedItems  = {};
+  nsSelectedProjId = ''; nsSelectedCat = ''; nsSelectedItems = {};
   const inp = document.getElementById('ns_project_input'); if(inp) inp.value = '';
   const hid = document.getElementById('ns_project_id');   if(hid) hid.value = '';
   const dd  = document.getElementById('ns_project_dropdown'); if(dd) dd.style.display='none';
@@ -4360,13 +4382,12 @@ function renderDwgCards() {
   const searchQ = (document.getElementById('dwgSearchText')?.value || '').toLowerCase().trim();
 
   let items = _dwgMyItems.filter(r => {
-    if (projF   && (r.ProjectName0||'')      !== projF)   return false;
-    if (catF    && (r.DrawingCategory||'')   !== catF)    return false;
+    if (projF   && (r.ProjectName0||'')    !== projF) return false;
+    if (catF    && (r.DrawingCategory||'') !== catF)  return false;
     if (searchQ && ![r.Title,r.ProjectName0,r.DrawingNumber,r.DrawingName,r.SenderName,r.AssigneeName].some(v=>(v||'').toLowerCase().includes(searchQ))) return false;
     return true;
   });
 
-  // status tab filter
   items = items.filter(r => {
     const d = r.DueDate ? new Date(r.DueDate) : null;
     if (d) d.setHours(0,0,0,0);
@@ -4381,7 +4402,6 @@ function renderDwgCards() {
     return true;
   });
 
-  // sort: overdue first → by DueDate asc
   items.sort((a,b) => {
     const da = a.DueDate ? new Date(a.DueDate) : new Date('9999-12-31');
     const db = b.DueDate ? new Date(b.DueDate) : new Date('9999-12-31');
@@ -4394,120 +4414,88 @@ function renderDwgCards() {
     return;
   }
 
-  // icon map for drawing category
-  const catIcon = { 'General Drawing':'📋','Architectural Drawing':'🏛️','Structural Drawing':'🏗️','Electrical Drawing':'⚡','Mechanical Drawing':'⚙️' };
+  const STATUS_LBL = { pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'รอ LV.2 ผู้จัดการอนุมัติ', approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ', done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับ' };
+  const STATUS_CLS = { pending:'badge-pending', inprogress_lv1:'badge-inprog-lv1', approved:'badge-approved', working:'badge-working', done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected' };
 
-  listEl.innerHTML = items.map(r => {
-    const d = r.DueDate ? new Date(r.DueDate) : null;
-    if (d) d.setHours(0,0,0,0);
-    const isOverdue  = d && d < today && !['done','cancelled'].includes(r.Status);
-    const isDueToday = d && d.getTime() === today.getTime() && !['done','cancelled'].includes(r.Status);
-    const borderColor = isOverdue ? '#dc2626' : isDueToday ? '#f59e0b' : 'var(--gray-200)';
+  // ── TABLE LAYOUT ──
+  listEl.innerHTML = `
+  <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead>
+      <tr style="background:var(--navy);color:#fff">
+        <th style="padding:9px 12px;text-align:left;font-weight:600;font-size:11px;white-space:nowrap;min-width:100px">กำหนดส่ง</th>
+        <th style="padding:9px 12px;text-align:left;font-weight:600;font-size:11px;white-space:nowrap">เลขคำร้อง</th>
+        <th style="padding:9px 12px;text-align:left;font-weight:600;font-size:11px;white-space:nowrap">โครงการ</th>
+        <th style="padding:9px 12px;text-align:left;font-weight:600;font-size:11px;white-space:nowrap">Drawing No.</th>
+        <th style="padding:9px 12px;text-align:left;font-weight:600;font-size:11px">Drawing Name</th>
+        <th style="padding:9px 12px;text-align:center;font-weight:600;font-size:11px;white-space:nowrap">ลิงก์</th>
+        <th style="padding:9px 12px;text-align:center;font-weight:600;font-size:11px;white-space:nowrap">ไฟล์</th>
+        <th style="padding:9px 12px;text-align:left;font-weight:600;font-size:11px;min-width:180px">อัปเดตสถานะ</th>
+      </tr>
+    </thead>
+    <tbody>
+    ${items.map(r => {
+      const d = r.DueDate ? new Date(r.DueDate) : null;
+      if (d) d.setHours(0,0,0,0);
+      const isOverdue  = d && d < today && !['done','cancelled'].includes(r.Status);
+      const isDueToday = d && d.getTime() === today.getTime() && !['done','cancelled'].includes(r.Status);
+      const rowBg = isOverdue ? 'background:#fff5f5' : isDueToday ? 'background:#fffbeb' : '';
+      const borderLeft = isOverdue ? 'border-left:3px solid #dc2626' : isDueToday ? 'border-left:3px solid #f59e0b' : 'border-left:3px solid transparent';
 
-    const dueLabel = !d ? '<span style="color:var(--gray-400)">—</span>'
-      : isOverdue  ? `<span style="color:#dc2626;font-weight:600">⚠️ เกินกำหนด ${Math.ceil((today-d)/86400000)} วัน (${fmtDate(r.DueDate)})</span>`
-      : isDueToday ? `<span style="color:#d97706;font-weight:600">🔔 ครบกำหนดวันนี้!</span>`
-      : fmtDate(r.DueDate);
+      // วันกำหนดส่ง
+      let dueCell = '<span style="color:var(--gray-400)">—</span>';
+      if (d) {
+        const diff = Math.ceil((d - today) / 86400000);
+        if (isOverdue)       dueCell = `<span style="color:#dc2626;font-weight:700;font-size:11px">🔴 เกิน ${Math.abs(diff)} วัน<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        else if (isDueToday) dueCell = `<span style="color:#d97706;font-weight:700;font-size:11px">🟡 วันนี้!<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        else if (diff <= 3)  dueCell = `<span style="color:#d97706;font-weight:600;font-size:11px">🟠 อีก ${diff} วัน<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        else                 dueCell = `<span style="color:var(--gray-600);font-size:11px">🟢 อีก ${diff} วัน<br><small>${fmtDate(r.DueDate)}</small></span>`;
+      }
 
-    const dwgUrl  = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
-    const pdfUrl  = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
-    const revise  = r.CurrentRevise || r.ReviseNumber || '';
-    const catLbl  = r.DrawingCategory || '';
-    const catI    = catIcon[catLbl] || '📄';
+      const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
+      const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+      const revise = r.CurrentRevise || r.ReviseNumber || '';
+      const canUpdate = ['approved','working'].includes(r.Status);
 
-    // status badge
-    const STATUS_LBL = { pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'กำลังดำเนินการ รอผจก.', approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ', done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับ' };
-    const STATUS_CLS  = { pending:'badge-pending', inprogress_lv1:'badge-inprog-lv1', approved:'badge-approved', working:'badge-working', done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected' };
-
-    return `<div class="card" style="margin-bottom:12px;border-left:4px solid ${borderColor}">
-
-      <!-- Header row -->
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--navy)">${r.Title}</span>
-          <span class="badge ${STATUS_CLS[r.Status]||'badge-pending'}">${STATUS_LBL[r.Status]||r.Status}</span>
-          ${isOverdue?'<span style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600">⚠️ เกินกำหนด</span>':''}
-          ${isDueToday?'<span style="background:#fff7ed;color:#c2410c;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600">🔔 วันนี้</span>':''}
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn btn-secondary" style="font-size:12px;padding:5px 11px" onclick="openUpdateStatusModal('${r.id}','${(r.Title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-            🔄 อัปเดตสถานะ
-          </button>
-          <button class="btn btn-secondary" style="font-size:12px;padding:5px 11px" onclick="goToSendwork('${r.Title}')">
-            📤 นำส่งงาน
-          </button>
-        </div>
-      </div>
-
-      <!-- Info grid -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:12px;margin-bottom:12px">
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">โครงการ</div>
-          <div style="font-weight:600">${r.ProjectName0||'—'}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ประเภทแบบ</div>
-          <div>${catI} ${catLbl||'—'}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">Drawing Number</div>
-          <div style="font-family:var(--mono)">${r.DrawingNumber||'—'} ${revise?`<span style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:2px">${revise}</span>`:''}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">Drawing Name</div>
-          <div>${r.DrawingName||'—'}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ผู้ส่งคำร้อง (ชื่อ)</div>
-          <div>${r.SenderName||'—'}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ผู้ส่งคำร้อง (อีเมล)</div>
-          <div style="font-size:11px;word-break:break-all">${r.SenderEmail||'—'}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ผู้รับผิดชอบ (เขียนแบบ)</div>
-          <div style="display:flex;align-items:center;gap:5px">
-            ${r.AssigneeName?`<div style="width:20px;height:20px;border-radius:50%;background:var(--sun);color:var(--navy);font-size:9px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">${r.AssigneeName.slice(0,2)}</div>`:''}
-            <span>${r.AssigneeName||'—'}</span>
-          </div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">กำหนดส่ง</div>
-          <div>${dueLabel}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">วันที่รับงาน</div>
-          <div>${fmtDate(r.SubmittedAt)||'—'}</div>
-        </div>
-        <div>
-          <div style="color:var(--gray-400);font-size:10px;margin-bottom:2px">ความเร่งด่วน</div>
-          <div>${r.Urgency||r.Priority||'ปกติ'}</div>
-        </div>
-      </div>
-
-      <!-- รายละเอียด -->
-      ${r.Detail?`<div style="padding:8px 10px;background:var(--gray-100);border-radius:8px;font-size:12px;color:var(--gray-600);margin-bottom:10px;line-height:1.5">
-        <span style="font-size:10px;font-weight:600;color:var(--gray-400);display:block;margin-bottom:3px">รายละเอียด</span>
-        ${r.Detail}
-      </div>`:''}
-
-      <!-- ลิงก์ผู้ส่ง -->
-      ${(r.DataLink||r.Location)?`<div style="background:var(--sky);border:1px solid #bee3f8;border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:8px">
-        <div style="font-weight:600;color:var(--navy);margin-bottom:5px">📎 เอกสาร/ลิงก์ผู้ส่งคำร้อง</div>
-        ${r.DataLink?`<div style="margin-bottom:3px">🔗 <a href="${r.DataLink}" target="_blank" style="color:var(--info);word-break:break-all">${r.DataLink}</a></div>`:''}
-        ${r.Location?`<div>🗺️ <a href="${r.Location}" target="_blank" style="color:var(--info)">ดูแผนที่โครงการ</a></div>`:''}
-      </div>`:''}
-
-      <!-- ไฟล์ที่นำส่งแล้ว -->
-      ${(dwgUrl||pdfUrl)?`<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:9px 12px;font-size:12px">
-        <div style="font-weight:600;color:var(--success);margin-bottom:5px">📤 ไฟล์ที่นำส่งแล้ว</div>
-        ${dwgUrl?`<span style="margin-right:12px">📐 <a href="${dwgUrl}" target="_blank" style="color:var(--info)">DWG</a></span>`:''}
-        ${pdfUrl?`<span>📄 <a href="${pdfUrl}" target="_blank" style="color:var(--info)">PDF</a></span>`:''}
-        ${r.NoteFromDrawing?`<div style="margin-top:5px;color:var(--gray-600)">📌 หมายเหตุ: ${r.NoteFromDrawing}</div>`:''}
-      </div>`:''}
-    </div>`;
-  }).join('');
+      return `<tr style="${rowBg};${borderLeft}" id="tr-${r.id}">
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle">${dueCell}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;white-space:nowrap">
+          <span onclick="openReqDetail('${r.id}')" style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--navy);cursor:pointer;text-decoration:underline;text-decoration-style:dotted">${r.Title}</span>
+          <br><span class="badge ${STATUS_CLS[r.Status]||'badge-pending'}" style="font-size:9px;margin-top:3px;display:inline-block">${STATUS_LBL[r.Status]||r.Status}</span>
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;font-weight:600;color:var(--navy)">${r.ProjectName0||'—'}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;white-space:nowrap">
+          <span style="font-family:var(--mono);font-size:12px">${r.DrawingNumber||'—'}</span>
+          ${revise ? `<span style="background:#e0f2fe;color:#0369a1;font-size:9px;padding:1px 5px;border-radius:6px;margin-left:3px">${revise}</span>` : ''}
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;color:var(--gray-600)">${r.DrawingName||'—'}</td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center">
+          ${r.DataLink ? `<a href="${r.DataLink}" target="_blank" title="แนบลิงก์" style="font-size:18px;text-decoration:none">🔗</a>` : '<span style="color:var(--gray-200)">—</span>'}
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center">
+          ${dwgUrl||pdfUrl
+            ? `${dwgUrl?`<a href="${dwgUrl}" target="_blank" title="DWG" style="font-size:16px;text-decoration:none;margin-right:4px">📐</a>`:''}${pdfUrl?`<a href="${pdfUrl}" target="_blank" title="PDF" style="font-size:16px;text-decoration:none">📄</a>`:''}`
+            : `<button onclick="openSendworkFromTrack('${r.id}','${(r.Title||'').replace(/'/g,"\\'")}','${(r.ProjectName0||'').replace(/'/g,"\\'")}','${(r.DrawingNumber||'').replace(/'/g,"\\'")}','${(r.DrawingName||'').replace(/'/g,"\\'")}','${(r.SenderEmail||'').replace(/'/g,"\\'")}','${(r.DataLink||'').replace(/'/g,"\\'")}','${(r.DueDate||'').replace(/'/g,"\\'")}','${(r.Urgency||'ปกติ').replace(/'/g,"\\'")}','${(r.Detail||'').replace(/'/g,"\\'")}')" title="นำส่งงาน" style="border:none;background:transparent;font-size:18px;cursor:pointer">📤</button>`
+          }
+        </td>
+        <td style="padding:8px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle">
+          ${canUpdate
+            ? `<select class="work-status-select" style="width:100%;font-size:11px;padding:4px 6px" onchange="updateWorkStatus('${r.id}',this.value)">
+                <option value="approved"  ${r.Status==='approved'?'selected':''}>🔵 กำลังดำเนินการ</option>
+                <option value="working"   ${r.Status==='working'?'selected':''}>⚙️ อัปเดตงาน</option>
+                <option value="done"      ${r.Status==='done'?'selected':''}>✅ เสร็จสิ้น</option>
+                <option value="cancelled" ${r.Status==='cancelled'?'selected':''}>❌ ยกเลิก</option>
+              </select>`
+            : `<span style="font-size:11px;color:var(--gray-400);display:flex;align-items:center;gap:4px">
+                ${r.Status==='pending'||r.Status==='inprogress_lv1' ? '⏳ รออนุมัติ' : r.Status==='done' ? '✅ เสร็จสิ้น' : r.Status==='cancelled' ? '❌ ยกเลิก' : '—'}
+              </span>`
+          }
+        </td>
+      </tr>`;
+    }).join('')}
+    </tbody>
+  </table>
+  </div>`;
 }
 
 function openUpdateStatusModal(itemId, title) {
@@ -4580,7 +4568,7 @@ async function searchRequest() {
 }
 
 function renderTrackResult(r) {
-  const statusLabel = { pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2', inprogress_lv1:'กำลังดำเนินการ รอผจก.', approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ', done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข' };
+  const statusLabel = { pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2', inprogress_lv1:'รอ LV.2 ผู้จัดการอนุมัติ', approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ', done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข' };
   const statusClass = { pending:'badge-pending', review:'badge-review', inprogress_lv1:'badge-inprog-lv1', approved:'badge-approved', working:'badge-working', done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected' };
   const doneStatuses = ['inprogress_lv1','review','approved','working','done','cancelled'];
   const passedLv2    = ['approved','working','done','cancelled'];
@@ -4592,7 +4580,7 @@ function renderTrackResult(r) {
     { title:'ผู้ตรวจสอบ Lv.1 รับเรื่องและอนุมัติ',
       meta: r.ReviewerLv1 || 'รอมอบหมาย',
       state: r.Status==='pending' ? 'active' : (doneStatuses.includes(r.Status) ? 'done' : 'skip') },
-    { title:'กำลังดำเนินการ รอผจก.ตรวจสอบ',
+    { title:'รอ LV.2 ผู้จัดการอนุมัติ',
       meta: r.AssigneeName ? `ผู้รับผิดชอบ: ${r.AssigneeName}` : 'รอมอบหมาย',
       state: r.Status==='inprogress_lv1' ? 'active' : (passedLv2.includes(r.Status) ? 'done' : 'skip') },
     { title:'ผู้จัดการ (Lv.2) ตรวจสอบและอนุมัติ',
@@ -4655,7 +4643,7 @@ function renderStats() {
 
   document.getElementById('statsRow').innerHTML = `
     <div class="stat-card accent"><div class="stat-label">คำร้องทั้งหมด</div><div class="stat-val">${total}</div><div class="stat-sub">รอ: ${pending} รายการ</div></div>
-    <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val">${pending}</div><div class="stat-sub">Lv.1: ${lv1} · รอผจก.: ${lv2}</div></div>
+    <div class="stat-card"><div class="stat-label">รออนุมัติ</div><div class="stat-val">${pending}</div><div class="stat-sub">Lv.1: ${lv1} · รอ LV.2: ${lv2}</div></div>
     <div class="stat-card"><div class="stat-label">กำลังดำเนินการ</div><div class="stat-val">${inprog}</div><div class="stat-sub">เสร็จแล้ว: ${done} รายการ</div></div>
     <div class="stat-card"><div class="stat-label">เฉลี่ยวันทำการ</div><div class="stat-val">${avgDays}</div><div class="stat-sub">วัน/คำร้อง</div></div>`;
 }
@@ -4888,7 +4876,7 @@ let colFilters     = { type:[], project:[], dept:[], assignee:[], status:[], rev
 
 const STATUS_LABEL_TABLE = {
   pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2',
-  inprogress_lv1:'กำลังดำเนินการ รอผจก.', inprogress:'กำลังดำเนินการ รอผจก.',
+  inprogress_lv1:'รอ LV.2 ผู้จัดการอนุมัติ', inprogress:'รอ LV.2 ผู้จัดการอนุมัติ',
   approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ',
   done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข'
 };
@@ -5101,7 +5089,7 @@ async function buildAdmin() {
     }
     const isManager = isMgr();
     document.getElementById('adminRoleText').textContent = isManager
-      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการรอผจก.ตรวจสอบ'
+      ? 'สิทธิ์: ผู้อนุมัติ Lv.2 — รายการรอ LV.2 ตรวจสอบ'
       : 'สิทธิ์: ผู้ตรวจสอบ Lv.1 — รายการรอตรวจสอบ';
 
     const allItems = await spGetItems();
@@ -5172,24 +5160,19 @@ function renderAdminList(approvalItems, myWorkItems, isManager) {
     : '📋 รายการรอตรวจสอบ (Lv.1)';
   html += `<div class="card-title" style="margin-bottom:12px">${sectionTitle}</div>`;
 
+  // ── ส่วนที่ 1 เท่านั้น (ลบส่วนงานของฉันออก — ย้ายไปหน้าติดตามสถานะแล้ว) ──
   if (!filtered.length) {
     html += '<div class="empty-state" style="padding:24px"><div class="empty-state-icon">📭</div><p>ไม่มีรายการรออนุมัติ</p></div>';
   } else {
     html += filtered.map(item => renderApprovalCard(item, isManager)).join('');
   }
 
-  // ── ส่วนที่ 2: งานของฉัน (assignee) ──
-  if (filteredWork.length > 0) {
-    html += `<div class="card-title" style="margin:20px 0 12px">🛠️ งานที่ฉันรับผิดชอบ — อัปเดตสถานะ</div>`;
-    html += filteredWork.map(item => renderWorkCard(item)).join('');
-  }
-
   list.innerHTML = html;
 }
 
 const STATUS_LABEL = {
-  pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'กำลังดำเนินการ รอผจก.',
-  inprogress:'กำลังดำเนินการ รอผจก.',   // backward compat
+  pending:'รอตรวจสอบ Lv.1', inprogress_lv1:'รอ LV.2 ผู้จัดการอนุมัติ',
+  inprogress:'รอ LV.2 ผู้จัดการอนุมัติ',   // backward compat
   review:'รออนุมัติ Lv.2',              // backward compat
   approved:'ตรวจสอบแล้ว กำลังดำเนินการ',
   working:'กำลังดำเนินการ', done:'เสร็จสิ้น',
@@ -5338,7 +5321,7 @@ async function confirmAssign() {
   try {
     const note      = document.getElementById('assignNote')?.value;
     const isManager = pendingIsManager;
-    // Lv.1 อนุมัติ → 'inprogress_lv1' (กำลังดำเนินการ รอผจก.ตรวจสอบ)
+    // Lv.1 อนุมัติ → 'inprogress_lv1' (รอ LV.2 ผู้จัดการอนุมัติ)
     // Lv.2 อนุมัติ → 'approved'       (ตรวจสอบแล้ว กำลังดำเนินการ)
     const newStatus = isManager ? 'approved' : 'inprogress_lv1';
 
@@ -5419,7 +5402,7 @@ async function confirmAssign() {
     const card = document.getElementById('card-'+pendingApproveId);
     if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
     const lvLabel = isManager ? 'Lv.2' : 'Lv.1';
-    const newStatusLabel = isManager ? 'ตรวจสอบแล้ว กำลังดำเนินการ' : 'กำลังดำเนินการ รอผจก.ตรวจสอบ';
+    const newStatusLabel = isManager ? 'ตรวจสอบแล้ว กำลังดำเนินการ' : 'รอ LV.2 ผู้จัดการอนุมัติ';
     showToast('✅', `อนุมัติ ${lvLabel} แล้ว (${newStatusLabel}) — มอบหมายให้ ${selectedAssignee.name}`);
     setTimeout(() => { if(card) card.remove(); }, 1800);
     await buildAdmin();
@@ -6343,15 +6326,23 @@ function renderPersonalStats() {
 }
 // ── ข้อ 8: Popup รายละเอียดคำร้อง ──
 function openReqDetail(itemId) {
-  const r = allRequests.find(x => x.id === itemId);
+  const r = allRequests.find(x => x.id === itemId) || (_dwgMyItems||[]).find(x => x.id === itemId);
   if (!r) return;
-  const STATUS_LABEL = { pending:'⏳ รออนุมัติ', inprogress_lv1:'🔄 อนุมัติ Lv.1', approved:'✅ อนุมัติแล้ว',
+  const STATUS_LABEL = { pending:'⏳ รออนุมัติ', inprogress_lv1:'🔄 รอ LV.2 ผู้จัดการอนุมัติ', approved:'✅ อนุมัติแล้ว',
     working:'✏️ กำลังเขียนแบบ', done:'📤 นำส่งแล้ว', review:'🔍 ตรวจรับ', cancelled:'🚫 ยกเลิก', rejected:'↩️ ส่งกลับ' };
   const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
   const pdfUrl = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
   const reviewBadge = r.ReviewResult
     ? `<span class="badge ${r.ReviewResult==='approved'?'badge-done':r.ReviewResult==='revise'?'badge-pending':'badge-rejected'}">${r.ReviewResult==='approved'?'✅ อนุมัติ':r.ReviewResult==='revise'?'✏️ ขอแก้ไข':'❌ Reject'}</span>`
     : '—';
+  // Format วันและเวลาที่ส่ง
+  const submittedDT = r.SubmittedAt ? (() => {
+    const d = new Date(r.SubmittedAt);
+    return d.toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'})
+      + ' เวลา ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  })() : '—';
+  // Check if sendwork available (approved or working status, has assignee)
+  const canSend = ['approved','working'].includes(r.Status);
   document.getElementById('reqDetailTitle').textContent = r.Title;
   document.getElementById('reqDetailBody').innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;margin-bottom:16px">
@@ -6361,12 +6352,15 @@ function openReqDetail(itemId) {
       <div><span style="color:var(--gray-400);font-size:11px">ฝ่าย/แผนก</span><br>${r.Department||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">ผู้ส่ง</span><br>${r.SenderName||r.SenderEmail||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">ผู้รับผิดชอบ</span><br>${r.AssigneeName||'—'}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">Drawing Number</span><br>${r.DrawingNumber||'—'}</div>
+      <div><span style="color:var(--gray-400);font-size:11px">Drawing Number</span><br><span style="font-family:var(--mono)">${r.DrawingNumber||'—'}</span></div>
       <div><span style="color:var(--gray-400);font-size:11px">Revise</span><br>${r.CurrentRevise||r.ReviseNumber||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">Drawing Name</span><br>${r.DrawingName||'—'}</div>
       <div><span style="color:var(--gray-400);font-size:11px">kWp</span><br>${r.SolarKwp||'—'}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">วันที่ส่ง</span><br>${fmtDate(r.SubmittedAt)}</div>
-      <div><span style="color:var(--gray-400);font-size:11px">วันกำหนด</span><br><b style="color:${r.DueDate&&new Date(r.DueDate)<new Date()?'#dc2626':'inherit'}">${fmtDate(r.DueDate)||'—'}</b></div>
+      <div class="span2" style="grid-column:1/-1;background:var(--sky);border:1px solid #bee3f8;border-radius:8px;padding:10px 12px">
+        <span style="color:var(--gray-400);font-size:11px">📅 วันและเวลาที่ส่งคำร้อง</span><br>
+        <b style="color:var(--navy)">${submittedDT}</b>
+      </div>
+      <div><span style="color:var(--gray-400);font-size:11px">วันกำหนดส่ง</span><br><b style="color:${r.DueDate&&new Date(r.DueDate)<new Date()?'#dc2626':'inherit'}">${fmtDate(r.DueDate)||'—'}</b></div>
       ${r.DeliveredAt?`<div><span style="color:var(--gray-400);font-size:11px">วันนำส่ง</span><br>${fmtDate(r.DeliveredAt)}</div>`:''}
       <div><span style="color:var(--gray-400);font-size:11px">ผลตรวจรับ</span><br>${reviewBadge}</div>
     </div>
@@ -6374,11 +6368,82 @@ function openReqDetail(itemId) {
     ${r.Detail?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">รายละเอียด</div><div style="font-size:13px;line-height:1.6;padding:10px;background:var(--gray-100);border-radius:8px">${r.Detail}</div></div>`:''}
     ${r.DataLink?`<div style="margin-bottom:12px"><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">ลิงก์ข้อมูล</div><a href="${r.DataLink}" target="_blank" style="font-size:12px;color:var(--info);word-break:break-all">${r.DataLink}</a></div>`:''}
     ${r.ReviseComment||r.DeliveryRejectReason?`<div style="padding:10px 14px;background:#fff0f0;border:1px solid #fca5a5;border-radius:8px;font-size:12px;margin-bottom:12px;color:#dc2626">💬 หมายเหตุ: ${r.ReviseComment||r.DeliveryRejectReason}</div>`:''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:${canSend?'12px':'0'}">
       ${dwgUrl?`<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📐 ดาวน์โหลด DWG</a>`:''}
       ${pdfUrl?`<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📄 ดาวน์โหลด PDF</a>`:''}
-    </div>`;
+    </div>
+    </div>` ;
+  // ปุ่มนำส่งงาน
+  if (canSend) {
+    const btn = document.createElement('div');
+    btn.style.cssText = 'border-top:1px solid var(--gray-200);padding-top:12px;margin-top:4px';
+    const b = document.createElement('button');
+    b.className = 'btn btn-primary';
+    b.style.cssText = 'width:100%;justify-content:center';
+    b.innerHTML = '📤 นำส่งงาน';
+    b.addEventListener('click', function() {
+      document.getElementById('reqDetailModal').classList.remove('show');
+      openSendworkFromTrack(r.id, r.Title||'', r.ProjectName0||'', r.DrawingNumber||'',
+        r.DrawingName||'', r.SenderEmail||'', r.DataLink||'',
+        r.DueDate||'', r.Urgency||'ปกติ', r.Detail||'');
+    });
+    btn.appendChild(b);
+    document.getElementById('reqDetailBody').appendChild(btn);
+  }
   document.getElementById('reqDetailModal').classList.add('show');
+}
+
+// ── นำส่งงานจากหน้า Track ──
+function openSendworkFromTrack(itemId, title, project, dwgNo, dwgName, senderEmail, dataLink, dueDate, urgency, detail) {
+  const r = (_dwgMyItems||[]).find(x=>x.id===itemId) || (allRequests||[]).find(x=>x.id===itemId);
+  const deliverNote = r?.AssignNote || '';
+  const assigneeName = r?.AssigneeName || (currentUser?.name || '');
+
+  const modal = document.getElementById('swFromTrackModal');
+  if (!modal) return;
+  document.getElementById('swt_title').textContent  = title;
+  document.getElementById('swt_project').textContent = project || '—';
+  document.getElementById('swt_dwgno').textContent   = dwgNo   || '—';
+  document.getElementById('swt_dwgname').textContent = dwgName || '—';
+  document.getElementById('swt_sender').textContent  = senderEmail || '—';
+  document.getElementById('swt_urgency').textContent = urgency || 'ปกติ';
+  document.getElementById('swt_due').textContent     = dueDate ? fmtDate(dueDate) : '—';
+  document.getElementById('swt_detail').textContent  = detail  || '—';
+  document.getElementById('swt_itemid').value = itemId;
+  document.getElementById('swt_dwgurl').value = '';
+  document.getElementById('swt_pdfurl').value = '';
+  document.getElementById('swt_note').value   = deliverNote;
+  modal.classList.add('show');
+}
+
+async function confirmSendworkFromTrack() {
+  const itemId  = document.getElementById('swt_itemid').value;
+  const dwgUrl  = document.getElementById('swt_dwgurl').value.trim();
+  const pdfUrl  = document.getElementById('swt_pdfurl').value.trim();
+  const note    = document.getElementById('swt_note').value.trim();
+  if (!dwgUrl && !pdfUrl) { showToast('⚠️','กรุณาใส่ลิงก์ไฟล์ DWG หรือ PDF อย่างน้อย 1 รายการ'); return; }
+  const btn = document.getElementById('swtConfirmBtn');
+  btn.disabled = true; btn.classList.add('btn-loading');
+  try {
+    const now = new Date().toISOString();
+    const updateData = { Status: 'done', DeliveredAt: now };
+    if (dwgUrl) updateData.DwgFileUrl = dwgUrl;
+    if (pdfUrl) updateData.PdfFileUrl = pdfUrl;
+    if (note)   updateData.NoteFromDrawing = note;
+    await spUpdateItem(itemId, updateData);
+    // update local cache
+    [_dwgMyItems, allRequests].forEach(arr => {
+      const idx = (arr||[]).findIndex(x => x.id === itemId);
+      if (idx >= 0) { arr[idx].Status = 'done'; arr[idx].DeliveredAt = now; if(dwgUrl) arr[idx].DwgFileUrl = dwgUrl; if(pdfUrl) arr[idx].PdfFileUrl = pdfUrl; }
+    });
+    showToast('✅','นำส่งงานสำเร็จ!');
+    document.getElementById('swFromTrackModal').classList.remove('show');
+    renderDwgStats(); renderDwgCards();
+  } catch(e) {
+    showToast('❌','เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.classList.remove('btn-loading');
+  }
 }
 
 // ── ข้อ 4: แจ้งเตือน Reject กลับมา ──
