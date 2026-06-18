@@ -2103,8 +2103,17 @@ let kwpCache              = [];
 async function loadDrawingNumberList() {
   try {
     if (!spDrawingNumberListId) return;
-    const r = await graphGet(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items?expand=fields&$top=200`);
-    drawingNumberCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    let url = `/sites/${spSiteId}/lists/${spDrawingNumberListId}/items?expand=fields&$top=500`;
+    let all = [];
+    while (url) {
+      const r = await graphGet(url);
+      all = all.concat(r.value.map(i => ({ id: i.id, ...i.fields })));
+      const next = r['@odata.nextLink'];
+      url = next ? next.replace('https://graph.microsoft.com/v1.0','') : null;
+    }
+    // deduplicate by id
+    const seen = new Set();
+    drawingNumberCache = all.filter(d => { if(seen.has(d.id)) return false; seen.add(d.id); return true; });
     renderDrawingNumberSelect();
   } catch(e) { console.warn('loadDrawingNumberList:', e); }
 }
@@ -2289,8 +2298,16 @@ function toggleAddDrawingNumber() {
 async function loadDrawingNameList() {
   try {
     if (!spDrawingNameListId) return;
-    const r = await graphGet(`/sites/${spSiteId}/lists/${spDrawingNameListId}/items?expand=fields&$top=200`);
-    drawingNameCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    let url = `/sites/${spSiteId}/lists/${spDrawingNameListId}/items?expand=fields&$top=500`;
+    let all = [];
+    while (url) {
+      const r = await graphGet(url);
+      all = all.concat(r.value.map(i => ({ id: i.id, ...i.fields })));
+      const next = r['@odata.nextLink'];
+      url = next ? next.replace('https://graph.microsoft.com/v1.0','') : null;
+    }
+    const seen = new Set();
+    drawingNameCache = all.filter(d => { if(seen.has(d.id)) return false; seen.add(d.id); return true; });
     renderDrawingNameSelect();
   } catch(e) { console.warn('loadDrawingNameList:', e); }
 }
@@ -2591,8 +2608,8 @@ function renderCpDrawings() {
   const projName = proj?.Title || '';
   const items = drawingNumberCache
     .filter(d => !d.IsHidden)
-    .filter(d => !projName || !d.ProjectName || d.ProjectName === projName)
-    .filter(d => !cpSelectedCat || !d.DrawingCategory || d.DrawingCategory === cpSelectedCat);
+    .filter(d => d.ProjectName === projName)
+    .filter(d => !cpSelectedCat || d.DrawingCategory === cpSelectedCat);
 
   if (!items.length) {
     tbody.innerHTML = '';
