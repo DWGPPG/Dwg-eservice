@@ -1843,6 +1843,7 @@ tr:hover td { background: var(--sky); }
     </div>
 
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--gray-200)">
+      <div id="cpap_dup_warning" style="display:none;flex:1;font-size:11px;color:#dc2626;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:8px 10px;line-height:1.6"></div>
       <button class="btn btn-secondary" onclick="closeCpAddProject()">ยกเลิก</button>
       <button class="btn btn-primary" id="cpapSaveBtn" onclick="saveCpNewProject()">✅ บันทึกโครงการ</button>
     </div>
@@ -2612,6 +2613,16 @@ function renderCpDrawings() {
   const proj = projectListCache.find(p => p.id === cpSelectedProjId);
   const projName = proj?.Title || '';
   const projNameLower = projName.trim().toLowerCase();
+  // DEBUG
+  const allForProj = drawingNumberCache.filter(d => {
+    const dn = (d.ProjectName || d.ProjectName0 || '').trim().toLowerCase();
+    return dn === projNameLower;
+  });
+  console.log('[renderCpDrawings] projName=', projName, '| total cache=', drawingNumberCache.length, '| matched=', allForProj.length, '| hidden=', allForProj.filter(d=>d.IsHidden).length);
+  if (drawingNumberCache.length > 0) {
+    const sample = drawingNumberCache.find(d => (d.ProjectName||'').toLowerCase().includes('tmat') || (d.Title||'').startsWith('EE'));
+    if (sample) console.log('[renderCpDrawings] sample item=', JSON.stringify(sample));
+  }
   const items = drawingNumberCache
     .filter(d => !d.IsHidden)
     .filter(d => {
@@ -2680,6 +2691,9 @@ function removeCpRow(key, idx) {
 function cpapOnNameSearch(q) {
   const dd = document.getElementById('cpap_name_dd');
   if (!dd) return;
+  // ล้าง warning เมื่อพิมพ์ใหม่
+  const dupWarn = document.getElementById('cpap_dup_warning');
+  if (dupWarn) dupWarn.style.display = 'none';
   if (!q) { dd.style.display = 'none'; return; }
 
   // ── exact match → โหลด Drawing อัตโนมัติทันที ──
@@ -2775,6 +2789,8 @@ function openCpAddProject() {
 
 function closeCpAddProject() {
   document.getElementById('cpAddProjectModal').classList.remove('show');
+  const dupWarn = document.getElementById('cpap_dup_warning');
+  if (dupWarn) dupWarn.style.display = 'none';
 }
 
 async function saveCpNewProject() {
@@ -2839,15 +2855,25 @@ async function saveCpNewProject() {
 
     // แจ้งผลสรุป
     if (skippedNos.length > 0) {
-      // แจ้งเตือน Drawing ซ้ำแบบละเอียด
-      setTimeout(() => {
-        showToast('⚠️', `Drawing ซ้ำ (${skippedNos.length} รายการ): ${skippedNos.join(', ')} — หากต้องการแก้ไข ไปที่ SharePoint → DrawingNumberList`);
-      }, 400);
+      // แสดง warning ใน popup — ไม่ปิด modal
+      const dupWarn = document.getElementById('cpap_dup_warning');
+      if (dupWarn) {
+        dupWarn.style.display = 'block';
+        dupWarn.innerHTML = `⚠️ <b>Drawing ซ้ำ ${skippedNos.length} รายการ: ${skippedNos.join(', ')}</b><br>
+          รายการเหล่านี้มีอยู่แล้ว ไม่สามารถเพิ่มซ้ำได้<br>
+          หากต้องการแก้ไข ให้ไปที่ <b>SharePoint → DrawingNumberList</b>`;
+      }
+      // เปิด popup กลับมา
+      document.getElementById('cpAddProjectModal')?.classList.add('show');
     }
-    const msg = isNew
-      ? `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว${addedCount ? ` (${addedCount} Drawing)` : ''}`
-      : `อัปเดตโครงการ "${name}" — เพิ่ม ${addedCount} Drawing${skippedNos.length ? ` (ซ้ำ ${skippedNos.length} รายการ)` : ''}`;
-    showToast('✅', msg);
+    if (addedCount > 0) {
+      const msg = isNew
+        ? `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว (${addedCount} Drawing)`
+        : `เพิ่ม ${addedCount} Drawing ให้โครงการ "${name}" แล้ว`;
+      showToast('✅', msg);
+    } else if (skippedNos.length > 0 && addedCount === 0) {
+      showToast('⚠️', 'ไม่มี Drawing ใหม่ที่สามารถเพิ่มได้ — ทุกรายการมีอยู่แล้ว');
+    }
   } catch(e) {
     showToast('❌','บันทึกไม่สำเร็จ: ' + e.message);
   } finally {
