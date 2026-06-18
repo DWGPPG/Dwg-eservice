@@ -4595,10 +4595,10 @@ function renderDwgCards() {
       let dueCell = '<span style="color:var(--gray-400)">—</span>';
       if (d) {
         const diff = workdaysBetween(today, d);
-        if (isOverdue)       dueCell = `<span style="color:#dc2626;font-weight:700;font-size:11px">🔴 เกิน ${Math.abs(diff)} วทก.<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        if (isOverdue)       dueCell = `<span style="color:#dc2626;font-weight:700;font-size:11px">🔴 เกิน ${Math.abs(diff)} วัน<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
         else if (isDueToday) dueCell = `<span style="color:#d97706;font-weight:700;font-size:11px">🟡 วันนี้!<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
-        else if (diff <= 3)  dueCell = `<span style="color:#d97706;font-weight:600;font-size:11px">🟠 อีก ${diff} วทก.<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
-        else                 dueCell = `<span style="color:var(--gray-600);font-size:11px">🟢 อีก ${diff} วทก.<br><small>${fmtDate(r.DueDate)}</small></span>`;
+        else if (diff <= 3)  dueCell = `<span style="color:#d97706;font-weight:600;font-size:11px">🟠 อีก ${diff} วัน<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        else                 dueCell = `<span style="color:var(--gray-600);font-size:11px">🟢 อีก ${diff} วัน<br><small>${fmtDate(r.DueDate)}</small></span>`;
       }
 
       const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
@@ -5409,8 +5409,8 @@ function renderWorkCard(item) {
           const due = new Date(item.DueDate); due.setHours(0,0,0,0);
           const diff = workdaysBetween(now, due);
           const isActive = ['pending','inprogress_lv1','approved','working','delivered'].includes((item.Status0||item.Status||'').toLowerCase());
-          if (isActive && diff < 0)  return `<span style="color:#e53e3e;font-weight:600">⚠️ เกินกำหนด ${Math.abs(diff)} วันทำการ (${fmtDate(item.DueDate)})</span>`;
-          if (isActive && diff <= 3) return `<span style="color:#d97706;font-weight:600">🔔 ใกล้กำหนด ${diff===0?'วันนี้!':'อีก '+diff+' วันทำการ'} (${fmtDate(item.DueDate)})</span>`;
+          if (isActive && diff < 0)  return `<span style="color:#e53e3e;font-weight:600">⚠️ เกินกำหนด ${Math.abs(diff)} วัน (${fmtDate(item.DueDate)})</span>`;
+          if (isActive && diff <= 3) return `<span style="color:#d97706;font-weight:600">🔔 ใกล้กำหนด ${diff===0?'วันนี้!':'อีก '+diff+' วัน'} (${fmtDate(item.DueDate)})</span>`;
           return `กำหนดส่ง: ${fmtDate(item.DueDate)}`;
         })() : 'กำหนดส่ง: —'}
       </span>
@@ -7259,17 +7259,17 @@ async function checkDueDateAlerts() {
         lines.push(`🔴 <b>เกินกำหนดแล้ว (${overdue.length} รายการ)</b>`);
         overdue.forEach(r => {
           const daysOver = daysBetween(r.DueDate, now);
-          lines.push(`• ${r.Title} — ${r.ProjectName0||'—'} | ผู้เขียนแบบ: ${r.AssigneeName||'—'} | เกินมา ${Math.ceil(daysOver)} วันทำการ`);
+          lines.push(`• ${r.Title} — ${r.ProjectName0||'—'} | ผู้เขียนแบบ: ${r.AssigneeName||'—'} | เกินมา ${Math.ceil(daysOver)} วัน`);
         });
         lines.push(``);
       }
 
       if (nearDue.length > 0) {
-        lines.push(`🟡 <b>ใกล้ถึงกำหนด ≤3 วันทำการ (${nearDue.length} รายการ)</b>`);
+        lines.push(`🟡 <b>ใกล้ถึงกำหนด ≤3 วัน (${nearDue.length} รายการ)</b>`);
         nearDue.forEach(r => {
           const due  = new Date(r.DueDate); due.setHours(0,0,0,0);
           const diff = workdaysBetween(now, due);
-          const label = diff === 0 ? 'วันนี้!' : `อีก ${diff} วันทำการ`;
+          const label = diff === 0 ? 'วันนี้!' : `อีก ${diff} วัน`;
           lines.push(`• ${r.Title} — ${r.ProjectName0||'—'} | ผู้เขียนแบบ: ${r.AssigneeName||'—'} | กำหนด: ${label}`);
         });
       }
