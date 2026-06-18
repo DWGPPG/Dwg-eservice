@@ -345,6 +345,23 @@ body.dark .dwg-table tr.dwg-sel td { background:#0a3320; }
 body.dark .cat-card { background:var(--gray-100);border-color:var(--gray-200); }
 body.dark .cat-card.active { background:var(--sun-light);border-color:var(--sun); }
 
+/* ── New Submit Flow: Queue Cards ── */
+.ns-queue-card { background:var(--white);border:1px solid var(--gray-200);border-radius:10px;padding:14px;margin-bottom:10px; }
+.ns-queue-card:last-child { margin-bottom:0; }
+.ns-queue-header { display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px; }
+.ns-auto-no { font-size:10px;background:var(--sun-light);color:var(--sun-dark);border-radius:5px;padding:2px 8px;font-weight:600;font-family:var(--mono);margin-bottom:5px;display:inline-block; }
+.ns-dwg-title strong { font-size:13px;color:var(--navy); }
+.ns-dwg-title small { display:block;font-size:11px;color:var(--gray-600);margin-top:1px; }
+.ns-remove-btn { background:none;border:none;color:var(--gray-400);cursor:pointer;font-size:18px;line-height:1;padding:0 4px;flex-shrink:0; }
+.ns-remove-btn:hover { color:var(--danger); }
+.ns-queue-fields { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
+.ns-queue-fields .field { margin:0; }
+.dwg-table tr.dwg-sel td { background:#f0fdf4;border-color:#86efac; }
+.dwg-rev-input { width:70px;padding:4px 8px;font-size:12px;font-family:var(--mono);border:1px solid var(--gray-200);border-radius:6px;background:var(--white); }
+.dwg-rev-input:disabled { background:var(--gray-100);color:var(--gray-400); }
+body.dark .ns-queue-card { background:var(--white);border-color:var(--gray-200); }
+body.dark .ns-auto-no { background:var(--sun-light);color:var(--sun-dark); }
+
 /* ── Autocomplete dropdown ── */
 .ac-item { padding:9px 14px;cursor:pointer;font-size:13px;font-family:var(--font);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--gray-100); }
 .ac-item:hover { background:var(--sun-light);color:var(--sun-dark); }
@@ -917,11 +934,13 @@ tr:hover td { background: var(--sky); }
       <div class="page-title">ส่งคำร้องใหม่</div>
       <div class="page-sub">ข้อมูลจะถูกบันทึกลง SharePoint List และแจ้งเตือนทาง Teams</div>
     </div>
+
+    <!-- CARD 1: ประเภทคำร้อง -->
     <div class="card">
       <div class="card-title">ประเภทคำร้อง</div>
       <div class="type-grid">
         <div class="type-card selected" onclick="selectType(this,'📋','เขียนแบบ Proposal')"><div class="type-card-icon">📋</div><div class="type-card-label">เขียนแบบ Proposal</div><div class="type-card-sub">นำเสนอโครงการ</div></div>
-        <div class="type-card" onclick="selectType(this,'🏛️','เขียนแบบขออนุญาตก่อสร้าง')"><div class="type-card-icon">🏛️</div><div class="type-card-label">ขออนุญาตก่อสร้าง</div><div class="type-card-sub">ยื่นขออนุญาต</div></div>
+        <div class="type-card" onclick="selectType(this,'🏛️','ขออนุญาตก่อสร้าง')"><div class="type-card-icon">🏛️</div><div class="type-card-label">ขออนุญาตก่อสร้าง</div><div class="type-card-sub">ยื่นขออนุญาต</div></div>
         <div class="type-card" onclick="selectType(this,'🏗️','เขียนแบบก่อสร้าง')"><div class="type-card-icon">🏗️</div><div class="type-card-label">เขียนแบบก่อสร้าง</div><div class="type-card-sub">แบบก่อสร้างจริง</div></div>
         <div class="type-card" onclick="selectType(this,'🏁','As-Built Drawing')"><div class="type-card-icon">🏁</div><div class="type-card-label">As-Built Drawing</div><div class="type-card-sub">แบบหลังก่อสร้าง</div></div>
         <div class="type-card" onclick="selectType(this,'✏️','Revision / แก้ไขแบบ',true)"><div class="type-card-icon">✏️</div><div class="type-card-label">Revision / แก้ไขแบบ</div><div class="type-card-sub">แก้ไขงานเดิม</div></div>
@@ -929,7 +948,7 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
 
-    <!-- ── Revision Panel (แสดงเฉพาะเมื่อเลือก Revision) ── -->
+    <!-- Revision Panel -->
     <div class="card" id="revisionPanel" style="display:none;border:2px solid #f59e0b;background:#fffbeb">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
         <span style="font-size:20px">✏️</span>
@@ -938,8 +957,6 @@ tr:hover td { background: var(--sky); }
           <div style="font-size:12px;color:#b45309">ค้นหาจากเลขคำร้องเดิม หรือ Drawing Number เพื่อดึงข้อมูล</div>
         </div>
       </div>
-
-      <!-- ค้นหา -->
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
         <input type="text" id="rev_search" placeholder="พิมพ์เลขคำร้อง DWG-2569-XXXX หรือ Drawing Number..."
           style="flex:1;min-width:200px;border-color:#f59e0b"
@@ -948,29 +965,21 @@ tr:hover td { background: var(--sky); }
           🔍 ค้นหา
         </button>
       </div>
-
-      <!-- ผลการค้นหา + ข้อมูลอ้างอิง -->
       <div id="rev_ref_result" style="display:none">
         <div style="background:#fff;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:14px">
           <div style="font-size:11px;font-weight:600;color:#92400e;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">📋 ข้อมูลคำร้องอ้างอิง</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px" id="rev_ref_info"></div>
         </div>
-
-        <!-- Revise Number ใหม่ -->
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
           <div class="field" style="margin:0">
             <label>Revise Number ใหม่ <span class="req">*</span></label>
-            <input type="text" id="rev_new_revise" placeholder="เช่น R1, R2, Rev.01"
-              style="border-color:#f59e0b">
+            <input type="text" id="rev_new_revise" placeholder="เช่น R1, R2, Rev.01" style="border-color:#f59e0b">
           </div>
           <div class="field" style="margin:0">
             <label>เลขคำร้องใหม่ (อัตโนมัติ)</label>
-            <input type="text" id="rev_new_number" readonly
-              style="background:#f3f4f6;color:var(--gray-500);font-family:var(--mono);font-size:13px">
+            <input type="text" id="rev_new_number" readonly style="background:#f3f4f6;color:var(--gray-500);font-family:var(--mono);font-size:13px">
           </div>
         </div>
-
-        <!-- หมายเหตุสาเหตุ — บังคับกรอก -->
         <div class="field" style="margin-bottom:12px">
           <label>สาเหตุ / หมายเหตุการแก้ไข <span class="req">*</span>
             <span style="font-size:11px;color:#dc2626;font-weight:400"> (บังคับกรอก)</span>
@@ -978,8 +987,6 @@ tr:hover td { background: var(--sky); }
           <textarea id="rev_reason" rows="3" placeholder="อธิบายสาเหตุที่ต้องแก้ไข เช่น ลูกค้าขอเปลี่ยน layout แผง, แก้ตาม comment จาก PEA..."
             style="border-color:#f59e0b;resize:vertical"></textarea>
         </div>
-
-        <!-- ประวัติ Revision ทั้งหมด -->
         <div id="rev_history_wrap" style="display:none">
           <div style="font-size:12px;font-weight:600;color:#92400e;margin-bottom:8px">
             📅 ประวัติ Revision ทั้งหมด
@@ -990,6 +997,9 @@ tr:hover td { background: var(--sky); }
       </div>
     </div>
 
+    <!-- ข้อมูลผู้ส่ง -->
+    <div class="card">
+      <div class="card-title">ข้อมูลผู้ส่ง</div>
       <div class="form-grid">
         <div class="field">
           <label>ชื่อ-นามสกุล <span class="req">*</span></label>
@@ -1022,323 +1032,94 @@ tr:hover td { background: var(--sky); }
           <input type="email" id="f_email" readonly>
         </div>
       </div>
+    </div>
 
-    <!-- ── Construction / As-Built Panel ── -->
-    <div id="constructionPanel" style="display:none">
-      <!-- Project info card -->
+    <!-- ── NEW: Drawing Submit Flow (ทุกประเภทใช้เหมือนกัน) ── -->
+    <div id="newSubmitFlow">
+
+      <!-- CARD: รายละเอียดโครงการ -->
       <div class="card">
         <div class="card-title">🏗️ รายละเอียดโครงการ</div>
-
-        <!-- Autocomplete โครงการ (ซ้ำ แต่ผูก Panel นี้) -->
         <div class="field">
           <label>ชื่อโครงการ <span class="req">*</span>
             <span style="font-size:11px;color:var(--gray-400);font-weight:400"> — ใช้ Project Code 4 ตัวอักษร เช่น BEMV, TMAT</span>
           </label>
           <div class="combo-wrap">
             <div style="flex:1;position:relative">
-              <input type="text" id="cp_project_input" placeholder="พิมพ์เพื่อค้นหาโครงการ..."
-                oninput="onCpProjectSearch(this.value)"
-                onfocus="onCpProjectSearch(this.value)"
-                onblur="setTimeout(()=>{const d=document.getElementById('cp_project_dropdown');if(d)d.style.display='none'},200)"
+              <input type="text" id="ns_project_input" placeholder="พิมพ์เพื่อค้นหาโครงการ..."
+                oninput="nsOnProjectSearch(this.value)"
+                onfocus="nsOnProjectSearch(this.value)"
+                onblur="setTimeout(()=>{const d=document.getElementById('ns_project_dropdown');if(d)d.style.display='none'},200)"
                 autocomplete="off"
                 style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-              <input type="hidden" id="cp_project">
-              <div id="cp_project_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:2px"></div>
+              <input type="hidden" id="ns_project_id">
+              <div id="ns_project_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:2px"></div>
             </div>
-            <button type="button" class="btn-sec-sm" onclick="clearCpProject()" title="ล้างค่า">✕</button>
-            <button type="button" class="btn-add-sm" onclick="openCpAddProject()" title="เพิ่มโครงการใหม่พร้อม Drawing">
+            <button type="button" class="btn-sec-sm" onclick="nsClearProject()" title="ล้างค่า">✕</button>
+            <button type="button" class="btn-add-sm" onclick="nsOpenAddProject()" title="เพิ่มโครงการใหม่พร้อม Drawing">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
           </div>
-        </div>
-
-        <!-- Project info card -->
-        <div class="proj-info-card" id="cp_proj_info">
-          <div class="proj-info-grid">
-            <div class="proj-info-row"><span class="proj-info-label">⚡ kWp:</span><span class="proj-info-val" id="cp_info_kwp">—</span></div>
-            <div class="proj-info-row"><span class="proj-info-label">📍 ที่ตั้ง:</span><span class="proj-info-val" id="cp_info_loc">—</span></div>
+          <div class="proj-info-card" id="ns_proj_info">
+            <div class="proj-info-grid">
+              <div class="proj-info-row"><span class="proj-info-label">⚡ kWp:</span><span class="proj-info-val" id="ns_info_kwp">—</span></div>
+              <div class="proj-info-row"><span class="proj-info-label">📍 ที่ตั้ง:</span><span class="proj-info-val" id="ns_info_loc">—</span></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Drawing selector -->
-      <div class="card">
-        <div class="card-title">📐 เลือก Drawing</div>
-
-        <!-- Category pills -->
-        <div class="cat-pill-wrap" id="cp_cat_pills">
-          <button class="cat-pill active-g" data-cpcat="" onclick="selectCpCat(this,'')">🗂️ ทั้งหมด</button>
-          <button class="cat-pill" data-cpcat="General Drawing" onclick="selectCpCat(this,'General Drawing')">📐 General</button>
-          <button class="cat-pill" data-cpcat="Architectural Drawing" onclick="selectCpCat(this,'Architectural Drawing')">🏛️ Arch</button>
-          <button class="cat-pill" data-cpcat="Structural Drawing" onclick="selectCpCat(this,'Structural Drawing')">🏗️ Structural</button>
-          <button class="cat-pill" data-cpcat="Electrical Drawing" onclick="selectCpCat(this,'Electrical Drawing')">⚡ Electrical</button>
-          <button class="cat-pill" data-cpcat="Mechanical Drawing" onclick="selectCpCat(this,'Mechanical Drawing')">⚙️ Mechanical</button>
-        </div>
-
-        <!-- Drawing table -->
-        <div class="dwg-table-wrap">
-          <table class="dwg-table">
+      <!-- CARD: เลือก Drawing -->
+      <div class="card" id="ns_drawing_card" style="display:none">
+        <div class="card-title">📐 เลือก Drawing — เลือกได้หลายรายการ</div>
+        <div id="ns_cat_hint" style="font-size:12px;color:var(--gray-400);padding:8px 0">เลือกประเภทคำร้องก่อน เพื่อแสดงหมวด Drawing</div>
+        <div class="cat-pill-wrap" id="ns_cat_pills" style="display:none"></div>
+        <div id="ns_drawing_table_wrap" style="display:none">
+          <table class="dwg-table" id="ns_dwg_table">
             <thead><tr>
               <th style="width:32px"></th>
               <th>Drawing Number</th>
               <th>Drawing Name</th>
+              <th style="width:90px">Rev ก่อนหน้า</th>
+              <th style="width:90px">Rev ใหม่</th>
             </tr></thead>
-            <tbody id="cp_dwg_tbody">
-              <tr><td colspan="3" style="text-align:center;padding:20px;color:var(--gray-400)">เลือกโครงการก่อนครับ</td></tr>
-            </tbody>
+            <tbody id="ns_dwg_tbody"></tbody>
           </table>
         </div>
-        <div id="cp_no_dwg" style="display:none;font-size:12px;color:var(--gray-400);padding:12px 0;text-align:center">ไม่มี Drawing ในหมวดนี้ — กด + เพิ่มใหม่ได้เลย</div>
+        <div id="ns_no_dwg_msg" style="display:none;font-size:12px;color:var(--gray-400);padding:12px 0;text-align:center">ยังไม่มี Drawing ในหมวดนี้ — กด + เพื่อเพิ่มโครงการใหม่</div>
       </div>
 
-      <!-- Revise Number + ที่ตั้ง + ลิงก์ -->
-      <div class="card">
-        <div class="card-title">📋 รายละเอียดเพิ่มเติม</div>
-        <div class="form-grid">
-          <div class="field">
-            <label>Revise Number</label>
-            <input type="text" id="cp_revise" placeholder="เช่น R0, R1, A, B">
-          </div>
-          <div class="field">
-            <label>วันที่ต้องการรับงาน</label>
-            <input type="date" id="cp_duedate">
-          </div>
-          <div class="field">
-            <label>ระดับความเร่งด่วน</label>
-            <select id="cp_urgent">
-              <option>ปกติ</option><option>เร่งด่วน</option><option>เร่งด่วนมาก</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>แนบลิงก์ข้อมูล</label>
-            <input type="text" id="cp_datalink" placeholder="Link Google Drive, OneDrive...">
-          </div>
-          <div class="field span2">
-            <label>รายละเอียดเพิ่มเติม</label>
-            <textarea id="cp_detail" rows="3" placeholder="อธิบายรายละเอียดงาน ข้อกำหนดพิเศษ..."></textarea>
-          </div>
+      <!-- CARD: รายการที่จะส่ง (Queue) -->
+      <div class="card" id="ns_queue_card" style="display:none">
+        <div class="card-title">📋 รายการที่จะส่ง</div>
+        <div id="ns_queue_list">
+          <div style="font-size:12px;color:var(--gray-400);text-align:center;padding:16px">ติ๊ก Drawing อย่างน้อย 1 รายการ เพื่อกรอกรายละเอียด</div>
         </div>
-      </div>
 
-      <!-- แนบเอกสาร / แบบ -->
-      <div class="card">
-        <div class="card-title">แนบเอกสาร / แบบ</div>
-        <div class="file-drop" id="cpFileDrop" onclick="document.getElementById('cpFileInput').click()">
-          <div style="font-size:28px;margin-bottom:8px">📎</div>
-          <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
-          <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 1GB</p>
+        <!-- แนบเอกสาร -->
+        <div style="margin-top:14px">
+          <div style="font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+            แนบเอกสาร / แบบ <span style="flex:1;height:1px;background:var(--gray-200);display:block"></span>
+          </div>
+          <div class="file-drop" id="nsFileDrop" onclick="document.getElementById('nsFileInput').click()">
+            <div style="font-size:28px;margin-bottom:8px">📎</div>
+            <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
+            <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 1GB</p>
+          </div>
+          <input type="file" id="nsFileInput" multiple accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar" style="display:none" onchange="handleFiles(this.files)">
+          <div class="file-list" id="nsFileList"></div>
         </div>
-        <input type="file" id="cpFileInput" multiple accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.dwf,.ifc,.rvt" style="display:none" onchange="handleFiles(this.files)">
-        <div class="file-list" id="cpFileList"></div>
+
         <div class="form-actions" style="margin-top:16px">
-          <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
-          <button class="btn btn-primary" id="cpSubmitBtn" onclick="submitCpRequest()">
+          <button class="btn btn-secondary" onclick="nsReset()">ล้างข้อมูล</button>
+          <button class="btn btn-primary" id="nsSubmitBtn" onclick="nsSubmit()">
             <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
             ส่งคำร้อง
           </button>
         </div>
       </div>
-    </div>
-    <!-- /Construction Panel -->
-    <div id="mainProjectForm">
-    <div class="card">
-      <div class="card-title">รายละเอียดโครงการ</div>
-      <div class="form-grid">
-        <div class="field span2">
-          <label>ชื่อโครงการ <span class="req">*</span>
-            <span style="font-size:11px;color:var(--gray-400);font-weight:400"> — ใส่ชื่อโครงการ หรือ Project Code (แนะนำ 4 ตัวอักษร สำหรับแบบก่อสร้าง/As-Built เช่น BEMV, SCGP)</span>
-          </label>
-          <div class="combo-wrap">
-            <div style="flex:1;position:relative">
-              <input type="text" id="f_project_input" placeholder="พิมพ์เพื่อค้นหาโครงการ..."
-                oninput="onProjectSearch(this.value)"
-                onfocus="onProjectSearch(this.value)"
-                onblur="setTimeout(()=>{const d=document.getElementById('f_project_dropdown');if(d)d.style.display='none'},200)"
-                autocomplete="off"
-                style="width:100%;font-size:14px;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-              <input type="hidden" id="f_project">
-              <div id="f_project_dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:200;max-height:220px;overflow-y:auto;margin-top:2px"></div>
-            </div>
-            <button type="button" class="btn-sec-sm" onclick="clearProjectSelect()" title="ล้างค่า">✕</button>
-            <button type="button" class="btn-sec-sm" onclick="openManageProjects()" title="จัดการรายการ">⚙️</button>
-            <button type="button" class="btn-add-sm" onclick="toggleAddProject()" title="เพิ่มโครงการใหม่">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
-          <div class="add-item-row" id="addProjectRow">
-            <input type="text" id="newProjectName" placeholder="ชื่อโครงการใหม่">
-            <button class="btn-save-sm" onclick="saveNewProject()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              บันทึก
-            </button>
-            <button class="btn-cancel-sm" onclick="toggleAddProject()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              ยกเลิก
-            </button>
-          </div>
-        </div>
 
-        <div class="field">
-          <label>ขนาดกำลังติดตั้งระบบ Solar (kWp)</label>
-          <div class="combo-wrap">
-            <select id="f_kwp" style="flex:1">
-              <option value="">-- เลือก kWp --</option>
-            </select>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_kwp').selectedIndex=0" title="ล้างค่า" >✕</button>
-            <button type="button" class="btn-sec-sm" onclick="openManageKwp()" title="จัดการรายการ" >⚙️</button>
-            <button type="button" class="btn-add-sm" onclick="toggleAddKwp()" title="เพิ่ม kWp ใหม่">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
-          <div class="add-item-row" id="addKwpRow">
-            <input type="text" id="newKwpValue" placeholder="เช่น 50, 100, 500 kWp">
-            <button class="btn-save-sm" onclick="saveNewKwp()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              บันทึก
-            </button>
-            <button class="btn-cancel-sm" onclick="toggleAddKwp()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              ยกเลิก
-            </button>
-          </div>
-        </div>
-        <div class="field"><!-- spacer --></div>
-
-        <!-- หมวด Drawing — Icon Cards -->
-        <div class="field span2">
-          <label>หมวด Drawing</label>
-          <div id="f_drawing_category_cards" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-            <button type="button" class="cat-card active" data-cat="" onclick="selectDrawingCategory(this,'')">🗂️<span>ทั้งหมด</span></button>
-            <button type="button" class="cat-card" data-cat="General Drawing" onclick="selectDrawingCategory(this,'General Drawing')">📐<span>General</span></button>
-            <button type="button" class="cat-card" data-cat="Architectural Drawing" onclick="selectDrawingCategory(this,'Architectural Drawing')">🏛️<span>Arch</span></button>
-            <button type="button" class="cat-card" data-cat="Structural Drawing" onclick="selectDrawingCategory(this,'Structural Drawing')">🏗️<span>Structural</span></button>
-            <button type="button" class="cat-card" data-cat="Electrical Drawing" onclick="selectDrawingCategory(this,'Electrical Drawing')">⚡<span>Electrical</span></button>
-            <button type="button" class="cat-card" data-cat="Mechanical Drawing" onclick="selectDrawingCategory(this,'Mechanical Drawing')">⚙️<span>Mechanical</span></button>
-          </div>
-          <input type="hidden" id="f_drawing_category">
-        </div>
-
-        <div class="field">
-          <label>Drawing Number</label>
-          <div class="combo-wrap">
-            <select id="f_drawing_number" onchange="onDrawingNumberSelect(this.value)">
-              <option value="">-- เลือก Drawing Number --</option>
-            </select>
-            <button type="button" class="btn-sec-sm" onclick="openManageDrawingNumbers()" title="จัดการรายการ">⚙️</button>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_number').selectedIndex=0" title="ล้างค่า">✕</button>
-            <button type="button" class="btn-add-sm" onclick="toggleAddDrawingNumber()" title="เพิ่ม Drawing Number">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
-          <div class="add-item-row" id="addDrawingNumberRow">
-            <input type="text" id="newDrawingNumber" placeholder="Drawing Number ใหม่" style="flex:1">
-            <select id="newDrawingNumberCategory" style="width:160px;font-size:12px;border:1px solid var(--gray-200);border-radius:8px;padding:6px 8px">
-              <option value="">-- หมวด --</option>
-              <option value="General Drawing">📐 General</option>
-              <option value="Architectural Drawing">🏛️ Architectural</option>
-              <option value="Structural Drawing">🏗️ Structural</option>
-              <option value="Electrical Drawing">⚡ Electrical</option>
-              <option value="Mechanical Drawing">⚙️ Mechanical</option>
-            </select>
-            <button class="btn-save-sm" onclick="saveNewDrawingNumber()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              บันทึก
-            </button>
-            <button class="btn-cancel-sm" onclick="toggleAddDrawingNumber()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              ยกเลิก
-            </button>
-          </div>
-        </div>
-        <div class="field">
-          <label>Revise Number</label>
-          <input type="text" id="f_revise" placeholder="เช่น 0, 1, A, B">
-        </div>
-        <div class="field span2">
-          <label>Drawing Name</label>
-          <div class="combo-wrap">
-            <select id="f_drawing_name">
-              <option value="">-- เลือก Drawing Name --</option>
-            </select>
-            <button type="button" class="btn-sec-sm" onclick="openManageDrawingNames()" title="จัดการรายการ">⚙️</button>
-            <button type="button" class="btn-sec-sm" onclick="document.getElementById('f_drawing_name').selectedIndex=0" title="ล้างค่า">✕</button>
-            <button type="button" class="btn-add-sm" onclick="toggleAddDrawingName()" title="เพิ่ม Drawing Name">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-          </div>
-          <div class="add-item-row" id="addDrawingNameRow">
-            <input type="text" id="newDrawingName" placeholder="Drawing Name ใหม่" style="flex:1">
-            <select id="newDrawingNameCategory" style="width:160px;font-size:12px;border:1px solid var(--gray-200);border-radius:8px;padding:6px 8px">
-              <option value="">-- หมวด --</option>
-              <option value="General Drawing">📐 General</option>
-              <option value="Architectural Drawing">🏛️ Architectural</option>
-              <option value="Structural Drawing">🏗️ Structural</option>
-              <option value="Electrical Drawing">⚡ Electrical</option>
-              <option value="Mechanical Drawing">⚙️ Mechanical</option>
-            </select>
-            <button class="btn-save-sm" onclick="saveNewDrawingName()">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              บันทึก
-            </button>
-            <button class="btn-cancel-sm" onclick="toggleAddDrawingName()">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              ยกเลิก
-            </button>
-          </div>
-        </div>
-        <div class="field">
-          <label>ที่ตั้งโครงการ <span style="font-size:11px;color:var(--gray-400)">(วาง Link หรือกด 📍 เพื่อเปิดแผนที่แล้ว copy link)</span></label>
-          <div class="map-input-wrap">
-            <input type="text" id="f_location" placeholder="วาง Link Google Maps" oninput="previewMap(this.value)">
-            <span class="map-open-btn" onclick="openMap()">📍 เปิดแผนที่</span>
-          </div>
-          <div class="map-preview" id="mapPreview">
-            🗺️ <a id="mapLink" href="#" target="_blank" style="color:var(--info);font-size:12px;word-break:break-all"></a>
-          </div>
-        </div>
-        <div class="field span2">
-          <label>แนบลิงก์ข้อมูล</label>
-          <input type="text" id="f_datalink" placeholder="เช่น Link Google Drive, OneDrive, SharePoint..." oninput="previewDataLink(this.value)">
-          <div id="datalinkPreview" style="display:none;margin-top:6px;padding:8px 10px;background:var(--sky);border:1px solid #B8D9F0;border-radius:8px;font-size:12px;align-items:center;gap:6px">
-            🔗 <a id="datalinkAnchor" href="#" target="_blank" style="color:var(--info);font-size:12px;word-break:break-all"></a>
-          </div>
-        </div>
-        <div class="field">
-          <label>วันที่ต้องการรับงาน</label>
-          <input type="date" id="f_duedate">
-        </div>
-        <div class="field">
-          <label>ระดับความเร่งด่วน</label>
-          <select id="f_urgent">
-            <option>ปกติ</option>
-            <option>เร่งด่วน</option>
-            <option>เร่งด่วนมาก</option>
-          </select>
-        </div>
-        <div class="field span2">
-          <label>รายละเอียดเพิ่มเติม</label>
-          <textarea id="f_detail" placeholder="อธิบายรายละเอียดงาน ข้อกำหนดพิเศษ..."></textarea>
-        </div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-title">แนบเอกสาร / แบบ</div>
-      <div class="file-drop" id="fileDrop" onclick="triggerFileInput()">
-        <div style="font-size:28px;margin-bottom:8px">📎</div>
-        <p>คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
-        <p style="font-size:11px;color:var(--gray-400);margin-top:4px">รองรับ PDF, DWG, DXF, JPG, PNG ขนาดไม่เกิน 1GB</p>
-      </div>
-      <input type="file" id="fileInput" multiple accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.dwf,.ifc,.rvt" style="display:none" onchange="handleFiles(this.files)">
-      <div class="file-list" id="fileList"></div>
-      <div class="form-actions" style="margin-top:16px">
-        <button class="btn btn-secondary" onclick="resetForm()">ล้างข้อมูล</button>
-        <button class="btn btn-primary" id="submitBtn" onclick="submitRequest()">
-          <svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          ส่งคำร้อง
-        </button>
-      </div>
-    </div><!-- /mainProjectForm -->
-    </div>
+    </div><!-- /newSubmitFlow -->
   </div>
 
   <!-- TRACKING -->
@@ -3588,16 +3369,15 @@ function selectType(el, icon, label, isRevision = false) {
   el.classList.add('selected');
   selectedType = icon + ' ' + label;
   isRevisionMode    = !!isRevision;
-  isConstructionMode = label === 'เขียนแบบก่อสร้าง' || label === 'As-Built Drawing';
+  isConstructionMode = false;
 
   // Revision panel
   const revPanel = document.getElementById('revisionPanel');
   if (revPanel) revPanel.style.display = isRevisionMode ? '' : 'none';
   if (!isRevisionMode) { revisionRefData = null; }
 
-  // Construction/As-Built panel
-  showConstructionPanel(isConstructionMode);
-  if (isConstructionMode) resetConstructionPanel();
+  // New submit flow: reset drawings when type changes
+  nsOnTypeChange(label);
 }
 
 // ── ค้นหาคำร้องอ้างอิงสำหรับ Revision ──
@@ -4030,6 +3810,419 @@ async function doSubmitRequest() {
     btn.dataset.submitting = 'false'; // ── คืน flag ให้กดได้อีกครั้ง ──
   }
 }
+
+// ══════════════════════════════════════════════════════
+// NEW SUBMIT FLOW (ns*) — ทุกประเภทใช้ flow เดียวกัน
+// ══════════════════════════════════════════════════════
+let nsSelectedProjId  = '';
+let nsSelectedCat     = '';
+let nsSelectedItems   = {}; // key: dwgId → { no, name, cat, prevRev, newRev }
+let nsCurrentType     = '';
+
+const NS_CAT_META = {
+  'General Drawing':       { short:'GE', cls:'active-g', badge:'dwg-badge-g' },
+  'Architectural Drawing': { short:'A',  cls:'active-g', badge:'dwg-badge-g' },
+  'Structural Drawing':    { short:'S',  cls:'active-s', badge:'dwg-badge-s' },
+  'Electrical Drawing':    { short:'E',  cls:'active-e', badge:'dwg-badge-e' },
+  'Mechanical Drawing':    { short:'M',  cls:'active-m', badge:'dwg-badge-m' },
+};
+
+function nsOnTypeChange(label) {
+  nsCurrentType = label;
+  nsSelectedItems = {};
+  nsSelectedCat = '';
+  // ถ้ามีโครงการแล้วให้ render drawing card ใหม่
+  if (nsSelectedProjId) nsRenderDrawingCard();
+  else nsRenderQueueCard();
+}
+
+// ── Project Search ──
+function nsOnProjectSearch(q) {
+  const dd = document.getElementById('ns_project_dropdown');
+  if (!dd) return;
+  const filtered = (projectListCache || [])
+    .filter(p => !p.IsHidden)
+    .filter(p => !q || (p.Title||'').toLowerCase().includes(q.toLowerCase()));
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.map(p =>
+    `<div class="ac-item" onmousedown="nsSelectProject('${p.id}','${(p.Title||'').replace(/'/g,"\\'")}')">
+      <span>${p.Title||''}</span>
+      <span class="ac-badge">${p.DefaultKwp||p.SolarKwp||''}</span>
+    </div>`).join('');
+  dd.style.display = 'block';
+}
+
+function nsSelectProject(id, title) {
+  nsSelectedProjId = id;
+  nsSelectedItems  = {};
+  nsSelectedCat    = '';
+  document.getElementById('ns_project_id').value = id;
+  document.getElementById('ns_project_input').value = title;
+  document.getElementById('ns_project_dropdown').style.display = 'none';
+  const proj = (projectListCache||[]).find(p => p.id === id);
+  if (proj) {
+    document.getElementById('ns_info_kwp').textContent = proj.DefaultKwp || proj.SolarKwp || '—';
+    const locEl = document.getElementById('ns_info_loc');
+    const loc = proj.DefaultLocation || '—';
+    locEl.innerHTML = (loc !== '—' && loc.startsWith('http'))
+      ? `<a href="${loc}" target="_blank" style="color:var(--info)">เปิดแผนที่ 📍</a>`
+      : loc;
+    document.getElementById('ns_proj_info').classList.add('show');
+  }
+  nsRenderDrawingCard();
+}
+
+function nsClearProject() {
+  nsSelectedProjId = ''; nsSelectedItems = {}; nsSelectedCat = '';
+  document.getElementById('ns_project_id').value = '';
+  document.getElementById('ns_project_input').value = '';
+  document.getElementById('ns_project_dropdown').style.display = 'none';
+  document.getElementById('ns_proj_info').classList.remove('show');
+  document.getElementById('ns_drawing_card').style.display = 'none';
+  document.getElementById('ns_queue_card').style.display = 'none';
+}
+
+function nsOpenAddProject() {
+  // ใช้ modal เดิมของ cpAddProject
+  if (typeof openCpAddProject === 'function') openCpAddProject();
+  else showToast('ℹ️', 'ฟีเจอร์เพิ่มโครงการพร้อมใช้หลัง Login');
+}
+
+// ── Drawing Card ──
+function nsRenderDrawingCard() {
+  const card = document.getElementById('ns_drawing_card');
+  card.style.display = '';
+  const hint = document.getElementById('ns_cat_hint');
+  const pillWrap = document.getElementById('ns_cat_pills');
+  const tableWrap = document.getElementById('ns_drawing_table_wrap');
+  const noMsg = document.getElementById('ns_no_dwg_msg');
+
+  // สร้าง category pills จาก drawing ที่มีในโครงการนี้
+  const proj = (projectListCache||[]).find(p => p.id === nsSelectedProjId);
+  const projName = proj?.Title || '';
+  const allDwgs = (drawingNumberCache||[]).filter(d => !d.IsHidden && (!projName || !d.ProjectName || d.ProjectName === projName));
+  const cats = [...new Set(allDwgs.map(d => d.DrawingCategory).filter(Boolean))];
+
+  if (!cats.length) {
+    hint.style.display = '';
+    hint.textContent = 'ยังไม่มี Drawing ในโครงการนี้ — กด + เพิ่มโครงการใหม่';
+    pillWrap.style.display = 'none'; tableWrap.style.display = 'none'; noMsg.style.display = 'none';
+    nsRenderQueueCard();
+    return;
+  }
+
+  hint.style.display = 'none';
+  pillWrap.style.display = '';
+  pillWrap.innerHTML = cats.map(cat => {
+    const meta = NS_CAT_META[cat] || { short: cat.charAt(0), cls: 'active-g', badge: 'dwg-badge-g' };
+    const active = nsSelectedCat === cat;
+    return `<button class="cat-pill ${active ? meta.cls : ''}" onclick="nsSelectCat('${cat.replace(/'/g,"\\'")}')">
+      ${nsCatEmoji(cat)} ${cat.replace(' Drawing','')}
+    </button>`;
+  }).join('');
+
+  if (!nsSelectedCat) {
+    tableWrap.style.display = 'none'; noMsg.style.display = 'none';
+  } else {
+    nsRenderDrawingTable();
+  }
+  nsRenderQueueCard();
+}
+
+function nsCatEmoji(cat) {
+  const map = {'General Drawing':'🗂️','Architectural Drawing':'🏛️','Structural Drawing':'🏗️','Electrical Drawing':'⚡','Mechanical Drawing':'⚙️'};
+  return map[cat] || '📐';
+}
+
+function nsSelectCat(cat) {
+  nsSelectedCat = cat;
+  const pills = document.querySelectorAll('#ns_cat_pills .cat-pill');
+  pills.forEach(p => {
+    const pCat = p.getAttribute('onclick')?.match(/nsSelectCat\('(.+?)'\)/)?.[1];
+    const meta = NS_CAT_META[pCat] || { cls: 'active-g' };
+    p.className = 'cat-pill' + (pCat === cat ? ' ' + meta.cls : '');
+  });
+  nsRenderDrawingTable();
+}
+
+function nsRenderDrawingTable() {
+  const tableWrap = document.getElementById('ns_drawing_table_wrap');
+  const noMsg     = document.getElementById('ns_no_dwg_msg');
+  const tbody     = document.getElementById('ns_dwg_tbody');
+  const proj = (projectListCache||[]).find(p => p.id === nsSelectedProjId);
+  const projName = proj?.Title || '';
+  const items = (drawingNumberCache||[])
+    .filter(d => !d.IsHidden)
+    .filter(d => !projName || !d.ProjectName || d.ProjectName === projName)
+    .filter(d => !nsSelectedCat || d.DrawingCategory === nsSelectedCat);
+
+  if (!items.length) {
+    tableWrap.style.display = 'none'; noMsg.style.display = '';
+    return;
+  }
+  noMsg.style.display = 'none'; tableWrap.style.display = '';
+  const meta = NS_CAT_META[nsSelectedCat] || { short: '?', badge: 'dwg-badge-g' };
+
+  // หา previous revision จาก allRequests
+  function getPrevRev(dwgNo) {
+    const hits = (allRequests||[]).filter(r => (r.DrawingNumber||'') === dwgNo).sort((a,b) => new Date(b.SubmittedAt||0)-new Date(a.SubmittedAt||0));
+    return hits.length ? (hits[0].ReviseNumber || '—') : '0';
+  }
+
+  tbody.innerHTML = items.map(d => {
+    const key = d.id || d.Title;
+    const sel = !!nsSelectedItems[key];
+    const prevRev = nsSelectedItems[key]?.prevRev ?? getPrevRev(d.Title||'');
+    const newRev  = nsSelectedItems[key]?.newRev  ?? '';
+    return `<tr class="${sel ? 'dwg-sel' : ''}" id="ns_row_${key}">
+      <td><input type="checkbox" ${sel?'checked':''} onchange="nsToggleDwg('${key}','${(d.Title||'').replace(/'/g,"\\'")}','${(d.DrawingName||'').replace(/'/g,"\\'")}','${(d.DrawingCategory||'').replace(/'/g,"\\'")}','${prevRev}')" style="accent-color:#0DB14B;width:15px;height:15px"></td>
+      <td><span class="dwg-no">${d.Title||'—'}</span><span class="dwg-badge ${meta.badge}">${meta.short}</span></td>
+      <td style="color:var(--gray-600)">${d.DrawingName||'—'}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--gray-400)">${prevRev}</td>
+      <td><input class="dwg-rev-input" ${sel?'':'disabled'} value="${newRev}" placeholder="—"
+        oninput="nsUpdateRev('${key}',this.value)" id="ns_rev_${key}"></td>
+    </tr>`;
+  }).join('');
+}
+
+function nsToggleDwg(key, no, name, cat, prevRev) {
+  if (nsSelectedItems[key]) {
+    delete nsSelectedItems[key];
+  } else {
+    nsSelectedItems[key] = { no, name, cat, prevRev, newRev: '' };
+  }
+  nsRenderDrawingTable();
+  nsRenderQueueCard();
+}
+
+function nsUpdateRev(key, val) {
+  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
+  // sync queue card
+  const qRevEl = document.getElementById('ns_qrev_' + key);
+  if (qRevEl) qRevEl.textContent = val || '—';
+}
+
+// ── Queue Card ──
+function nsRenderQueueCard() {
+  const card = document.getElementById('ns_queue_card');
+  const keys = Object.keys(nsSelectedItems);
+  if (!keys.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const list = document.getElementById('ns_queue_list');
+  list.innerHTML = keys.map((key, idx) => {
+    const item = nsSelectedItems[key];
+    const meta = NS_CAT_META[item.cat] || { short: '?', badge: 'dwg-badge-g' };
+    const detail = nsSelectedItems[key].detail || {};
+    return `<div class="ns-queue-card" id="ns_qcard_${key}">
+      <div class="ns-auto-no">เลขที่คำร้อง: อัตโนมัติ-${String(idx+1).padStart(2,'0')}</div>
+      <div class="ns-queue-header">
+        <div class="ns-dwg-title">
+          <strong><span class="dwg-badge ${meta.badge}" style="margin-right:4px">${meta.short}</span>${item.no}</strong>
+          <small>${item.name} · ${item.cat.replace(' Drawing','')}</small>
+        </div>
+        <button class="ns-remove-btn" onclick="nsRemoveItem('${key}')">×</button>
+      </div>
+      <div class="ns-queue-fields">
+        <div class="field">
+          <label>แนบลิงก์ข้อมูล</label>
+          <input type="text" value="${detail.link||''}" placeholder="Link Google Drive, OneDrive..."
+            oninput="nsSaveDetail('${key}','link',this.value)">
+        </div>
+        <div class="field">
+          <label>วันที่ต้องการรับงาน <span class="req">*</span></label>
+          <input type="date" value="${detail.dueDate||''}"
+            onchange="nsSaveDetail('${key}','dueDate',this.value)">
+        </div>
+        <div class="field">
+          <label>ระดับความเร่งด่วน</label>
+          <select onchange="nsSaveDetail('${key}','urgency',this.value)">
+            <option ${(detail.urgency||'ปกติ')==='ปกติ'?'selected':''}>ปกติ</option>
+            <option ${detail.urgency==='เร่งด่วน'?'selected':''}>เร่งด่วน</option>
+            <option ${detail.urgency==='เร่งด่วนมาก'?'selected':''}>เร่งด่วนมาก</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>รายละเอียดเพิ่มเติม</label>
+          <input type="text" value="${detail.note||''}" placeholder="รายละเอียดเฉพาะ Drawing นี้..."
+            oninput="nsSaveDetail('${key}','note',this.value)">
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function nsRemoveItem(key) {
+  delete nsSelectedItems[key];
+  // uncheck in drawing table
+  const row = document.getElementById('ns_row_' + key);
+  if (row) { row.classList.remove('dwg-sel'); const cb = row.querySelector('input[type=checkbox]'); if(cb) cb.checked=false; const rev = row.querySelector('.dwg-rev-input'); if(rev){rev.value='';rev.disabled=true;} }
+  nsRenderQueueCard();
+}
+
+function nsUpdateRev(key, val) {
+  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
+}
+
+function nsUpdateRevFromQueue(key, val) {
+  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
+  const tableRev = document.getElementById('ns_rev_' + key);
+  if (tableRev) tableRev.value = val;
+}
+
+function nsUpdateRev(key, val) {
+  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
+}
+
+function nsUpdateRevFromQueue(key, val) {
+  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
+  const tableRev = document.getElementById('ns_rev_' + key);
+  if (tableRev) tableRev.value = val;
+}
+
+function nsUpdateRev(key, val) {
+  if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
+}
+
+function nsSaveDetail(key, field, val) {
+  if (!nsSelectedItems[key]) return;
+  if (!nsSelectedItems[key].detail) nsSelectedItems[key].detail = {};
+  nsSelectedItems[key].detail[field] = val;
+}
+
+// ── Submit ──
+async function nsSubmit() {
+  const keys = Object.keys(nsSelectedItems);
+  if (!nsSelectedProjId) { showToast('⚠️', 'กรุณาเลือกโครงการก่อน'); return; }
+  if (!keys.length) { showToast('⚠️', 'กรุณาติ๊ก Drawing อย่างน้อย 1 รายการ'); return; }
+  // validate due date
+  const missing = keys.filter(k => !(nsSelectedItems[k].detail?.dueDate));
+  if (missing.length) { showToast('⚠️', 'กรุณากรอกวันที่ต้องการรับงานให้ครบทุกรายการ'); return; }
+
+  // Show confirm modal (re-use submitConfirmModal)
+  const detail = document.getElementById('submitConfirmDetail');
+  const proj = (projectListCache||[]).find(p => p.id === nsSelectedProjId);
+  const projName = proj?.Title || '';
+  if (detail) {
+    detail.innerHTML = `
+      <div style="font-size:13px;margin-bottom:12px">
+        <b>ประเภท:</b> ${selectedType} &nbsp;|&nbsp; <b>โครงการ:</b> ${projName}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${keys.map((k,i) => {
+          const it = nsSelectedItems[k];
+          const d  = it.detail || {};
+          return `<div style="background:#f8fafb;border:1px solid var(--gray-200);border-radius:8px;padding:8px 10px;font-size:12px">
+            <b>รายการ ${String(i+1).padStart(2,'0')}:</b> ${it.no} — ${it.name}<br>
+            <span style="color:var(--gray-600)">Rev: ${it.prevRev} → ${it.newRev||'—'} &nbsp;|&nbsp; กำหนด: ${d.dueDate ? new Date(d.dueDate).toLocaleDateString('th-TH') : '—'} &nbsp;|&nbsp; ${d.urgency||'ปกติ'}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+  const modal = document.getElementById('submitConfirmModal');
+  if (modal) {
+    // swap confirm button to call nsDoSubmit
+    const confirmBtn = modal.querySelector('.btn-primary');
+    if (confirmBtn) {
+      confirmBtn.onclick = null;
+      confirmBtn.setAttribute('onclick', 'nsDoSubmit()');
+    }
+    modal.classList.add('show');
+  } else {
+    // fallback: submit directly
+    await nsDoSubmit();
+  }
+}
+
+async function nsDoSubmit() {
+  const modal = document.getElementById('submitConfirmModal');
+  if (modal) modal.classList.remove('show');
+  const btn = document.getElementById('nsSubmitBtn');
+  if (btn.dataset.submitting === 'true') { showToast('⏳', 'กำลังส่งอยู่...'); return; }
+  btn.dataset.submitting = 'true'; btn.classList.add('btn-loading'); btn.disabled = true;
+
+  const proj = (projectListCache||[]).find(p => p.id === nsSelectedProjId);
+  const projName = proj?.Title || '';
+  const nameEl = document.getElementById('f_name');
+  const deptEl = document.getElementById('f_dept');
+  const name = nameEl?.value || (currentUser?.name || '');
+  let dept = deptEl?.value || '';
+  if (dept === 'other') dept = document.getElementById('f_dept_other')?.value || '';
+
+  const keys = Object.keys(nsSelectedItems);
+  const created = [];
+  try {
+    for (let i = 0; i < keys.length; i++) {
+      const key  = keys[i];
+      const item = nsSelectedItems[key];
+      const d    = item.detail || {};
+      const refNo = await genRefNumber();
+      const now   = new Date().toISOString();
+      const createData = {
+        Title:           refNo,
+        ProjectName:     selectedType,
+        ProjectName0:    projName,
+        Department:      dept,
+        SenderName:      name,
+        SenderEmail:     currentUser?.username || '',
+        SolarKwp:        proj?.DefaultKwp || proj?.SolarKwp || '',
+        DrawingNumber:   item.no,
+        DrawingName:     item.name,
+        DrawingCategory: item.cat,
+        ReviseNumber:    item.newRev || '',
+        DataLink:        d.link || '',
+        Detail:          d.note || '',
+        Urgency:         d.urgency || 'ปกติ',
+        Status:          'pending',
+        SubmittedAt:     now,
+        IsRevision:      'No',
+      };
+      if (d.dueDate) createData.DueDate = new Date(d.dueDate).toISOString();
+      Object.keys(createData).forEach(k => { if (createData[k] === '') delete createData[k]; });
+      await spCreateItem(createData);
+      created.push(refNo);
+
+      // Teams notify
+      try {
+        const chatId = CONFIG?.drawingTeamChatId;
+        if (chatId) {
+          const lines = [
+            `📋 <b>คำร้องใหม่เข้ามาแล้ว!</b>`,
+            `🔖 <b>เลขที่:</b> ${refNo}`,
+            `📦 <b>ประเภท:</b> ${selectedType}`,
+            `🏗️ <b>โครงการ:</b> ${projName}`,
+            `📐 <b>Drawing:</b> ${item.no} — ${item.name}`,
+            `👤 <b>ผู้ส่ง:</b> ${name}`,
+            `<a href="${CONFIG.redirectUri}">🖥️ เข้าระบบตรวจสอบ</a>`,
+          ];
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+            method:'POST',
+            headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+            body: JSON.stringify({body:{contentType:'html',content:lines.join('<br>')}})
+          });
+        }
+      } catch(te) { console.warn('Teams notify failed:', te.message); }
+    }
+    showToast('✅', `ส่งคำร้องสำเร็จ ${created.length} รายการ`);
+    nsReset();
+    if (typeof showPage === 'function') showPage('track', document.querySelector('[onclick*="track"]'));
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    btn.dataset.submitting = 'false'; btn.classList.remove('btn-loading'); btn.disabled = false;
+  }
+}
+
+function nsReset() {
+  nsSelectedProjId = ''; nsSelectedCat = ''; nsSelectedItems = '';
+  nsSelectedItems  = {};
+  const inp = document.getElementById('ns_project_input'); if(inp) inp.value = '';
+  const hid = document.getElementById('ns_project_id');   if(hid) hid.value = '';
+  const dd  = document.getElementById('ns_project_dropdown'); if(dd) dd.style.display='none';
+  const info= document.getElementById('ns_proj_info'); if(info) info.classList.remove('show');
+  document.getElementById('ns_drawing_card').style.display = 'none';
+  document.getElementById('ns_queue_card').style.display   = 'none';
+}
+// ══ END NEW SUBMIT FLOW ══
 
 function resetForm() {
   ['f_location','f_datalink','f_duedate','f_detail','f_kwp','f_revise'].forEach(id => {
