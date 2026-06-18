@@ -2218,43 +2218,75 @@ async function unhideKwp(id) {
 }
 
 // ── จัดการ Drawing Number ──
-function openManageDrawingNumbers() {
+function openManageDrawingNumbers(filterProj) {
   const modal = document.getElementById('manageDrawingNumberModal');
   const list  = document.getElementById('manageDrawingNumberList');
   modal.style.display = 'flex';
-  list.innerHTML = drawingNumberCache.map(p => {
-    const hidden = p.IsHidden;
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100)">
-      <div>
-        <div style="font-size:13px;font-weight:500;${hidden?'color:var(--gray-400);text-decoration:line-through':''}">${p.Title}</div>
-        ${p.ProjectName?`<div style="font-size:11px;color:var(--gray-400)">${p.ProjectName}</div>`:''}
-      </div>
-      <button onclick="${hidden?`unhideDrawingNumber('${p.id}')`:`hideDrawingNumber('${p.id}')`}"
-        style="background:${hidden?'var(--gray-100)':'#fff0f0'};border:1px solid ${hidden?'var(--gray-300)':'#fca5a5'};color:${hidden?'var(--gray-500)':'var(--danger)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:8px">
-        ${hidden?'👁️ แสดง':'🙈 ซ่อน'}
-      </button>
-    </div>`;
-  }).join('') || '<p style="color:var(--gray-400);font-size:13px">ไม่มีข้อมูล</p>';
+
+  // สร้าง project filter dropdown
+  const allProjs = [...new Set(drawingNumberCache.map(p => p.ProjectName||'').filter(Boolean))].sort();
+  const selProj  = filterProj || allProjs[0] || '';
+
+  const hiddenInProj = drawingNumberCache.filter(p => p.IsHidden && (p.ProjectName||'') === selProj);
+
+  list.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <select onchange="openManageDrawingNumbers(this.value)"
+        style="flex:1;padding:6px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font);font-size:13px">
+        ${allProjs.map(p => `<option value="${p}" ${p===selProj?'selected':''}>${p}</option>`).join('')}
+      </select>
+      ${hiddenInProj.length ? `<button onclick="unhideAllDrawings('${selProj}')"
+        style="background:var(--success-bg);border:1px solid var(--success);color:var(--success);border-radius:6px;padding:6px 12px;cursor:pointer;font-size:12px;white-space:nowrap;font-family:var(--font)">
+        👁️ เปิดทั้งหมด (${hiddenInProj.length})
+      </button>` : ''}
+    </div>
+    ${drawingNumberCache.filter(p => (p.ProjectName||'') === selProj).map(p => {
+      const hidden = p.IsHidden;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100)">
+        <div>
+          <div style="font-size:13px;font-weight:500;${hidden?'color:var(--gray-400);text-decoration:line-through':''}">${p.Title}</div>
+          <div style="font-size:11px;color:var(--gray-400)">${p.DrawingCategory||''}</div>
+        </div>
+        <button onclick="${hidden?`unhideDrawingNumber('${p.id}','${selProj}')`:`hideDrawingNumber('${p.id}','${selProj}')`}"
+          style="background:${hidden?'var(--gray-100)':'#fff0f0'};border:1px solid ${hidden?'var(--gray-300)':'#fca5a5'};color:${hidden?'var(--gray-500)':'var(--danger)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;flex-shrink:0;margin-left:8px">
+          ${hidden?'👁️ เปิด':'🙈 ซ่อน'}
+        </button>
+      </div>`;
+    }).join('') || '<p style="color:var(--gray-400);font-size:13px">ไม่มีข้อมูล</p>'}`;
 }
-async function hideDrawingNumber(id) {
+
+async function unhideAllDrawings(projName) {
+  const toUnhide = drawingNumberCache.filter(p => p.IsHidden && (p.ProjectName||'') === projName);
+  if (!toUnhide.length) return;
+  try {
+    for (const p of toUnhide) {
+      await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${p.id}/fields`, { IsHidden: false });
+      p.IsHidden = false;
+    }
+    renderDrawingNumberSelect();
+    openManageDrawingNumbers(projName);
+    showToast('✅', `เปิดใช้งาน ${toUnhide.length} Drawing ของ ${projName} แล้ว`);
+  } catch(e) { showToast('❌','ไม่สำเร็จ: '+e.message); }
+}
+
+async function hideDrawingNumber(id, filterProj) {
   try {
     await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${id}/fields`, { IsHidden: true });
     const item = drawingNumberCache.find(p=>p.id===id); if(item) item.IsHidden = true;
-    renderDrawingNumberSelect(); openManageDrawingNumbers(); showToast('✅','ซ่อนแล้ว');
+    renderDrawingNumberSelect(); openManageDrawingNumbers(filterProj); showToast('✅','ซ่อนแล้ว');
   } catch(e) {
-    // ถ้าไม่มี column IsHidden ให้ลบออกจาก cache แทน
     if (e.message.includes('not recognized') || e.message.includes('400')) {
       drawingNumberCache = drawingNumberCache.filter(p=>p.id!==id);
-      renderDrawingNumberSelect(); openManageDrawingNumbers();
+      renderDrawingNumberSelect(); openManageDrawingNumbers(filterProj);
       showToast('🗑️','ลบออกจากรายการแล้ว (ไม่มี column IsHidden)');
     } else { showToast('❌','ซ่อนไม่สำเร็จ: '+e.message); }
   }
 }
-async function unhideDrawingNumber(id) {
+async function unhideDrawingNumber(id, filterProj) {
   try {
     await graphPatch(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items/${id}/fields`, { IsHidden: false });
     const item = drawingNumberCache.find(p=>p.id===id); if(item) item.IsHidden = false;
-    renderDrawingNumberSelect(); openManageDrawingNumbers(); showToast('✅','แสดงแล้ว');
+    renderDrawingNumberSelect(); openManageDrawingNumbers(filterProj); showToast('✅','เปิดใช้งานแล้ว');
   } catch(e) { showToast('❌','แก้ไขไม่สำเร็จ: '+e.message); }
 }
 
@@ -2847,10 +2879,10 @@ async function saveCpNewProject() {
           (d.ProjectName||'').trim().toLowerCase() === name.toLowerCase()
         );
         if (dupDwg) { skippedNos.push(no); continue; }
-        const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
+        const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat, IsHidden: false };
         if (nm) dwgFields.DrawingName = nm;
         const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
-        drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm });
+        drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm, IsHidden: false });
         addedCount++;
       }
     }
