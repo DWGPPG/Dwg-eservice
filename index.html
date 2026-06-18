@@ -2043,6 +2043,7 @@ const CONFIG = {
   spDrawingNameListName:   'DrawingNameList',
   spKwpListName:           'KwpList',
   spTeamMemberListName:    'DrawingTeam',   // ← List สมาชิกทีม (เพิ่ม/ลบพนักงานที่นี่)
+  spHolidayListName:       'HolidayList',   // ← List วันหยุดนักขัตฤกษ์ (Title = ชื่อวันหยุด, HolidayDate = วันที่ YYYY-MM-DD)
 
   // ── ทีมงานในแผนก — โหลดจาก SharePoint List "DrawingTeam" อัตโนมัติ ──
   // (ค่านี้จะถูก overwrite ตอน login — ไม่ต้องแก้ที่นี่อีกต่อไป)
@@ -2089,6 +2090,9 @@ let spProjectListId       = null;
 let spDrawingNumberListId = null;
 let spDrawingNameListId   = null;
 let spKwpListId           = null;
+let spHolidayListId       = null;
+// Set<string> ของวันหยุดนักขัตฤกษ์ในรูปแบบ "YYYY-MM-DD" โหลดจาก SharePoint
+let publicHolidays        = new Set();
 let projectListCache      = [];
 let drawingNumberCache    = [];
 let drawingNameCache      = [];
@@ -3373,6 +3377,10 @@ async function loadSpIds() {
     try {
       await loadTeamMembers();
     } catch(e) { console.warn('DrawingTeam not found, using CONFIG fallback:', e.message); }
+    // โหลด HolidayList (วันหยุดนักขัตฤกษ์)
+    try {
+      await loadHolidays();
+    } catch(e) { console.warn('HolidayList not found, working days will exclude weekends only:', e.message); }
   } catch(e) {
     setBanner('error', '❌ เชื่อมต่อ SharePoint ไม่สำเร็จ: ' + e.message);
     console.error('loadSpIds:', e);
@@ -4586,11 +4594,11 @@ function renderDwgCards() {
       // วันกำหนดส่ง
       let dueCell = '<span style="color:var(--gray-400)">—</span>';
       if (d) {
-        const diff = Math.ceil((d - today) / 86400000);
-        if (isOverdue)       dueCell = `<span style="color:#dc2626;font-weight:700;font-size:11px">🔴 เกิน ${Math.abs(diff)} วัน<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        const diff = workdaysBetween(today, d);
+        if (isOverdue)       dueCell = `<span style="color:#dc2626;font-weight:700;font-size:11px">🔴 เกิน ${Math.abs(diff)} วทก.<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
         else if (isDueToday) dueCell = `<span style="color:#d97706;font-weight:700;font-size:11px">🟡 วันนี้!<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
-        else if (diff <= 3)  dueCell = `<span style="color:#d97706;font-weight:600;font-size:11px">🟠 อีก ${diff} วัน<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
-        else                 dueCell = `<span style="color:var(--gray-600);font-size:11px">🟢 อีก ${diff} วัน<br><small>${fmtDate(r.DueDate)}</small></span>`;
+        else if (diff <= 3)  dueCell = `<span style="color:#d97706;font-weight:600;font-size:11px">🟠 อีก ${diff} วทก.<br><small style="font-weight:400">${fmtDate(r.DueDate)}</small></span>`;
+        else                 dueCell = `<span style="color:var(--gray-600);font-size:11px">🟢 อีก ${diff} วทก.<br><small>${fmtDate(r.DueDate)}</small></span>`;
       }
 
       const dwgUrl = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
@@ -5399,10 +5407,10 @@ function renderWorkCard(item) {
         ${item.DueDate ? (() => {
           const now = new Date(); now.setHours(0,0,0,0);
           const due = new Date(item.DueDate); due.setHours(0,0,0,0);
-          const diff = Math.ceil((due - now) / 86400000);
+          const diff = workdaysBetween(now, due);
           const isActive = ['pending','inprogress_lv1','approved','working','delivered'].includes((item.Status0||item.Status||'').toLowerCase());
-          if (isActive && diff < 0)  return `<span style="color:#e53e3e;font-weight:600">⚠️ เกินกำหนด ${Math.abs(diff)} วัน (${fmtDate(item.DueDate)})</span>`;
-          if (isActive && diff <= 3) return `<span style="color:#d97706;font-weight:600">🔔 ใกล้กำหนด ${diff===0?'วันนี้!':'อีก '+diff+' วัน'} (${fmtDate(item.DueDate)})</span>`;
+          if (isActive && diff < 0)  return `<span style="color:#e53e3e;font-weight:600">⚠️ เกินกำหนด ${Math.abs(diff)} วันทำการ (${fmtDate(item.DueDate)})</span>`;
+          if (isActive && diff <= 3) return `<span style="color:#d97706;font-weight:600">🔔 ใกล้กำหนด ${diff===0?'วันนี้!':'อีก '+diff+' วันทำการ'} (${fmtDate(item.DueDate)})</span>`;
           return `กำหนดส่ง: ${fmtDate(item.DueDate)}`;
         })() : 'กำหนดส่ง: —'}
       </span>
@@ -5627,9 +5635,59 @@ function fmtDateTime(iso) {
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()+543} เวลา ${hh}:${mm} น.`;
 }
 
-function daysBetween(a, b) {
-  return Math.abs(new Date(b) - new Date(a)) / 86400000;
+// ── WORKDAY HELPERS ──────────────────────────────────────────────
+// ตรวจว่า d (Date) เป็นวันทำการหรือเปล่า (จันทร์–ศุกร์ + ไม่ใช่วันหยุดนักขัตฤกษ์)
+function isWorkday(d) {
+  const day = d.getDay();
+  if (day === 0 || day === 6) return false;          // อาทิตย์=0, เสาร์=6
+  const key = d.toISOString().slice(0, 10);          // "YYYY-MM-DD"
+  return !publicHolidays.has(key);
 }
+
+// นับวันทำการระหว่างสอง Date (ไม่รวม from, รวม to — เหมือน calendar diff)
+// คืนค่าบวก = to อยู่หลัง from, ลบ = to อยู่ก่อน from
+function workdaysBetween(from, to) {
+  const f = new Date(from); f.setHours(0,0,0,0);
+  const t = new Date(to);   t.setHours(0,0,0,0);
+  if (f.getTime() === t.getTime()) return 0;
+  const sign  = t > f ? 1 : -1;
+  let cur     = new Date(f);
+  let count   = 0;
+  while (cur.getTime() !== t.getTime()) {
+    cur.setDate(cur.getDate() + sign);
+    if (isWorkday(cur)) count++;
+  }
+  return sign * count;
+}
+
+// compat shim: daysBetween ยังคงใช้ workdays เพื่อรองรับโค้ดเดิม
+function daysBetween(a, b) {
+  return Math.abs(workdaysBetween(new Date(a), new Date(b)));
+}
+
+// โหลดวันหยุดนักขัตฤกษ์จาก SharePoint List "HolidayList"
+// คอลัมน์ที่ต้องมีใน List: Title (ชื่อวันหยุด), HolidayDate (Date column, YYYY-MM-DD)
+async function loadHolidays() {
+  if (!spSiteId) return;
+  try {
+    const hlLists = await graphGet(`/sites/${spSiteId}/lists?$filter=displayName eq '${CONFIG.spHolidayListName}'`);
+    spHolidayListId = hlLists.value[0]?.id || null;
+    if (!spHolidayListId) { console.warn('HolidayList not found — using no public holidays'); return; }
+    // ดึงทุก item (รองรับ pagination)
+    let url = `/sites/${spSiteId}/lists/${spHolidayListId}/items?expand=fields&$top=500`;
+    while (url) {
+      const r = await graphGet(url);
+      r.value.forEach(item => {
+        const raw = item.fields?.HolidayDate;
+        if (raw) publicHolidays.add(raw.slice(0, 10)); // เก็บเฉพาะ YYYY-MM-DD
+      });
+      const next = r['@odata.nextLink'];
+      url = next ? next.replace('https://graph.microsoft.com/v1.0', '') : null;
+    }
+    console.log(`✅ โหลดวันหยุดนักขัตฤกษ์ ${publicHolidays.size} วัน`);
+  } catch(e) { console.warn('loadHolidays:', e.message); }
+}
+// ─────────────────────────────────────────────────────────────────
 
 // ── SEND WORK TAB ──
 let _pendingReviewId = null;
@@ -7184,7 +7242,7 @@ async function checkDueDateAlerts() {
 
     const nearDue = withDue.filter(r => {
       const due = new Date(r.DueDate); due.setHours(0,0,0,0);
-      const diff = (due - now) / 86400000;
+      const diff = workdaysBetween(now, due);
       return diff >= 0 && diff <= 3;
     });
 
@@ -7200,18 +7258,18 @@ async function checkDueDateAlerts() {
       if (overdue.length > 0) {
         lines.push(`🔴 <b>เกินกำหนดแล้ว (${overdue.length} รายการ)</b>`);
         overdue.forEach(r => {
-          const daysOver = Math.ceil((now - new Date(r.DueDate)) / 86400000);
-          lines.push(`• ${r.Title} — ${r.ProjectName0||'—'} | ผู้เขียนแบบ: ${r.AssigneeName||'—'} | เกินมา ${daysOver} วัน`);
+          const daysOver = daysBetween(r.DueDate, now);
+          lines.push(`• ${r.Title} — ${r.ProjectName0||'—'} | ผู้เขียนแบบ: ${r.AssigneeName||'—'} | เกินมา ${Math.ceil(daysOver)} วันทำการ`);
         });
         lines.push(``);
       }
 
       if (nearDue.length > 0) {
-        lines.push(`🟡 <b>ใกล้ถึงกำหนด ≤3 วัน (${nearDue.length} รายการ)</b>`);
+        lines.push(`🟡 <b>ใกล้ถึงกำหนด ≤3 วันทำการ (${nearDue.length} รายการ)</b>`);
         nearDue.forEach(r => {
           const due  = new Date(r.DueDate); due.setHours(0,0,0,0);
-          const diff = Math.ceil((due - now) / 86400000);
-          const label = diff === 0 ? 'วันนี้!' : `อีก ${diff} วัน`;
+          const diff = workdaysBetween(now, due);
+          const label = diff === 0 ? 'วันนี้!' : `อีก ${diff} วันทำการ`;
           lines.push(`• ${r.Title} — ${r.ProjectName0||'—'} | ผู้เขียนแบบ: ${r.AssigneeName||'—'} | กำหนด: ${label}`);
         });
       }
