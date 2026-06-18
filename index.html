@@ -2111,9 +2111,14 @@ async function loadDrawingNumberList() {
       const next = r['@odata.nextLink'];
       url = next ? next.replace('https://graph.microsoft.com/v1.0','') : null;
     }
-    // deduplicate by id
+    // deduplicate by Title+ProjectName — เก็บแถวแรกที่เจอ (id น้อยสุด = เก่าสุด)
     const seen = new Set();
-    drawingNumberCache = all.filter(d => { if(seen.has(d.id)) return false; seen.add(d.id); return true; });
+    drawingNumberCache = all.filter(d => {
+      const key = `${(d.Title||'').trim().toLowerCase()}||${(d.ProjectName||'').trim().toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     renderDrawingNumberSelect();
   } catch(e) { console.warn('loadDrawingNumberList:', e); }
 }
@@ -2606,9 +2611,13 @@ function renderCpDrawings() {
   }
   const proj = projectListCache.find(p => p.id === cpSelectedProjId);
   const projName = proj?.Title || '';
+  const projNameLower = projName.trim().toLowerCase();
   const items = drawingNumberCache
     .filter(d => !d.IsHidden)
-    .filter(d => d.ProjectName === projName)
+    .filter(d => {
+      const dn = (d.ProjectName || d.ProjectName0 || '').trim().toLowerCase();
+      return dn === projNameLower;
+    })
     .filter(d => !cpSelectedCat || d.DrawingCategory === cpSelectedCat);
 
   if (!items.length) {
@@ -2799,7 +2808,7 @@ async function saveCpNewProject() {
     // ── บันทึก Drawing rows — ข้าม Drawing Number ที่มีอยู่แล้วใน cache ──
     const cats = ['General Drawing','Architectural Drawing','Structural Drawing','Electrical Drawing','Mechanical Drawing'];
     let addedCount = 0;
-    let skippedCount = 0;
+    const skippedNos = [];
     for (const cat of cats) {
       const key = cat.replace(/ /g,'_');
       const container = document.getElementById(`cpap_rows_${key}`);
@@ -2811,9 +2820,12 @@ async function saveCpNewProject() {
         const no = noEl?.value.trim() || '';
         const nm = nmEl?.value.trim() || '';
         if (!no || !spDrawingNumberListId) continue;
-        // เช็ค Drawing Number ซ้ำ
-        const dupDwg = drawingNumberCache.find(d => d.Title === no && d.ProjectName === name);
-        if (dupDwg) { skippedCount++; continue; }
+        // เช็ค Drawing Number ซ้ำ (case-insensitive)
+        const dupDwg = drawingNumberCache.find(d =>
+          (d.Title||'').trim().toLowerCase() === no.toLowerCase() &&
+          (d.ProjectName||'').trim().toLowerCase() === name.toLowerCase()
+        );
+        if (dupDwg) { skippedNos.push(no); continue; }
         const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
         if (nm) dwgFields.DrawingName = nm;
         const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
@@ -2824,9 +2836,17 @@ async function saveCpNewProject() {
 
     closeCpAddProject();
     if (projId) selectCpProject(projId, name);
+
+    // แจ้งผลสรุป
+    if (skippedNos.length > 0) {
+      // แจ้งเตือน Drawing ซ้ำแบบละเอียด
+      setTimeout(() => {
+        showToast('⚠️', `Drawing ซ้ำ (${skippedNos.length} รายการ): ${skippedNos.join(', ')} — หากต้องการแก้ไข ไปที่ SharePoint → DrawingNumberList`);
+      }, 400);
+    }
     const msg = isNew
       ? `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว${addedCount ? ` (${addedCount} Drawing)` : ''}`
-      : `อัปเดตโครงการ "${name}" — เพิ่ม ${addedCount} Drawing${skippedCount ? ` (ข้าม ${skippedCount} รายการที่มีอยู่แล้ว)` : ''}`;
+      : `อัปเดตโครงการ "${name}" — เพิ่ม ${addedCount} Drawing${skippedNos.length ? ` (ซ้ำ ${skippedNos.length} รายการ)` : ''}`;
     showToast('✅', msg);
   } catch(e) {
     showToast('❌','บันทึกไม่สำเร็จ: ' + e.message);
