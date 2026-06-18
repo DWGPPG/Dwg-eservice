@@ -4346,6 +4346,14 @@ function nsRenderQueueCard() {
     const item = nsSelectedItems[key];
     const meta = NS_CAT_META[item.cat] || { short: '?', badge: 'dwg-badge-g' };
     const detail = nsSelectedItems[key].detail || {};
+    const files  = nsSelectedItems[key].files  || [];
+    const fileListHtml = files.length ? files.map((f,fi) => `
+      <div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--gray-100);border-radius:6px;font-size:11px">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">📄 ${f.name}</span>
+        <span style="color:var(--gray-400)">${(f.size/1024).toFixed(0)} KB</span>
+        <button type="button" onclick="nsRemoveFile('${key}',${fi})"
+          style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;padding:0 2px">✕</button>
+      </div>`).join('') : '';
     return `<div class="ns-queue-card" id="ns_qcard_${key}">
       <div class="ns-auto-no">เลขที่คำร้อง: อัตโนมัติ-${String(idx+1).padStart(2,'0')}</div>
       <div class="ns-queue-header">
@@ -4379,6 +4387,19 @@ function nsRenderQueueCard() {
           <input type="text" value="${detail.note||''}" placeholder="รายละเอียดเฉพาะ Drawing นี้..."
             oninput="nsSaveDetail('${key}','note',this.value)">
         </div>
+        <div class="field span2">
+          <label>📎 แนบเอกสาร / แบบ</label>
+          <div class="file-drop" onclick="document.getElementById('ns_file_${key}').click()"
+            ondragover="event.preventDefault()" ondrop="event.preventDefault();nsHandleFileDrop('${key}',event.dataTransfer.files)"
+            style="padding:12px 16px;text-align:center;font-size:12px;color:var(--gray-400)">
+            คลิกหรือลากไฟล์มาวางที่นี่
+          </div>
+          <input type="file" id="ns_file_${key}" multiple style="display:none"
+            onchange="nsHandleFileInput('${key}',this.files);this.value=''">
+          <div id="ns_filelist_${key}" style="display:flex;flex-direction:column;gap:4px;margin-top:6px">
+            ${fileListHtml}
+          </div>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -4395,6 +4416,26 @@ function nsUpdateRev(key, val) {
   if (nsSelectedItems[key]) nsSelectedItems[key].newRev = val;
   const tableRev = document.getElementById('ns_rev_' + key);
   if (tableRev) tableRev.value = val;
+}
+
+function nsHandleFileInput(key, fileList) {
+  if (!nsSelectedItems[key]) return;
+  if (!nsSelectedItems[key].files) nsSelectedItems[key].files = [];
+  Array.from(fileList).forEach(f => {
+    if (!nsSelectedItems[key].files.find(x => x.name === f.name && x.size === f.size))
+      nsSelectedItems[key].files.push(f);
+  });
+  nsRenderQueueCard();
+}
+
+function nsHandleFileDrop(key, fileList) {
+  nsHandleFileInput(key, fileList);
+}
+
+function nsRemoveFile(key, idx) {
+  if (!nsSelectedItems[key]?.files) return;
+  nsSelectedItems[key].files.splice(idx, 1);
+  nsRenderQueueCard();
 }
 
 function nsSaveDetail(key, field, val) {
@@ -4499,6 +4540,14 @@ async function nsDoSubmit() {
       // อัปเดต allRequests cache ทันทีเพื่อให้เลขถัดไปไม่ซ้ำ
       if (spResult && !allRequests.find(r => r.Title === refNo)) {
         allRequests.unshift({ id: spResult.id || refNo, Title: refNo, ...createData });
+      }
+      // upload ไฟล์แนบของรายการนี้
+      const itemFiles = item.files || [];
+      for (const file of itemFiles) {
+        try {
+          const buf = await file.arrayBuffer();
+          await spUploadFile(`DrawingRequests/${refNo}`, file.name, buf);
+        } catch(uploadErr) { console.warn('Upload file failed:', uploadErr); }
       }
       created.push(refNo);
 
