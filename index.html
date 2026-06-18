@@ -1787,7 +1787,7 @@ tr:hover td { background: var(--sky); }
           <div id="cpap_name_dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:300;max-height:200px;overflow-y:auto;margin-top:2px"></div>
         </div>
         <div id="cpap_existing_notice" style="display:none;font-size:11px;color:var(--success);margin-top:4px;padding:6px 10px;background:var(--success-bg);border-radius:6px">
-          ✅ พบโครงการเดิม — เติมข้อมูลอัตโนมัติแล้ว สามารถแก้ไขหรือเพิ่ม Drawing ได้
+          ✅ พบโครงการเดิม — โหลด Drawing ที่มีอยู่แล้วมาให้ครบ สามารถเพิ่ม Drawing ใหม่ได้ (Drawing ที่มีอยู่แล้วจะไม่ถูกบันทึกซ้ำ)
         </div>
       </div>
       <div class="field">
@@ -2656,6 +2656,16 @@ function cpapOnNameSearch(q) {
   const dd = document.getElementById('cpap_name_dd');
   if (!dd) return;
   if (!q) { dd.style.display = 'none'; return; }
+
+  // ── exact match → โหลด Drawing อัตโนมัติทันที ──
+  const exact = (projectListCache||[]).find(p => !p.IsHidden && (p.Title||'').toLowerCase() === q.toLowerCase());
+  if (exact) {
+    dd.style.display = 'none';
+    cpapFillFromProject(exact.id, exact.Title);
+    return;
+  }
+
+  // ── partial match → แสดง dropdown ──
   const filtered = (projectListCache||[])
     .filter(p => !p.IsHidden && (p.Title||'').toLowerCase().includes(q.toLowerCase()))
     .slice(0, 8);
@@ -2745,28 +2755,35 @@ function closeCpAddProject() {
 async function saveCpNewProject() {
   const name = document.getElementById('cpap_name')?.value.trim();
   if (!name) { showToast('⚠️','กรุณาใส่ชื่อโครงการ'); return; }
-  // เช็คชื่อซ้ำใน cache
-  const exists = projectListCache.find(p => (p.Title||'').trim().toLowerCase() === name.toLowerCase());
-  if (exists) {
-    showToast('⚠️', `มีโครงการ "${name}" อยู่แล้ว — ไม่สามารถเพิ่มซ้ำได้`);
-    return;
-  }
+
   const btn = document.getElementById('cpapSaveBtn');
   btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
+
   try {
     const kwp = document.getElementById('cpap_kwp')?.value.trim() || '';
     const loc = document.getElementById('cpap_loc')?.value.trim() || '';
-    const projFields = { Title: name };
-    if (kwp) { projFields.DefaultKwp = kwp; projFields.SolarKwp = kwp; }
-    if (loc) projFields.DefaultLocation = loc.slice(0, 255);
-    const projRes = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields: projFields });
-    // push เข้า cache เฉพาะถ้าไม่ซ้ำ id
-    if (!projectListCache.find(p => p.id === projRes.id)) {
-      projectListCache.push({ id: projRes.id, Title: name, DefaultKwp: kwp, SolarKwp: kwp, DefaultLocation: loc });
+
+    // ── ตรวจว่ามีโครงการนี้อยู่แล้วหรือเปล่า ──
+    const existingProj = projectListCache.find(p => (p.Title||'').trim().toLowerCase() === name.toLowerCase());
+    let projId = existingProj?.id || null;
+    let isNew  = !existingProj;
+
+    if (isNew) {
+      // สร้างโครงการใหม่
+      const projFields = { Title: name };
+      if (kwp) { projFields.DefaultKwp = kwp; projFields.SolarKwp = kwp; }
+      if (loc) projFields.DefaultLocation = loc.slice(0, 255);
+      const projRes = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields: projFields });
+      projId = projRes.id;
+      if (!projectListCache.find(p => p.id === projId)) {
+        projectListCache.push({ id: projId, Title: name, DefaultKwp: kwp, SolarKwp: kwp, DefaultLocation: loc });
+      }
     }
 
-    // ดึง Drawing rows ทั้งหมดจาก container แต่ละหมวด
+    // ── บันทึก Drawing rows — ข้าม Drawing Number ที่มีอยู่แล้วใน cache ──
     const cats = ['General Drawing','Architectural Drawing','Structural Drawing','Electrical Drawing','Mechanical Drawing'];
+    let addedCount = 0;
+    let skippedCount = 0;
     for (const cat of cats) {
       const key = cat.replace(/ /g,'_');
       const container = document.getElementById(`cpap_rows_${key}`);
@@ -2777,18 +2794,24 @@ async function saveCpNewProject() {
         const nmEl = row.querySelector('input[data-field="nm"]');
         const no = noEl?.value.trim() || '';
         const nm = nmEl?.value.trim() || '';
-        if (no && spDrawingNumberListId) {
-          const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
-          if (nm) dwgFields.DrawingName = nm;
-          const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
-          drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm });
-        }
+        if (!no || !spDrawingNumberListId) continue;
+        // เช็ค Drawing Number ซ้ำ
+        const dupDwg = drawingNumberCache.find(d => d.Title === no && d.ProjectName === name);
+        if (dupDwg) { skippedCount++; continue; }
+        const dwgFields = { Title: no, ProjectName: name, DrawingCategory: cat };
+        if (nm) dwgFields.DrawingName = nm;
+        const dwgRes = await graphPost(`/sites/${spSiteId}/lists/${spDrawingNumberListId}/items`, { fields: dwgFields });
+        drawingNumberCache.push({ id: dwgRes.id, Title: no, ProjectName: name, DrawingCategory: cat, DrawingName: nm });
+        addedCount++;
       }
     }
 
     closeCpAddProject();
-    selectCpProject(projRes.id, name);
-    showToast('✅', `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว`);
+    if (projId) selectCpProject(projId, name);
+    const msg = isNew
+      ? `เพิ่มโครงการ "${name}" เรียบร้อยแล้ว${addedCount ? ` (${addedCount} Drawing)` : ''}`
+      : `อัปเดตโครงการ "${name}" — เพิ่ม ${addedCount} Drawing${skippedCount ? ` (ข้าม ${skippedCount} รายการที่มีอยู่แล้ว)` : ''}`;
+    showToast('✅', msg);
   } catch(e) {
     showToast('❌','บันทึกไม่สำเร็จ: ' + e.message);
   } finally {
