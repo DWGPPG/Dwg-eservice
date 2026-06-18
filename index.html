@@ -2143,7 +2143,7 @@ async function saveNewDrawingNumber() {
     drawingNumberCache.push({ id: r.id, Title: val, ProjectName: projName, DrawingCategory: cat });
     const curCat = document.getElementById('f_drawing_category')?.value || '';
     renderDrawingNumberSelect(projName, curCat);
-    document.getElementById('f_drawing_number').value = val;
+    const fdnEl = document.getElementById('f_drawing_number'); if(fdnEl) fdnEl.value = val;
     toggleAddDrawingNumber();
     showToast('✅', `เพิ่ม Drawing Number "${val}" แล้ว`);
   } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
@@ -2164,7 +2164,7 @@ async function saveNewDrawingName() {
     drawingNameCache.push({ id: r.id, Title: val, ProjectName: projName, DrawingCategory: cat });
     const curCat = document.getElementById('f_drawing_category')?.value || '';
     renderDrawingNameSelect(projName, curCat);
-    document.getElementById('f_drawing_name').value = val;
+    const fdnmEl = document.getElementById('f_drawing_name'); if(fdnmEl) fdnmEl.value = val;
     toggleAddDrawingName();
     showToast('✅', `เพิ่ม Drawing Name "${val}" แล้ว`);
   } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
@@ -2421,7 +2421,7 @@ async function saveNewKwp() {
     }
     kwpCache.sort((a,b) => parseFloat(a.Title) - parseFloat(b.Title));
     renderKwpSelect();
-    document.getElementById('f_kwp').value = val;
+    const fkwpEl = document.getElementById('f_kwp'); if(fkwpEl) fkwpEl.value = val;
     toggleAddKwp();
     showToast('✅', `เพิ่ม "${val}" แล้ว`);
   } catch(e) { showToast('❌', 'เพิ่มไม่สำเร็จ: ' + e.message); }
@@ -2540,30 +2540,29 @@ function selectCpProject(id, title) {
   cpSelectedProjId = id;
   cpSelectedDwgNo  = '';
   cpSelectedDwgName = '';
-  document.getElementById('cp_project').value = id;
-  document.getElementById('cp_project_input').value = title;
-  document.getElementById('cp_project_dropdown').style.display = 'none';
-  // แสดง info card
+  const cpProj = document.getElementById('cp_project'); if(cpProj) cpProj.value = id;
+  const cpProjInp = document.getElementById('cp_project_input'); if(cpProjInp) cpProjInp.value = title;
+  const cpProjDd = document.getElementById('cp_project_dropdown'); if(cpProjDd) cpProjDd.style.display = 'none';
   const proj = projectListCache.find(p => p.id === id);
   if (proj) {
     const kwp = proj.DefaultKwp || proj.SolarKwp || '—';
     const loc  = proj.DefaultLocation || '—';
-    document.getElementById('cp_info_kwp').textContent = kwp;
+    const kwpEl = document.getElementById('cp_info_kwp'); if(kwpEl) kwpEl.textContent = kwp;
     const locEl = document.getElementById('cp_info_loc');
-    locEl.innerHTML = loc !== '—' && loc.startsWith('http')
+    if (locEl) locEl.innerHTML = loc !== '—' && loc.startsWith('http')
       ? `<a href="${loc}" target="_blank" style="color:var(--info);word-break:break-all">เปิดแผนที่ 📍</a>`
       : loc;
-    document.getElementById('cp_proj_info').classList.add('show');
+    const infoEl = document.getElementById('cp_proj_info'); if(infoEl) infoEl.classList.add('show');
   }
   renderCpDrawings();
 }
 
 function clearCpProject() {
   cpSelectedProjId = ''; cpSelectedDwgNo = ''; cpSelectedDwgName = '';
-  document.getElementById('cp_project').value = '';
-  document.getElementById('cp_project_input').value = '';
-  document.getElementById('cp_project_dropdown').style.display = 'none';
-  document.getElementById('cp_proj_info').classList.remove('show');
+  const cpProj = document.getElementById('cp_project'); if(cpProj) cpProj.value = '';
+  const cpProjInp = document.getElementById('cp_project_input'); if(cpProjInp) cpProjInp.value = '';
+  const cpProjDd = document.getElementById('cp_project_dropdown'); if(cpProjDd) cpProjDd.style.display = 'none';
+  const infoEl = document.getElementById('cp_proj_info'); if(infoEl) infoEl.classList.remove('show');
   renderCpDrawings();
 }
 
