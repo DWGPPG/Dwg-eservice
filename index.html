@@ -2440,7 +2440,10 @@ async function loadProjectList() {
   try {
     if (!spProjectListId) return;
     const r = await graphGet(`/sites/${spSiteId}/lists/${spProjectListId}/items?expand=fields&$top=200`);
-    projectListCache = r.value.map(i => ({ id: i.id, ...i.fields }));
+    const raw = r.value.map(i => ({ id: i.id, ...i.fields }));
+    // deduplicate by id — ป้องกัน cache ซ้ำเมื่อโหลดหลายรอบ
+    const seen = new Set();
+    projectListCache = raw.filter(p => { if (seen.has(p.id)) return false; seen.add(p.id); return true; });
     renderProjectSelect();
   } catch(e) { console.warn('loadProjectList:', e); }
 }
@@ -2742,6 +2745,12 @@ function closeCpAddProject() {
 async function saveCpNewProject() {
   const name = document.getElementById('cpap_name')?.value.trim();
   if (!name) { showToast('⚠️','กรุณาใส่ชื่อโครงการ'); return; }
+  // เช็คชื่อซ้ำใน cache
+  const exists = projectListCache.find(p => (p.Title||'').trim().toLowerCase() === name.toLowerCase());
+  if (exists) {
+    showToast('⚠️', `มีโครงการ "${name}" อยู่แล้ว — ไม่สามารถเพิ่มซ้ำได้`);
+    return;
+  }
   const btn = document.getElementById('cpapSaveBtn');
   btn.disabled = true; btn.textContent = '⏳ กำลังบันทึก...';
   try {
@@ -2751,7 +2760,10 @@ async function saveCpNewProject() {
     if (kwp) { projFields.DefaultKwp = kwp; projFields.SolarKwp = kwp; }
     if (loc) projFields.DefaultLocation = loc.slice(0, 255);
     const projRes = await graphPost(`/sites/${spSiteId}/lists/${spProjectListId}/items`, { fields: projFields });
-    projectListCache.push({ id: projRes.id, Title: name, DefaultKwp: kwp, SolarKwp: kwp, DefaultLocation: loc });
+    // push เข้า cache เฉพาะถ้าไม่ซ้ำ id
+    if (!projectListCache.find(p => p.id === projRes.id)) {
+      projectListCache.push({ id: projRes.id, Title: name, DefaultKwp: kwp, SolarKwp: kwp, DefaultLocation: loc });
+    }
 
     // ดึง Drawing rows ทั้งหมดจาก container แต่ละหมวด
     const cats = ['General Drawing','Architectural Drawing','Structural Drawing','Electrical Drawing','Mechanical Drawing'];
@@ -6660,23 +6672,7 @@ function openReqDetail(itemId) {
       ${pdfUrl?`<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px">📄 ดาวน์โหลด PDF</a>`:''}
     </div>
     </div>` ;
-  // ปุ่มนำส่งงาน
-  if (canSend) {
-    const btn = document.createElement('div');
-    btn.style.cssText = 'border-top:1px solid var(--gray-200);padding-top:12px;margin-top:4px';
-    const b = document.createElement('button');
-    b.className = 'btn btn-primary';
-    b.style.cssText = 'width:100%;justify-content:center';
-    b.innerHTML = '📤 นำส่งงาน';
-    b.addEventListener('click', function() {
-      document.getElementById('reqDetailModal').classList.remove('show');
-      openSendworkFromTrack(r.id, r.Title||'', r.ProjectName0||'', r.DrawingNumber||'',
-        r.DrawingName||'', r.SenderEmail||'', r.DataLink||'',
-        r.DueDate||'', r.Urgency||'ปกติ', r.Detail||'');
-    });
-    btn.appendChild(b);
-    document.getElementById('reqDetailBody').appendChild(btn);
-  }
+  // ── modal นี้ดูเฉยๆ ไม่มีปุ่มนำส่งงาน (ใช้หน้านำส่งงานโดยตรง) ──
   document.getElementById('reqDetailModal').classList.add('show');
 }
 
