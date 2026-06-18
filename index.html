@@ -2879,7 +2879,7 @@ async function submitCpRequest() {
 
     await spCreateItem(createData);
 
-    // Teams notification
+    // Teams notification → แจ้งกลุ่ม Drawing Dept. ทันทีเมื่อมีคำขอเข้า
     try {
       const chatId = CONFIG.drawingTeamChatId;
       const thaiDate = new Date(now).toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
@@ -3949,7 +3949,7 @@ async function doSubmitRequest() {
       }
     }
 
-    // 3. ส่ง Teams notification ไปกลุ่ม Drawing Dept. โดยตรง
+    // 3. ส่ง Teams notification ไปกลุ่ม Drawing Dept. ทันทีเมื่อมีคำขอเข้า
     try {
       const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${refNo}`;
       const systemUrl = `${CONFIG.redirectUri}`;
@@ -5549,7 +5549,91 @@ async function confirmAssign() {
       }
     } catch(teamsErr) { console.warn('Teams notify assignee (admin) failed:', teamsErr.message); }
 
-    closeModal('assignModal');
+    // ── แจ้งเตือนผู้ส่งคำขอ 1:1 Teams + Email เฉพาะตอน LV.2 อนุมัติ ──
+    if (isManager) {
+      try {
+        const allItems2  = await spGetItems();
+        const spIt2      = allItems2.find(r => r.id === pendingApproveId || r.Title === pendingApproveId);
+        const requesterEmail = (spIt2?.SenderEmail || '').toLowerCase();
+        const meInfo2    = await graphGet('/me');
+        const myId2      = meInfo2?.id;
+        const myEmail2   = (meInfo2?.mail || meInfo2?.userPrincipalName || '').toLowerCase();
+        const thaiDate   = new Date().toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        const folderUrl2 = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${spIt2?.Title||''}`;
+
+        const msgLines = [
+          `✅ <b>PPG Drawing e-Service — คำขอของคุณได้รับการอนุมัติแล้ว</b>`,
+          ``,
+          `🔖 <b>เลขคำขอ:</b> ${spIt2?.Title || pendingApproveId}`,
+          `🏗️ <b>ประเภทงาน:</b> ${spIt2?.ProjectName || '—'}`,
+          `📁 <b>โครงการ:</b> ${spIt2?.ProjectName0 || '—'}`,
+          `👷 <b>ผู้เขียนแบบ:</b> ${selectedAssignee.name}`,
+          `✔️ <b>อนุมัติโดย:</b> ${currentUser.name} (Lv.2)`,
+          `📅 <b>วันที่อนุมัติ:</b> ${thaiDate}`,
+        ];
+        if (spIt2?.DueDate) {
+          const due = new Date(spIt2.DueDate);
+          msgLines.push(`⏰ <b>กำหนดส่งงาน:</b> ${due.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric' })}`);
+        }
+        if (note) msgLines.push(`📌 <b>หมายเหตุ:</b> ${note}`);
+        msgLines.push(``, `<a href="${folderUrl2}">📁 เปิดโฟลเดอร์เอกสาร</a> &nbsp;|&nbsp; <a href="${CONFIG.redirectUri}">🖥️ ติดตามสถานะ</a>`);
+
+        // ── Teams 1:1 ──
+        if (requesterEmail && requesterEmail !== myEmail2 && myId2) {
+          try {
+            const chatResp2 = await fetch('https://graph.microsoft.com/v1.0/chats', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chatType: 'oneOnOne',
+                members: [
+                  { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                    'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${requesterEmail}')` },
+                  { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                    'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myId2}` }
+                ]
+              })
+            });
+            let reqChatId = null;
+            if (chatResp2.ok) { reqChatId = (await chatResp2.json()).id; }
+            else if (chatResp2.status === 409) {
+              const e409b = await chatResp2.json();
+              reqChatId = e409b?.error?.innerError?.id || null;
+              if (!reqChatId) {
+                const list2 = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+                const found2 = list2?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === requesterEmail));
+                reqChatId = found2?.id || null;
+              }
+            }
+            if (reqChatId) {
+              await fetch(`https://graph.microsoft.com/v1.0/chats/${reqChatId}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body: { contentType: 'html', content: msgLines.join('<br>') } })
+              });
+            }
+          } catch(te2) { console.warn('Teams 1:1 notify requester failed:', te2.message); }
+        }
+
+        // ── Email ──
+        if (requesterEmail) {
+          try {
+            await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                message: {
+                  subject: `✅ [PPG Drawing] คำขอ ${spIt2?.Title||''} ได้รับการอนุมัติแล้ว`,
+                  body: { contentType: 'HTML', content: msgLines.join('<br>') },
+                  toRecipients: [{ emailAddress: { address: requesterEmail } }]
+                },
+                saveToSentItems: false
+              })
+            });
+          } catch(me2) { console.warn('Email notify requester failed:', me2.message); }
+        }
+      } catch(reqErr) { console.warn('Notify requester (Lv.2 approved) failed:', reqErr.message); }
+    }
     const card = document.getElementById('card-'+pendingApproveId);
     if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; }
     const lvLabel = isManager ? 'Lv.2' : 'Lv.1';
