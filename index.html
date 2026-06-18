@@ -2836,8 +2836,9 @@ async function saveCpNewProject() {
         const no = noEl?.value.trim() || '';
         const nm = nmEl?.value.trim() || '';
         if (!no || !spDrawingNumberListId) continue;
-        // เช็ค Drawing Number ซ้ำ (case-insensitive)
+        // เช็ค Drawing Number ซ้ำ — เฉพาะที่ไม่ได้ IsHidden
         const dupDwg = drawingNumberCache.find(d =>
+          !d.IsHidden &&
           (d.Title||'').trim().toLowerCase() === no.toLowerCase() &&
           (d.ProjectName||'').trim().toLowerCase() === name.toLowerCase()
         );
@@ -2899,9 +2900,21 @@ function resetConstructionPanel() {
 function onProjectSearch(q) {
   const dd = document.getElementById('f_project_dropdown');
   if (!dd) return;
+
+  // เอาชื่อโครงการที่ user ปัจจุบันเคยส่งคำขอ (SenderEmail ตรงกัน)
+  const myEmail = (currentUser?.username || '').toLowerCase();
+  const myProjNames = new Set(
+    (allRequests||[])
+      .filter(r => (r.SenderEmail||'').toLowerCase() === myEmail)
+      .map(r => (r.ProjectName0||'').trim())
+      .filter(Boolean)
+  );
+
   const filtered = projectListCache
     .filter(p => !p.IsHidden)
+    .filter(p => myProjNames.has((p.Title||'').trim()))
     .filter(p => !q || (p.Title||'').toLowerCase().includes(q.toLowerCase()));
+
   if (!filtered.length) { dd.style.display = 'none'; return; }
   dd.innerHTML = filtered.map(p => `
     <div class="ac-item" onmousedown="selectProjectFromDropdown('${p.id}','${(p.Title||'').replace(/'/g,"\\'")}')">
