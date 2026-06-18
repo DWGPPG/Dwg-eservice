@@ -1778,7 +1778,17 @@ tr:hover td { background: var(--sky); }
     <div class="form-grid" style="margin-bottom:16px">
       <div class="field span2">
         <label>ชื่อโครงการ / Project Code <span class="req">*</span></label>
-        <input type="text" id="cpap_name" placeholder="เช่น BEMV, TMAT, SCGP (แนะนำ 4 ตัวอักษร)">
+        <div style="position:relative">
+          <input type="text" id="cpap_name" placeholder="เช่น BEMV, TMAT, SCGP (แนะนำ 4 ตัวอักษร)"
+            oninput="cpapOnNameSearch(this.value)"
+            onfocus="cpapOnNameSearch(this.value)"
+            onblur="setTimeout(()=>{const d=document.getElementById('cpap_name_dd');if(d)d.style.display='none'},200)"
+            autocomplete="off">
+          <div id="cpap_name_dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--white);border:1px solid var(--gray-200);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:300;max-height:200px;overflow-y:auto;margin-top:2px"></div>
+        </div>
+        <div id="cpap_existing_notice" style="display:none;font-size:11px;color:var(--success);margin-top:4px;padding:6px 10px;background:var(--success-bg);border-radius:6px">
+          ✅ พบโครงการเดิม — เติมข้อมูลอัตโนมัติแล้ว สามารถแก้ไขหรือเพิ่ม Drawing ได้
+        </div>
       </div>
       <div class="field">
         <label>ขนาด Solar (kWp)</label>
@@ -2634,6 +2644,75 @@ function removeCpRow(key, idx) {
   if (row) row.remove();
 }
 
+// ── Popup เพิ่มโครงการ: autocomplete ชื่อโครงการ ──
+function cpapOnNameSearch(q) {
+  const dd = document.getElementById('cpap_name_dd');
+  if (!dd) return;
+  if (!q) { dd.style.display = 'none'; return; }
+  const filtered = (projectListCache||[])
+    .filter(p => !p.IsHidden && (p.Title||'').toLowerCase().includes(q.toLowerCase()))
+    .slice(0, 8);
+  if (!filtered.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = filtered.map(p =>
+    `<div class="ac-item" onmousedown="cpapFillFromProject('${p.id}','${(p.Title||'').replace(/'/g,"\\'")}')">
+      <span>${p.Title||''}</span>
+      <span class="ac-badge">${p.DefaultKwp||p.SolarKwp||''} kWp</span>
+    </div>`).join('');
+  dd.style.display = 'block';
+}
+
+function cpapFillFromProject(id, title) {
+  // เติมชื่อโครงการ
+  const nameEl = document.getElementById('cpap_name');
+  if (nameEl) nameEl.value = title;
+  const dd = document.getElementById('cpap_name_dd');
+  if (dd) dd.style.display = 'none';
+  // เติม kWp และที่ตั้ง
+  const proj = (projectListCache||[]).find(p => p.id === id);
+  if (proj) {
+    const kwpEl = document.getElementById('cpap_kwp');
+    if (kwpEl && !kwpEl.value) kwpEl.value = proj.DefaultKwp || proj.SolarKwp || '';
+    const locEl = document.getElementById('cpap_loc');
+    if (locEl && !locEl.value) locEl.value = proj.DefaultLocation || '';
+  }
+  // เติม Drawing rows จากโครงการนั้น
+  const projName = title;
+  const drawings = (drawingNumberCache||[]).filter(d => !d.IsHidden && d.ProjectName === projName);
+  if (drawings.length) {
+    const cats = ['General Drawing','Architectural Drawing','Structural Drawing','Electrical Drawing','Mechanical Drawing'];
+    cats.forEach(cat => {
+      const key = cat.replace(/ /g,'_');
+      const container = document.getElementById(`cpap_rows_${key}`);
+      if (!container) return;
+      container.innerHTML = '';
+      cpRowCounters[key] = 0;
+      const catDwgs = drawings.filter(d => d.DrawingCategory === cat);
+      if (catDwgs.length) {
+        catDwgs.forEach(d => {
+          const idx = cpRowCounters[key]++;
+          const row = document.createElement('div');
+          row.id = `cpap_row_${key}_${idx}`;
+          row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 28px;gap:6px;margin-bottom:6px;align-items:center';
+          row.innerHTML = `
+            <input type="text" data-cat="${cat}" data-field="no" value="${d.Title||''}" placeholder="Drawing Number"
+              style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+            <input type="text" data-cat="${cat}" data-field="nm" value="${d.DrawingName||''}" placeholder="Drawing Name"
+              style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+            <button type="button" onclick="removeCpRow('${key}',${idx})"
+              style="background:none;border:1px solid #fca5a5;border-radius:6px;color:#ef4444;cursor:pointer;font-size:14px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>`;
+          container.appendChild(row);
+        });
+      } else {
+        // เพิ่ม row ว่างถ้าไม่มี drawing ในหมวดนี้
+        addCpRow(cat);
+      }
+    });
+  }
+  // แสดง notice
+  const notice = document.getElementById('cpap_existing_notice');
+  if (notice) notice.style.display = 'block';
+}
+
 function openCpAddProject() {
   cpRowCounters = {};
   const cats = ['General_Drawing','Architectural_Drawing','Structural_Drawing','Electrical_Drawing','Mechanical_Drawing'];
@@ -2644,6 +2723,8 @@ function openCpAddProject() {
   ['cpap_name','cpap_kwp','cpap_loc'].forEach(id => {
     const el = document.getElementById(id); if(el) el.value = '';
   });
+  const dd = document.getElementById('cpap_name_dd'); if(dd) dd.style.display='none';
+  const notice = document.getElementById('cpap_existing_notice'); if(notice) notice.style.display='none';
   // เพิ่ม 1 แถวเริ่มต้นให้แต่ละหมวด
   cats.forEach(k => addCpRow(k.replace(/_/g,' ')));
   document.getElementById('cpAddProjectModal').classList.add('show');
@@ -3417,35 +3498,46 @@ function getTypePrefix() {
   return `DWG-${yr}-`;
 }
 
+// ── genRefNumber: ล็อคป้องกันเลขซ้ำเมื่อส่งหลายรายการพร้อมกัน ──
+let _genRefLock = Promise.resolve();
+let _genRefLastMax = null; // cache ลำดับสุงสุด per session
+
 async function genRefNumber() {
-  const prefix = getTypePrefix();
-  try {
-    const r = await graphGet(
-      `/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=5000`
-    );
-    const titles = r.value
-      .map(i => i.fields?.Title || i.fields?.Title0 || '')
-      .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
-    let maxSeq = 0;
-    titles.forEach(t => {
-      const seq = t.replace(prefix, '').split('-')[0];
-      const n   = parseInt(seq, 10);
-      if (!isNaN(n) && n > maxSeq) maxSeq = n;
-    });
-    return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
-  } catch(e) {
-    console.warn('genRefNumber fallback:', e.message);
-    const existing = (allRequests || [])
-      .map(r => r.Title || '')
-      .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
-    let maxSeq = 0;
-    existing.forEach(t => {
-      const seq = t.replace(prefix, '').split('-')[0];
-      const n   = parseInt(seq, 10);
-      if (!isNaN(n) && n > maxSeq) maxSeq = n;
-    });
-    return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
-  }
+  // ต่อท้าย lock chain ให้เรียงกัน
+  const result = await (_genRefLock = _genRefLock.then(async () => {
+    const prefix = getTypePrefix();
+    // reset cache ถ้า prefix เปลี่ยน
+    if (_genRefLastMax === null || _genRefLastMax.prefix !== prefix) {
+      try {
+        const r = await graphGet(
+          `/sites/${spSiteId}/lists/${spListId}/items?expand=fields&$top=5000`
+        );
+        const titles = r.value
+          .map(i => i.fields?.Title || i.fields?.Title0 || '')
+          .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
+        let maxSeq = 0;
+        titles.forEach(t => {
+          const n = parseInt(t.replace(prefix, '').split('-')[0], 10);
+          if (!isNaN(n) && n > maxSeq) maxSeq = n;
+        });
+        _genRefLastMax = { prefix, seq: maxSeq };
+      } catch(e) {
+        console.warn('genRefNumber fallback:', e.message);
+        const existing = (allRequests||[])
+          .map(r => r.Title||'')
+          .filter(t => t.startsWith(prefix) && !t.includes('-Rev.'));
+        let maxSeq = 0;
+        existing.forEach(t => {
+          const n = parseInt(t.replace(prefix, '').split('-')[0], 10);
+          if (!isNaN(n) && n > maxSeq) maxSeq = n;
+        });
+        _genRefLastMax = { prefix, seq: maxSeq };
+      }
+    }
+    _genRefLastMax.seq += 1;
+    return `${prefix}${String(_genRefLastMax.seq).padStart(4, '0')}`;
+  }));
+  return result;
 }
 
 // ── PAGE: SUBMIT ──
@@ -3920,6 +4012,7 @@ function nsOnTypeChange(label) {
   nsCurrentType = label;
   nsSelectedItems = {};
   nsSelectedCat = '';
+  _genRefLastMax = null; // reset เลขลำดับเมื่อเปลี่ยนประเภท
   // ถ้ามีโครงการแล้วให้ render drawing card ใหม่
   if (nsSelectedProjId) nsRenderDrawingCard();
   else nsRenderQueueCard();
@@ -4203,6 +4296,9 @@ async function nsDoSubmit() {
   if (btn.dataset.submitting === 'true') { showToast('⏳', 'กำลังส่งอยู่...'); return; }
   btn.dataset.submitting = 'true'; btn.classList.add('btn-loading'); btn.disabled = true;
 
+  // reset lock cache เพื่อดึงเลขล่าสุดจาก SharePoint ก่อนเริ่ม batch
+  _genRefLastMax = null;
+
   const proj = (projectListCache||[]).find(p => p.id === nsSelectedProjId);
   const projName = proj?.Title || '';
   const nameEl = document.getElementById('f_name');
@@ -4218,7 +4314,7 @@ async function nsDoSubmit() {
       const key  = keys[i];
       const item = nsSelectedItems[key];
       const d    = item.detail || {};
-      const refNo = await genRefNumber();
+      const refNo = await genRefNumber(); // sequential lock ทำให้แต่ละรายการได้เลขต่างกัน
       const now   = new Date().toISOString();
       const createData = {
         Title:           refNo,
@@ -4241,7 +4337,11 @@ async function nsDoSubmit() {
       };
       if (d.dueDate) createData.DueDate = new Date(d.dueDate).toISOString();
       Object.keys(createData).forEach(k => { if (createData[k] === '') delete createData[k]; });
-      await spCreateItem(createData);
+      const spResult = await spCreateItem(createData);
+      // อัปเดต allRequests cache ทันทีเพื่อให้เลขถัดไปไม่ซ้ำ
+      if (spResult && !allRequests.find(r => r.Title === refNo)) {
+        allRequests.unshift({ id: spResult.id || refNo, Title: refNo, ...createData });
+      }
       created.push(refNo);
 
       // Teams notify
@@ -4265,7 +4365,8 @@ async function nsDoSubmit() {
         }
       } catch(te) { console.warn('Teams notify failed:', te.message); }
     }
-    showToast('✅', `ส่งคำร้องสำเร็จ ${created.length} รายการ`);
+    const refList = created.join(', ');
+    showToast('✅', `ส่งคำร้องสำเร็จ ${created.length} รายการ: ${refList}`);
     nsReset();
     if (typeof showPage === 'function') showPage('track', document.querySelector('[onclick*="track"]'));
   } catch(e) {
