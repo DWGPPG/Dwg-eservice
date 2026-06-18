@@ -2751,10 +2751,12 @@ function cpapFillFromProject(id, title) {
           row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 28px;gap:6px;margin-bottom:6px;align-items:center';
           row.innerHTML = `
             <input type="text" data-cat="${cat}" data-field="no" value="${d.Title||''}" placeholder="Drawing Number"
-              style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
+              data-existing="true"
+              style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font);background:var(--gray-100);color:var(--gray-600)" readonly>
             <input type="text" data-cat="${cat}" data-field="nm" value="${d.DrawingName||''}" placeholder="Drawing Name"
-              style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font)">
-            <button type="button" onclick="removeCpRow('${key}',${idx})"
+              data-existing="true"
+              style="font-size:13px;padding:7px 10px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font);background:var(--gray-100);color:var(--gray-600)" readonly>
+            <button type="button" onclick="removeCpRow('${key}',${idx})" title="ลบออกจากรายการ"
               style="background:none;border:1px solid #fca5a5;border-radius:6px;color:#ef4444;cursor:pointer;font-size:14px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>`;
           container.appendChild(row);
         });
@@ -2836,6 +2838,8 @@ async function saveCpNewProject() {
         const no = noEl?.value.trim() || '';
         const nm = nmEl?.value.trim() || '';
         if (!no || !spDrawingNumberListId) continue;
+        // ข้าม row ที่โหลดมาจากโครงการเดิม (existing)
+        if (noEl?.dataset?.existing === 'true') continue;
         // เช็ค Drawing Number ซ้ำ — เฉพาะที่ไม่ได้ IsHidden
         const dupDwg = drawingNumberCache.find(d =>
           !d.IsHidden &&
@@ -2852,6 +2856,8 @@ async function saveCpNewProject() {
     }
 
     closeCpAddProject();
+    // reload cache จาก SharePoint ให้ทันสมัยก่อน render
+    if (addedCount > 0) await loadDrawingNumberList();
     if (projId) selectCpProject(projId, name);
 
     // แจ้งผลสรุป
