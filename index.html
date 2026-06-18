@@ -2814,15 +2814,15 @@ function onProjectSearch(q) {
   dd.style.display = 'block';
 }
 function selectProjectFromDropdown(id, title) {
-  document.getElementById('f_project').value = id;
-  document.getElementById('f_project_input').value = title;
-  document.getElementById('f_project_dropdown').style.display = 'none';
+  const fp = document.getElementById('f_project'); if(fp) fp.value = id;
+  const fpi = document.getElementById('f_project_input'); if(fpi) fpi.value = title;
+  const fpd = document.getElementById('f_project_dropdown'); if(fpd) fpd.style.display = 'none';
   onProjectSelect(id);
 }
 function clearProjectSelect() {
-  document.getElementById('f_project').value = '';
-  document.getElementById('f_project_input').value = '';
-  document.getElementById('f_project_dropdown').style.display = 'none';
+  const fp = document.getElementById('f_project'); if(fp) fp.value = '';
+  const fpi = document.getElementById('f_project_input'); if(fpi) fpi.value = '';
+  const fpd = document.getElementById('f_project_dropdown'); if(fpd) fpd.style.display = 'none';
   renderDrawingNumberSelect(); renderDrawingNameSelect();
 }
 
@@ -2830,7 +2830,7 @@ function clearProjectSelect() {
 function selectDrawingCategory(el, cat) {
   document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
-  document.getElementById('f_drawing_category').value = cat;
+  const dc = document.getElementById('f_drawing_category'); if(dc) dc.value = cat;
   onDrawingCategorySelect(cat);
 }
 
@@ -4046,30 +4046,32 @@ function nsSelectProject(id, title) {
   nsSelectedProjId = id;
   nsSelectedItems  = {};
   nsSelectedCat    = '';
-  document.getElementById('ns_project_id').value = id;
-  document.getElementById('ns_project_input').value = title;
-  document.getElementById('ns_project_dropdown').style.display = 'none';
+  const nsPid = document.getElementById('ns_project_id'); if(nsPid) nsPid.value = id;
+  const nsPin = document.getElementById('ns_project_input'); if(nsPin) nsPin.value = title;
+  const nsPdd = document.getElementById('ns_project_dropdown'); if(nsPdd) nsPdd.style.display = 'none';
   const proj = (projectListCache||[]).find(p => p.id === id);
   if (proj) {
-    document.getElementById('ns_info_kwp').textContent = proj.DefaultKwp || proj.SolarKwp || '—';
+    const kwpEl = document.getElementById('ns_info_kwp'); if(kwpEl) kwpEl.textContent = proj.DefaultKwp || proj.SolarKwp || '—';
     const locEl = document.getElementById('ns_info_loc');
-    const loc = proj.DefaultLocation || '—';
-    locEl.innerHTML = (loc !== '—' && loc.startsWith('http'))
-      ? `<a href="${loc}" target="_blank" style="color:var(--info)">เปิดแผนที่ 📍</a>`
-      : loc;
-    document.getElementById('ns_proj_info').classList.add('show');
+    if (locEl) {
+      const loc = proj.DefaultLocation || '—';
+      locEl.innerHTML = (loc !== '—' && loc.startsWith('http'))
+        ? `<a href="${loc}" target="_blank" style="color:var(--info)">เปิดแผนที่ 📍</a>`
+        : loc;
+    }
+    const infoEl = document.getElementById('ns_proj_info'); if(infoEl) infoEl.classList.add('show');
   }
   nsRenderDrawingCard();
 }
 
 function nsClearProject() {
   nsSelectedProjId = ''; nsSelectedItems = {}; nsSelectedCat = '';
-  document.getElementById('ns_project_id').value = '';
-  document.getElementById('ns_project_input').value = '';
-  document.getElementById('ns_project_dropdown').style.display = 'none';
-  document.getElementById('ns_proj_info').classList.remove('show');
-  document.getElementById('ns_drawing_card').style.display = 'none';
-  document.getElementById('ns_queue_card').style.display = 'none';
+  const nsPid = document.getElementById('ns_project_id'); if(nsPid) nsPid.value = '';
+  const nsPin = document.getElementById('ns_project_input'); if(nsPin) nsPin.value = '';
+  const nsPdd = document.getElementById('ns_project_dropdown'); if(nsPdd) nsPdd.style.display = 'none';
+  const infoEl = document.getElementById('ns_proj_info'); if(infoEl) infoEl.classList.remove('show');
+  const dwgCard = document.getElementById('ns_drawing_card'); if(dwgCard) dwgCard.style.display = 'none';
+  const qCard   = document.getElementById('ns_queue_card');   if(qCard)   qCard.style.display   = 'none';
 }
 
 function nsOpenAddProject() {
@@ -4390,8 +4392,8 @@ function nsReset() {
   const hid = document.getElementById('ns_project_id');   if(hid) hid.value = '';
   const dd  = document.getElementById('ns_project_dropdown'); if(dd) dd.style.display='none';
   const info= document.getElementById('ns_proj_info'); if(info) info.classList.remove('show');
-  document.getElementById('ns_drawing_card').style.display = 'none';
-  document.getElementById('ns_queue_card').style.display   = 'none';
+  const dwgCard = document.getElementById('ns_drawing_card'); if(dwgCard) dwgCard.style.display = 'none';
+  const qCard   = document.getElementById('ns_queue_card');   if(qCard)   qCard.style.display   = 'none';
 }
 // ══ END NEW SUBMIT FLOW ══
 
