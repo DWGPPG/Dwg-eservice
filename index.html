@@ -1875,7 +1875,7 @@ tr:hover td { background: var(--sky); }
 
 <!-- Sendwork from Track Modal -->
 <div class="modal-overlay" id="swFromTrackModal" onclick="if(event.target===this)this.classList.remove('show')">
-  <div class="modal-box" style="max-width:500px;width:95vw;max-height:90vh;overflow-y:auto;padding:0">
+  <div class="modal-box" style="max-width:520px;width:95vw;max-height:90vh;overflow-y:auto;padding:0">
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--gray-200);background:var(--white);position:sticky;top:0;z-index:1">
       <div style="font-size:15px;font-weight:700;color:var(--navy)">📤 นำส่งงาน</div>
       <button onclick="document.getElementById('swFromTrackModal').classList.remove('show')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--gray-400);line-height:1">✕</button>
@@ -1892,11 +1892,12 @@ tr:hover td { background: var(--sky); }
           <div><span style="color:var(--gray-400)">ผู้ส่ง:</span> <span id="swt_sender"></span></div>
           <div><span style="color:var(--gray-400)">ความเร่งด่วน:</span> <span id="swt_urgency"></span></div>
           <div><span style="color:var(--gray-400)">กำหนดส่ง:</span> <span id="swt_due"></span></div>
-          <div class="span2" style="grid-column:1/-1"><span style="color:var(--gray-400)">รายละเอียด:</span> <span id="swt_detail"></span></div>
+          <div style="grid-column:1/-1"><span style="color:var(--gray-400)">รายละเอียด:</span> <span id="swt_detail"></span></div>
         </div>
       </div>
       <input type="hidden" id="swt_itemid">
-      <!-- File links -->
+
+      <!-- ลิงก์ไฟล์ -->
       <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
         <div class="field">
           <label>ลิงก์ไฟล์ DWG <span style="font-size:10px;color:var(--gray-400)">(SharePoint / OneDrive)</span></label>
@@ -1906,11 +1907,34 @@ tr:hover td { background: var(--sky); }
           <label>ลิงก์ไฟล์ PDF <span style="font-size:10px;color:var(--gray-400)">(SharePoint / OneDrive)</span></label>
           <input type="text" id="swt_pdfurl" placeholder="https://...">
         </div>
-        <div class="field">
-          <label>หมายเหตุจากฝ่ายเขียนแบบ</label>
-          <textarea id="swt_note" rows="2" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
-        </div>
       </div>
+
+      <!-- แนบเอกสาร -->
+      <div style="margin-bottom:14px">
+        <div style="font-size:12px;font-weight:500;color:var(--gray-600);margin-bottom:6px">
+          แนบเอกสาร / ไฟล์งาน <span style="font-size:10px;color:var(--gray-400);font-weight:400">(ขนาดไม่เกิน 1 GB)</span>
+        </div>
+        <div class="file-drop" id="swtFileDrop" onclick="document.getElementById('swtFileInput').click()"
+          ondragover="event.preventDefault();this.style.borderColor='var(--sun)';this.style.background='var(--sun-light)'"
+          ondragleave="this.style.borderColor='';this.style.background=''"
+          ondrop="event.preventDefault();this.style.borderColor='';this.style.background='';swtHandleFiles(event.dataTransfer.files)"
+          style="padding:16px;text-align:center;cursor:pointer">
+          <div style="font-size:24px;margin-bottom:6px">📎</div>
+          <p style="font-size:13px">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวาง</p>
+          <p style="font-size:11px;color:var(--gray-400);margin-top:3px">PDF, DWG, DXF, JPG, PNG, ZIP ขนาดไม่เกิน 1 GB</p>
+        </div>
+        <input type="file" id="swtFileInput" multiple
+          accept=".pdf,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.zip,.rar,.dwf"
+          style="display:none" onchange="swtHandleFiles(this.files)">
+        <div id="swtFileList" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>
+      </div>
+
+      <!-- หมายเหตุ -->
+      <div class="field" style="margin-bottom:14px">
+        <label>หมายเหตุจากฝ่ายเขียนแบบ</label>
+        <textarea id="swt_note" rows="2" placeholder="หมายเหตุเพิ่มเติม..."></textarea>
+      </div>
+
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn btn-secondary" onclick="document.getElementById('swFromTrackModal').classList.remove('show')">ยกเลิก</button>
         <button class="btn btn-primary" id="swtConfirmBtn" onclick="confirmSendworkFromTrack()">
@@ -2899,6 +2923,22 @@ async function saveNewProject() {
 }
 
 // ── WORK STATUS UPDATE (ผู้รับผิดชอบอัปเดตสถานะงานเอง) ──
+function onTrackStatusChange(itemId, status, selectEl) {
+  if (status === 'done') {
+    // Reset dropdown to previous value — actual status update happens via sendwork popup
+    const r = (_dwgMyItems||[]).find(x=>x.id===itemId) || (allRequests||[]).find(x=>x.id===itemId);
+    if (selectEl) selectEl.value = r?.Status || 'approved';
+    // Open sendwork popup
+    if (r) {
+      openSendworkFromTrack(r.id, r.Title||'', r.ProjectName0||'', r.DrawingNumber||'',
+        r.DrawingName||'', r.SenderEmail||'', r.DataLink||'',
+        r.DueDate||'', r.Urgency||'ปกติ', r.Detail||'');
+    }
+  } else {
+    updateWorkStatus(itemId, status);
+  }
+}
+
 async function updateWorkStatus(itemId, status) {
   if (!status) return;
   const statusLabel = { approved:'กำลังดำเนินการ', working:'กำลังดำเนินการ (อัปเดต)', done:'เสร็จสิ้น', cancelled:'ยกเลิก' };
@@ -4470,23 +4510,25 @@ function renderDwgCards() {
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;color:var(--gray-600)">${r.DrawingName||'—'}</td>
         <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center">
-          ${r.DataLink ? `<a href="${r.DataLink}" target="_blank" title="แนบลิงก์" style="font-size:18px;text-decoration:none">🔗</a>` : '<span style="color:var(--gray-200)">—</span>'}
+          ${r.DataLink
+            ? `<a href="${r.DataLink}" target="_blank" title="ลิงก์ข้อมูลจากผู้ส่ง" style="font-size:18px;text-decoration:none">🔗</a>`
+            : '<span style="color:var(--gray-200)">—</span>'}
         </td>
         <td style="padding:10px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle;text-align:center">
-          ${dwgUrl||pdfUrl
-            ? `${dwgUrl?`<a href="${dwgUrl}" target="_blank" title="DWG" style="font-size:16px;text-decoration:none;margin-right:4px">📐</a>`:''}${pdfUrl?`<a href="${pdfUrl}" target="_blank" title="PDF" style="font-size:16px;text-decoration:none">📄</a>`:''}`
-            : `<button onclick="openSendworkFromTrack('${r.id}','${(r.Title||'').replace(/'/g,"\\'")}','${(r.ProjectName0||'').replace(/'/g,"\\'")}','${(r.DrawingNumber||'').replace(/'/g,"\\'")}','${(r.DrawingName||'').replace(/'/g,"\\'")}','${(r.SenderEmail||'').replace(/'/g,"\\'")}','${(r.DataLink||'').replace(/'/g,"\\'")}','${(r.DueDate||'').replace(/'/g,"\\'")}','${(r.Urgency||'ปกติ').replace(/'/g,"\\'")}','${(r.Detail||'').replace(/'/g,"\\'")}')" title="นำส่งงาน" style="border:none;background:transparent;font-size:18px;cursor:pointer">📤</button>`
-          }
+          ${dwgUrl || pdfUrl
+            ? (dwgUrl ? `<a href="${dwgUrl}" target="_blank" title="ไฟล์จากผู้ส่ง (DWG)" style="font-size:16px;text-decoration:none;margin-right:4px">📐</a>` : '')
+              + (pdfUrl ? `<a href="${pdfUrl}" target="_blank" title="ไฟล์จากผู้ส่ง (PDF)" style="font-size:16px;text-decoration:none">📄</a>` : '')
+            : '<span style="color:var(--gray-200)">—</span>'}
         </td>
         <td style="padding:8px 12px;border-bottom:1px solid var(--gray-100);vertical-align:middle">
           ${canUpdate
-            ? `<select class="work-status-select" style="width:100%;font-size:11px;padding:4px 6px" onchange="updateWorkStatus('${r.id}',this.value)">
+            ? `<select class="work-status-select" style="width:100%;font-size:11px;padding:4px 6px" data-itemid="${r.id}" onchange="onTrackStatusChange('${r.id}',this.value,this)">
                 <option value="approved"  ${r.Status==='approved'?'selected':''}>🔵 กำลังดำเนินการ</option>
                 <option value="working"   ${r.Status==='working'?'selected':''}>⚙️ อัปเดตงาน</option>
-                <option value="done"      ${r.Status==='done'?'selected':''}>✅ เสร็จสิ้น</option>
+                <option value="done">✅ เสร็จสิ้น</option>
                 <option value="cancelled" ${r.Status==='cancelled'?'selected':''}>❌ ยกเลิก</option>
               </select>`
-            : `<span style="font-size:11px;color:var(--gray-400);display:flex;align-items:center;gap:4px">
+            : `<span style="font-size:11px;color:var(--gray-400)">
                 ${r.Status==='pending'||r.Status==='inprogress_lv1' ? '⏳ รออนุมัติ' : r.Status==='done' ? '✅ เสร็จสิ้น' : r.Status==='cancelled' ? '❌ ยกเลิก' : '—'}
               </span>`
           }
@@ -6394,14 +6436,45 @@ function openReqDetail(itemId) {
 }
 
 // ── นำส่งงานจากหน้า Track ──
+let swtSelectedFiles = [];
+
+function swtHandleFiles(files) {
+  const MAX = 1 * 1024 * 1024 * 1024; // 1 GB
+  Array.from(files).forEach(f => {
+    if (f.size > MAX) { showToast('⚠️', `ไฟล์ "${f.name}" ใหญ่เกิน 1 GB`); return; }
+    if (swtSelectedFiles.find(x => x.name === f.name && x.size === f.size)) return;
+    swtSelectedFiles.push(f);
+  });
+  swtRenderFileList();
+}
+
+function swtRenderFileList() {
+  const list = document.getElementById('swtFileList');
+  if (!list) return;
+  if (!swtSelectedFiles.length) { list.innerHTML = ''; return; }
+  list.innerHTML = swtSelectedFiles.map((f, i) => {
+    const kb = f.size < 1024*1024 ? (f.size/1024).toFixed(1)+' KB' : (f.size/1024/1024).toFixed(1)+' MB';
+    return `<div class="file-item">
+      <span style="font-size:16px">${f.name.match(/\.(pdf)$/i)?'📄':f.name.match(/\.(dwg|dxf)$/i)?'📐':'📎'}</span>
+      <span style="flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</span>
+      <span style="font-size:11px;color:var(--gray-400)">${kb}</span>
+      <span class="file-remove" onclick="swtRemoveFile(${i})">✕</span>
+    </div>`;
+  }).join('');
+}
+
+function swtRemoveFile(idx) {
+  swtSelectedFiles.splice(idx, 1);
+  swtRenderFileList();
+}
+
 function openSendworkFromTrack(itemId, title, project, dwgNo, dwgName, senderEmail, dataLink, dueDate, urgency, detail) {
   const r = (_dwgMyItems||[]).find(x=>x.id===itemId) || (allRequests||[]).find(x=>x.id===itemId);
   const deliverNote = r?.AssignNote || '';
-  const assigneeName = r?.AssigneeName || (currentUser?.name || '');
 
   const modal = document.getElementById('swFromTrackModal');
   if (!modal) return;
-  document.getElementById('swt_title').textContent  = title;
+  document.getElementById('swt_title').textContent   = title;
   document.getElementById('swt_project').textContent = project || '—';
   document.getElementById('swt_dwgno').textContent   = dwgNo   || '—';
   document.getElementById('swt_dwgname').textContent = dwgName || '—';
@@ -6413,6 +6486,11 @@ function openSendworkFromTrack(itemId, title, project, dwgNo, dwgName, senderEma
   document.getElementById('swt_dwgurl').value = '';
   document.getElementById('swt_pdfurl').value = '';
   document.getElementById('swt_note').value   = deliverNote;
+  // reset file list
+  swtSelectedFiles = [];
+  swtRenderFileList();
+  const fi = document.getElementById('swtFileInput');
+  if (fi) fi.value = '';
   modal.classList.add('show');
 }
 
@@ -6421,7 +6499,12 @@ async function confirmSendworkFromTrack() {
   const dwgUrl  = document.getElementById('swt_dwgurl').value.trim();
   const pdfUrl  = document.getElementById('swt_pdfurl').value.trim();
   const note    = document.getElementById('swt_note').value.trim();
-  if (!dwgUrl && !pdfUrl) { showToast('⚠️','กรุณาใส่ลิงก์ไฟล์ DWG หรือ PDF อย่างน้อย 1 รายการ'); return; }
+  const hasFiles = swtSelectedFiles.length > 0;
+
+  if (!dwgUrl && !pdfUrl && !hasFiles) {
+    showToast('⚠️', 'กรุณาใส่ลิงก์ไฟล์ หรือแนบเอกสารอย่างน้อย 1 รายการ');
+    return;
+  }
   const btn = document.getElementById('swtConfirmBtn');
   btn.disabled = true; btn.classList.add('btn-loading');
   try {
@@ -6430,17 +6513,40 @@ async function confirmSendworkFromTrack() {
     if (dwgUrl) updateData.DwgFileUrl = dwgUrl;
     if (pdfUrl) updateData.PdfFileUrl = pdfUrl;
     if (note)   updateData.NoteFromDrawing = note;
+
+    // อัปโหลดไฟล์ไปยัง SharePoint ถ้ามี
+    if (hasFiles && spSiteId) {
+      const r = (_dwgMyItems||[]).find(x=>x.id===itemId) || (allRequests||[]).find(x=>x.id===itemId);
+      const folderName = r?.Title || itemId;
+      const folderPath = `DrawingRequests/${folderName}`;
+      for (const file of swtSelectedFiles) {
+        try {
+          const buf = await file.arrayBuffer();
+          const uploadUrl = `https://graph.microsoft.com/v1.0/sites/${spSiteId}/drive/root:/${folderPath}/${encodeURIComponent(file.name)}:/content`;
+          await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': file.type || 'application/octet-stream' },
+            body: buf
+          });
+        } catch(fe) { console.warn('Upload file failed:', file.name, fe.message); }
+      }
+    }
+
     await spUpdateItem(itemId, updateData);
     // update local cache
     [_dwgMyItems, allRequests].forEach(arr => {
       const idx = (arr||[]).findIndex(x => x.id === itemId);
-      if (idx >= 0) { arr[idx].Status = 'done'; arr[idx].DeliveredAt = now; if(dwgUrl) arr[idx].DwgFileUrl = dwgUrl; if(pdfUrl) arr[idx].PdfFileUrl = pdfUrl; }
+      if (idx >= 0) {
+        arr[idx].Status = 'done'; arr[idx].DeliveredAt = now;
+        if (dwgUrl) arr[idx].DwgFileUrl = dwgUrl;
+        if (pdfUrl) arr[idx].PdfFileUrl = pdfUrl;
+      }
     });
-    showToast('✅','นำส่งงานสำเร็จ!');
+    showToast('✅', 'นำส่งงานสำเร็จ!');
     document.getElementById('swFromTrackModal').classList.remove('show');
     renderDwgStats(); renderDwgCards();
   } catch(e) {
-    showToast('❌','เกิดข้อผิดพลาด: ' + e.message);
+    showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
   } finally {
     btn.disabled = false; btn.classList.remove('btn-loading');
   }
