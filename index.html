@@ -5560,14 +5560,21 @@ function renderApprovalCard(item, isManager) {
     </div>` : '';
 
   // ── ปุ่มอนุมัติ ──
-  // Lv.1 → popup เลือกผู้รับผิดชอบ (เดิม)
-  // Lv.2 → กดยืนยันได้เลย ไม่ต้องเลือกใหม่
+  // Lv.1 → popup เลือกผู้รับผิดชอบ
+  // Lv.2 + มี AssigneeName จาก Lv.1 → กดยืนยันได้เลย
+  // Lv.2 + ไม่มี AssigneeName (รับเองโดยไม่ผ่าน Lv.1) → popup เลือกผู้รับผิดชอบ
+  const safeProject = (item.ProjectName||item.Title||'').replace(/[<>'"]/g,'');
   const approveBtn = isManager
-    ? `<button class="btn btn-success" onclick="confirmApproveLv2('${item.id}')">
-        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        ✅ อนุมัติ Lv.2
-       </button>`
-    : `<button class="btn btn-success" onclick="openAssignModal('${item.id}','${(item.ProjectName||item.Title||'').replace(/[<>'"]/g,'')}','false')">
+    ? item.AssigneeName
+      ? `<button class="btn btn-success" onclick="confirmApproveLv2('${item.id}')">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ✅ อนุมัติ Lv.2
+         </button>`
+      : `<button class="btn btn-success" onclick="openAssignModal('${item.id}','${safeProject}','true')">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ✅ อนุมัติ Lv.2 + มอบหมาย
+         </button>`
+    : `<button class="btn btn-success" onclick="openAssignModal('${item.id}','${safeProject}','false')">
         <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         ✅ อนุมัติ Lv.1 + มอบหมาย
        </button>`;
@@ -5735,24 +5742,29 @@ async function submitAdminAction(id) {
 }
 
 async function confirmApproveLv2(itemId) {
-  // หา note จาก input ถ้ามี
+  // ฟังก์ชันนี้เรียกเฉพาะกรณี Lv.2 ที่มี AssigneeName จาก Lv.1 แล้ว
   const noteEl = document.getElementById(`lv2-note-${itemId}`);
   const note   = noteEl?.value?.trim() || '';
   const btn    = event?.target?.closest('button');
   if (btn) { btn.disabled=true; btn.classList.add('btn-loading'); }
   try {
-    // ดึงข้อมูลคำร้อง — ต้องมี AssigneeName จาก Lv.1 อยู่แล้ว
-    const allI  = await spGetItems();
-    const spIt  = allI.find(r => r.id === itemId);
+    // ดึง AssigneeName/Email จาก cache หรือ SharePoint
+    let spIt = (allRequests||[]).find(r => r.id === itemId);
     if (!spIt?.AssigneeName) {
-      showToast('⚠️', 'ไม่พบผู้รับผิดชอบจาก Lv.1 — กรุณาตรวจสอบ');
+      const allI = await spGetItems();
+      spIt = allI.find(r => r.id === itemId);
+    }
+    if (!spIt?.AssigneeName) {
+      // ไม่ควรเกิดขึ้น (ปุ่มนี้ render เฉพาะเมื่อมี AssigneeName)
+      // fallback: เปิด popup ให้เลือก
+      showToast('⚠️', 'ไม่พบผู้รับผิดชอบ — กรุณาเลือกจาก popup');
+      openAssignModal(itemId, spIt?.ProjectName||'', 'true');
       return;
     }
-    // ใช้ selectedAssignee จาก Lv.1
-    const fakeAssignee = { name: spIt.AssigneeName, email: spIt.AssigneeEmail||'' };
+    // ใช้ข้อมูล assignee จาก Lv.1 โดยตรง
     pendingApproveId = itemId;
     pendingIsManager = true;
-    selectedAssignee = fakeAssignee;
+    selectedAssignee = { name: spIt.AssigneeName, email: spIt.AssigneeEmail||'' };
     const _an = document.getElementById('assignNote');
     if (_an) _an.value = note;
     await confirmAssign();
@@ -5829,19 +5841,15 @@ function openAssignModal(id, project, isManagerStr) {
   // Lv.2: ไม่ต้องเลือกผู้รับผิดชอบใหม่ — ใช้ข้อมูลจาก Lv.1
   const grid = document.getElementById('assigneeGrid');
   const subEl = document.getElementById('assignSubtitle');
-  if (pendingIsManager) {
-    // ซ่อน grid — แสดงข้อความยืนยันแทน
-    grid.style.display = 'none';
-    if (subEl) subEl.textContent = 'โครงการ: ' + project + ' — กด "ยืนยันอนุมัติ" เพื่อดำเนินการ';
-  } else {
-    grid.style.display = '';
-    if (subEl) subEl.textContent = 'โครงการ: ' + project + ' — เลือกผู้รับงาน';
-    grid.innerHTML = CONFIG.teamMembers.map(m => `
-      <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
-        <div class="assignee-av">${m.name.split(' ')[0].slice(0,2)}</div>
-        <div><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--gray-400)">${m.role}</div></div>
-      </div>`).join('');
-  }
+  // Lv.2 ที่เข้ามาผ่าน openAssignModal = ไม่มี Lv.1 อนุมัติก่อน → ต้องเลือกผู้รับผิดชอบ
+  // (กรณีมี Lv.1 แล้วใช้ confirmApproveLv2 โดยตรง ไม่ผ่านฟังก์ชันนี้)
+  grid.style.display = '';
+  if (subEl) subEl.textContent = 'โครงการ: ' + project + ' — เลือกผู้รับงาน';
+  grid.innerHTML = CONFIG.teamMembers.map(m => `
+    <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
+      <div class="assignee-av">${m.name.split(' ')[0].slice(0,2)}</div>
+      <div><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--gray-400)">${m.role}</div></div>
+    </div>`).join('');
   document.getElementById('assignModal').classList.add('show');
 }
 
