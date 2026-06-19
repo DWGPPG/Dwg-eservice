@@ -5615,12 +5615,12 @@ function renderApprovalCard(item, isManager) {
       <!-- ── ปุ่มทั้งหมด ── -->
       <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
         <!-- ส่งกลับ -->
-        <button class="btn btn-secondary" style="font-size:12px" onclick="toggleAdminAction('${item.id}','reject')">
+        <button class="btn btn-secondary" style="font-size:12px" onclick="toggleAdminAction('${item.id}','reject','${isManager}','${item.AssigneeName?'1':'0'}')">
           <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
           ↩️ ส่งกลับ
         </button>
         <!-- ยกเลิกคำร้อง -->
-        <button class="btn btn-secondary" style="font-size:12px;color:var(--danger);border-color:#fca5a5" onclick="toggleAdminAction('${item.id}','cancel')">
+        <button class="btn btn-secondary" style="font-size:12px;color:var(--danger);border-color:#fca5a5" onclick="toggleAdminAction('${item.id}','cancel','${isManager}','${item.AssigneeName?'1':'0'}')">
           ❌ ยกเลิก
         </button>
         <!-- อนุมัติ -->
@@ -5650,7 +5650,7 @@ function renderApprovalCard(item, isManager) {
 }
 
 // helper: toggle action ส่งกลับ/ยกเลิก
-function toggleAdminAction(id, mode) {
+function toggleAdminAction(id, mode, isMgrStr, hasLv1Str) {
   const box   = document.getElementById(`admin-action-${id}`);
   const label = document.getElementById(`admin-action-label-${id}`);
   const note  = document.getElementById(`admin-action-note-${id}`);
@@ -5659,83 +5659,173 @@ function toggleAdminAction(id, mode) {
   if (mode === 'close') { box.style.display = 'none'; return; }
   // toggle: ถ้าเปิดอยู่ mode เดิม → ปิด
   if (box.style.display !== 'none' && box.dataset.mode === mode) { box.style.display = 'none'; return; }
-  box.dataset.mode = mode;
-  box.style.display = '';
+
+  // เก็บ context ไว้ใน dataset เพื่อให้ submitAdminAction ใช้
+  box.dataset.mode    = mode;
+  box.dataset.isMgr   = isMgrStr   || 'false';
+  box.dataset.hasLv1  = hasLv1Str  || '0';
+  box.style.display   = '';
+
+  const isMgrBool  = isMgrStr  === 'true';
+  const hasLv1Bool = hasLv1Str === '1';
+
   if (mode === 'reject') {
-    label.textContent = '↩️ ส่งกลับแก้ไข — ระบุเหตุผล';
+    // Lv.2 + มี Lv.1 → ส่งกลับ Lv.1 (pending)
+    // ทุกกรณีอื่น → ส่งกลับผู้ร้องขอ
+    const isBackToLv1 = isMgrBool && hasLv1Bool;
+    label.innerHTML = isBackToLv1
+      ? '↩️ <b>ส่งกลับ Lv.1</b> — ระบุเหตุผลให้ผู้รับผิดชอบแก้ไข'
+      : '↩️ <b>ส่งกลับผู้ร้องขอ</b> — ระบุเหตุผล / สิ่งที่ต้องแก้ไข';
     label.style.color = '#b45309';
     box.style.background = '#fffbeb';
     box.style.borderColor = '#fde68a';
-    btn.textContent = 'ยืนยันส่งกลับ';
-    btn.style.background = '#d97706';
-    btn.style.color = '#fff';
-    btn.style.border = 'none';
+    btn.textContent = isBackToLv1 ? 'ยืนยันส่งกลับ Lv.1' : 'ยืนยันส่งกลับผู้ร้องขอ';
+    btn.style.cssText = 'background:#d97706;color:#fff;border:none;font-size:12px';
+    note.placeholder = isBackToLv1
+      ? 'ระบุสิ่งที่ต้องแก้ไข เช่น แบบไม่ตรงมาตรฐาน ขอให้ทบทวนใหม่...'
+      : 'ระบุเหตุผล เช่น ข้อมูลไม่ครบ โปรดแนบแบบเพิ่มเติม...';
   } else {
-    label.textContent = '❌ ยกเลิกคำร้อง — ระบุเหตุผล';
+    label.innerHTML = '❌ <b>ยกเลิกคำร้อง</b> — ระบุเหตุผล';
     label.style.color = '#dc2626';
     box.style.background = '#fef2f2';
     box.style.borderColor = '#fca5a5';
     btn.textContent = 'ยืนยันยกเลิกคำร้อง';
-    btn.style.background = '#dc2626';
-    btn.style.color = '#fff';
-    btn.style.border = 'none';
+    btn.style.cssText = 'background:#dc2626;color:#fff;border:none;font-size:12px';
+    note.placeholder = 'ระบุเหตุผลที่ยกเลิก...';
   }
   if (note) { note.value = ''; setTimeout(() => note.focus(), 50); }
 }
 
 async function submitAdminAction(id) {
-  const box    = document.getElementById(`admin-action-${id}`);
-  const mode   = box?.dataset.mode;
-  const reason = document.getElementById(`admin-action-note-${id}`)?.value.trim();
+  const box       = document.getElementById(`admin-action-${id}`);
+  const mode      = box?.dataset.mode;      // 'reject' | 'cancel'
+  const isMgrBool = box?.dataset.isMgr === 'true';
+  const hasLv1    = box?.dataset.hasLv1 === '1';
+  const reason    = document.getElementById(`admin-action-note-${id}`)?.value.trim();
   if (!reason) { showToast('⚠️', 'กรุณาระบุเหตุผล'); return; }
+
   const confirmBtn = document.getElementById(`admin-action-confirm-${id}`);
   if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.classList.add('btn-loading'); }
+
   try {
-    const newStatus = mode === 'cancel' ? 'cancelled' : 'rejected';
-    await spUpdateItem(id, { Status: newStatus, RejectReason: reason });
-    // แจ้ง Teams ผู้ส่งคำร้อง
-    try {
-      const allI = await spGetItems();
-      const spIt = allI.find(r => r.id === id);
-      if (spIt?.SenderEmail) {
-        const meI = await graphGet('/me');
-        const myIdI = meI?.id;
-        const myEmailI = (meI?.mail || meI?.userPrincipalName || '').toLowerCase();
-        if (spIt.SenderEmail.toLowerCase() !== myEmailI && myIdI) {
-          const cr = await fetch('https://graph.microsoft.com/v1.0/chats', {
-            method:'POST', headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
-            body: JSON.stringify({ chatType:'oneOnOne', members:[
-              {'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],'user@odata.bind':`https://graph.microsoft.com/v1.0/users('${spIt.SenderEmail}')`},
-              {'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],'user@odata.bind':`https://graph.microsoft.com/v1.0/users/${myIdI}`}
-            ]})
-          });
-          let cid = null;
-          if (cr.ok) { cid = (await cr.json()).id; }
-          else if (cr.status===409) { const e409=(await cr.json()); cid=e409?.error?.innerError?.id||null; }
-          if (cid) {
-            const emoji = mode==='cancel' ? '❌' : '↩️';
-            const actionTh = mode==='cancel' ? 'ยกเลิกคำร้อง' : 'ส่งกลับแก้ไข';
-            await fetch(`https://graph.microsoft.com/v1.0/chats/${cid}/messages`, {
-              method:'POST', headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
-              body: JSON.stringify({body:{contentType:'html',content:[
-                `${emoji} <b>PPG Drawing e-Service — ${actionTh}</b>`,``,
-                `📋 <b>เลขคำขอ:</b> ${spIt.Title}`,
-                `📁 <b>โครงการ:</b> ${spIt.ProjectName0||'—'}`,
-                `📌 <b>เหตุผล:</b> ${reason}`,
-                `👤 <b>โดย:</b> ${currentUser?.name||''}`,
-                `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`
-              ].join('<br>')}})
-            });
+    // ── กำหนด status และ target notify ──
+    // Lv.2 + มี Lv.1 + reject → pending (ส่งกลับให้ Lv.1 แก้ไข)
+    // ทุกกรณีอื่น reject → rejected (แจ้งผู้ร้องขอ)
+    // cancel → cancelled (แจ้งผู้ร้องขอ)
+    const isBackToLv1 = mode === 'reject' && isMgrBool && hasLv1;
+    const newStatus   = mode === 'cancel' ? 'cancelled'
+                      : isBackToLv1       ? 'pending'
+                      :                     'rejected';
+
+    await spUpdateItem(id, {
+      Status:       newStatus,
+      RejectReason: reason,
+      // ล้าง assignee เมื่อส่งกลับ Lv.1 เพื่อให้ Lv.1 มอบหมายใหม่
+      ...(isBackToLv1 ? { AssigneeName:'', AssigneeEmail:'', ReviewerLv1:'' } : {})
+    });
+
+    // อัปเดต cache
+    const idx = (allRequests||[]).findIndex(r => r.id === id);
+    if (idx >= 0) { allRequests[idx].Status = newStatus; }
+
+    // ── ดึงข้อมูลคำร้องเพื่อแจ้ง Teams ──
+    const allI = await spGetItems();
+    const spIt = allI.find(r => r.id === id);
+    const meI  = await graphGet('/me');
+    const myIdI    = meI?.id;
+    const myEmailI = (meI?.mail || meI?.userPrincipalName || '').toLowerCase();
+
+    // กำหนด target email
+    // ส่งกลับ Lv.1 → แจ้ง AssigneeEmail (ผู้รับผิดชอบ Lv.1)
+    // ทุกกรณีอื่น → แจ้ง SenderEmail (ผู้ร้องขอ)
+    const targetEmail = isBackToLv1
+      ? (spIt?.AssigneeEmail || '')
+      : (spIt?.SenderEmail   || '');
+
+    if (targetEmail && targetEmail.toLowerCase() !== myEmailI && myIdI) {
+      try {
+        const cr = await fetch('https://graph.microsoft.com/v1.0/chats', {
+          method:'POST',
+          headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+          body: JSON.stringify({ chatType:'oneOnOne', members:[
+            {'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],
+             'user@odata.bind':`https://graph.microsoft.com/v1.0/users('${targetEmail}')`},
+            {'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],
+             'user@odata.bind':`https://graph.microsoft.com/v1.0/users/${myIdI}`}
+          ]})
+        });
+        let cid = null;
+        if (cr.ok) { cid = (await cr.json()).id; }
+        else if (cr.status === 409) {
+          const e409 = await cr.json();
+          cid = e409?.error?.innerError?.id || null;
+          if (!cid) {
+            const listC = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+            const foundC = listC?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === targetEmail.toLowerCase()));
+            cid = foundC?.id || null;
           }
         }
-      }
-    } catch(te) { console.warn('Teams notify failed:', te.message); }
+        if (cid) {
+          let emoji, title, lines;
+          if (mode === 'cancel') {
+            emoji = '❌'; title = 'ยกเลิกคำร้อง';
+            lines = [
+              `${emoji} <b>PPG Drawing e-Service — ${title}</b>`, ``,
+              `📋 <b>เลขคำขอ:</b> ${spIt?.Title||id}`,
+              `📁 <b>โครงการ:</b> ${spIt?.ProjectName0||'—'}`,
+              `📌 <b>เหตุผล:</b> ${reason}`,
+              `👤 <b>ยกเลิกโดย:</b> ${currentUser?.name||''}`,
+              `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`,
+            ];
+          } else if (isBackToLv1) {
+            emoji = '↩️'; title = 'ส่งกลับแก้ไข (จาก Lv.2)';
+            lines = [
+              `${emoji} <b>PPG Drawing e-Service — ${title}</b>`, ``,
+              `📋 <b>เลขคำขอ:</b> ${spIt?.Title||id}`,
+              `📁 <b>โครงการ:</b> ${spIt?.ProjectName0||'—'}`,
+              `📄 <b>Drawing No.:</b> ${spIt?.DrawingNumber||'—'}`,
+              ``,
+              `📌 <b>สิ่งที่ต้องแก้ไข (จาก Lv.2):</b>`,
+              reason,
+              ``,
+              `👤 <b>ส่งกลับโดย:</b> ${currentUser?.name||''} (ผู้จัดการ Lv.2)`,
+              ``,
+              `📝 คำร้องถูกรีเซ็ตกลับเป็น <b>รอตรวจสอบ Lv.1</b> — กรุณาดำเนินการใน Admin tab`,
+              `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`,
+            ];
+          } else {
+            emoji = '↩️'; title = 'ส่งกลับแก้ไข';
+            lines = [
+              `${emoji} <b>PPG Drawing e-Service — ${title}</b>`, ``,
+              `📋 <b>เลขคำขอ:</b> ${spIt?.Title||id}`,
+              `📁 <b>โครงการ:</b> ${spIt?.ProjectName0||'—'}`,
+              `📌 <b>เหตุผล / สิ่งที่ต้องแก้ไข:</b>`,
+              reason,
+              ``,
+              `👤 <b>โดย:</b> ${currentUser?.name||''}`,
+              `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`,
+            ];
+          }
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${cid}/messages`, {
+            method:'POST',
+            headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+            body: JSON.stringify({body:{contentType:'html',content:lines.join('<br>')}})
+          });
+        }
+      } catch(te) { console.warn('Teams notify failed:', te.message); }
+    }
+
     const card = document.getElementById(`card-${id}`);
     if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; setTimeout(()=>card.remove(),1500); }
-    showToast(mode==='cancel'?'❌':'↩️', `${mode==='cancel'?'ยกเลิก':'ส่งกลับ'}คำร้องแล้ว`);
+
+    const toastMsg = mode==='cancel' ? 'ยกเลิกคำร้องแล้ว'
+                   : isBackToLv1    ? 'ส่งกลับ Lv.1 แล้ว — คำร้องกลับเป็นรอตรวจสอบ Lv.1'
+                   :                  'ส่งกลับผู้ร้องขอแล้ว';
+    showToast(mode==='cancel'?'❌':'↩️', toastMsg);
     await buildAdmin(); await buildDashboard();
   } catch(e) {
     showToast('❌', 'เกิดข้อผิดพลาด: '+e.message);
+    console.error('submitAdminAction:', e);
   } finally {
     if (confirmBtn) { confirmBtn.disabled=false; confirmBtn.classList.remove('btn-loading'); }
   }
