@@ -1,0 +1,47 @@
+:root {
+  /* Brand & Canvas */
+  --brand-bg: #091713;
+  --bg: #edf3f0;
+  
+  /* Glass Surfaces (Light Mode) */
+  --surface: rgba(255, 255, 255, 0.75);
+  --surface-solid: #ffffff;
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --surface-muted: rgba(255, 255, 255, 0.45);
+  
+  /* Text */
+  --text: #0b1a13;
+  --muted: #5e6b64;
+  
+  /* Borders */
+  --line: rgba(11, 26, 19, 0.08);
+  --line-strong: rgba(11, 26, 19, 0.15);
+  
+  /* Accents */
+  --primary: #059669; /* Emerald */
+  --primary-strong: #047857;
+  --primary-light: #d1fae5;
+  --accent: #0284c7; /* Sky blue */
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  
+  /* Radii */
+  --radius: 12px;
+  --shell-radius: 24px;
+  
+  /* Shadows */
+  --shadow: 0 24px 50px -12px rgba(4, 30, 20, 0.15);
+  --soft-shadow: 0 8px 30px rgba(4, 30, 20, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glow-shadow: 0 8px 24px -6px rgba(5, 150, 105, 0.4);
+  
+  /* Typography */
+  --font: "Inter", "Noto Sans Thai", "Segoe UI", system-ui, sans-serif;
+  
+  /* Animation */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  
+  /* Glass Blur */
+  --glass-blur: blur(16px);
+}
