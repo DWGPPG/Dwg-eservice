@@ -441,6 +441,10 @@ input:read-only { background: var(--gray-100); color: var(--gray-600); }
 .badge-done         { background: var(--success-bg); color: var(--success); }
 .badge-cancelled    { background: var(--gray-100); color: var(--gray-600); }
 .badge-rejected     { background: var(--danger-bg); color: var(--danger); }
+.badge-mgr-review   { background: #fdf4ff; color: #7e22ce; }
+.badge-mgr-rejected { background: #fff7ed; color: #c2410c; }
+body.dark .badge-mgr-review   { background: #3b0764; color: #d8b4fe; }
+body.dark .badge-mgr-rejected { background: #431407; color: #fed7aa; }
 
 /* Work-status dropdown */
 .work-status-select {
@@ -733,6 +737,7 @@ tr:hover td { background: var(--sky); }
       <div class="nav-tab" onclick="showPage('track',this)">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35" stroke-linecap="round"/></svg>
         ติดตามสถานะ
+        <span id="trackMgrBadge" style="display:none;background:#7e22ce;color:#fff;border-radius:50%;width:16px;height:16px;font-size:10px;font-weight:700;align-items:center;justify-content:center;margin-left:4px">0</span>
       </div>
       <div class="nav-tab" id="adminTab" onclick="showPage('admin',this)" style="display:none">
         <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12c0 4.97-4.03 9-9 9S3 16.97 3 12 7.03 3 12 3s9 4.03 9 9z"/></svg>
@@ -1113,6 +1118,17 @@ tr:hover td { background: var(--sky); }
     <div class="page-header">
       <div class="page-title">ติดตามสถานะคำร้อง</div>
       <div class="page-sub" id="trackPageSub">ดึงข้อมูลสถานะล่าสุดจาก SharePoint</div>
+    </div>
+
+    <!-- MGR REVIEW SECTION — แสดงเฉพาะผู้จัดการ Lv.2 -->
+    <div id="mgrReviewSection" style="display:none;margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <div style="font-size:15px;font-weight:700;color:#7e22ce">🔍 รออนุมัติส่งมอบ</div>
+        <span id="mgrReviewBadge" style="background:#7e22ce;color:#fff;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;min-width:24px;text-align:center">0</span>
+        <button onclick="loadMgrReviewItems()" style="margin-left:auto;background:none;border:1px solid var(--gray-200);border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:var(--font);color:var(--gray-600)">🔄 Refresh</button>
+      </div>
+      <div id="mgrReviewList"></div>
+      <div style="height:1px;background:var(--gray-200);margin:8px 0 16px"></div>
     </div>
 
     <!-- โหมดผู้ใช้ทั่วไป -->
@@ -3406,6 +3422,7 @@ async function onSignedIn() {
 
   await buildDashboard();
   await buildAdmin(); // โหลด admin list สำหรับทุกคน
+  if (isMgr()) loadMgrReviewItems(); // โหลด mgr review items
 
   setBanner('ready', `✅ เชื่อมต่อแล้ว — ${currentUser.username} | SharePoint: ${CONFIG.spSite}`);
 
@@ -5214,13 +5231,17 @@ const STATUS_LABEL_TABLE = {
   pending:'รอตรวจสอบ Lv.1', review:'รออนุมัติ Lv.2',
   inprogress_lv1:'รอ LV.2 ผู้จัดการอนุมัติ', inprogress:'รอ LV.2 ผู้จัดการอนุมัติ',
   approved:'ตรวจสอบแล้ว กำลังดำเนินการ', working:'กำลังดำเนินการ',
-  done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข'
+  done:'เสร็จสิ้น', cancelled:'ยกเลิก', rejected:'ส่งกลับแก้ไข',
+  mgr_review:'รอผู้จัดการตรวจ+ส่งมอบ', mgr_rejected:'ผู้จัดการส่งกลับแก้ไข',
+  delivered:'ส่งมอบแล้ว รอตรวจรับ'
 };
 const STATUS_CLASS_TABLE = {
   pending:'badge-pending', review:'badge-review',
   inprogress_lv1:'badge-inprog-lv1', inprogress:'badge-inprog-lv1',
   approved:'badge-approved', working:'badge-working',
-  done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected'
+  done:'badge-done', cancelled:'badge-cancelled', rejected:'badge-rejected',
+  mgr_review:'badge-mgr-review', mgr_rejected:'badge-mgr-rejected',
+  delivered:'badge-review'
 };
 
 function renderTable(items) {
@@ -5861,7 +5882,7 @@ function showPage(name, tab) {
   if (name==='admin')     buildAdmin();
   if (name==='sendwork')  swLoadRequests();
   if (name==='review')    setTimeout(() => buildReview(_pendingReviewId), 300);
-  if (name==='track')     buildTrackPage();
+  if (name==='track')     { buildTrackPage(); if (isMgr()) loadMgrReviewItems(); }
   if (name==='report')    {}
   if (name==='guide')     {}
   // ข้อ 4: ล้าง track search เมื่อเปลี่ยน tab (ยกเว้นกดจาก goTrack)
@@ -6134,7 +6155,7 @@ async function swSubmitWork() {
       const item  = items?.value?.find(i => i.fields?.Title === requestId);
       if (item) {
         const fields = {};
-        fields['Status0']        = 'delivered';   // Choice field ชื่อจริง Status0
+        fields['Status0']        = 'mgr_review';   // รอผู้จัดการตรวจสอบและส่งมอบ
         fields['eliveredAt']     = new Date().toISOString();  // InternalName ขาด D
         fields['CurrentRevise']  = reviseTag;
         fields['NoteFromDrawing']= note;
@@ -6159,103 +6180,71 @@ async function swSubmitWork() {
       }
     }
 
-    // ── 3. ส่ง Teams Chat message หาผู้ร้องขอ ──
+    // ── 3. ส่ง Teams แจ้งผู้จัดการ Lv.2 ทุกคน ──
     const meResp = await graphGet('/me');
     const myUserId = meResp?.id;
-    const myEmail  = meResp?.mail || meResp?.userPrincipalName || '';
-    console.log('Teams chat → requesterEmail:', requesterEmail, '| myEmail:', myEmail);
+    const myEmail  = (meResp?.mail || meResp?.userPrincipalName || '').toLowerCase();
+    const dataLink = spItem?.DataLink || '';
+    const detail   = spItem?.Detail   || '';
+    const attachUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${requestId}`;
 
-    // ถ้าผู้ร้องขอเป็นคนเดียวกับผู้ส่ง ข้ามการส่ง chat
-    const isSameUser = myEmail.toLowerCase() === requesterEmail.toLowerCase();
-    console.log('isSameUser:', isSameUser, '| will send chat:', !isSameUser && !!requesterEmail);
-
-    if (myUserId && !isSameUser && requesterEmail) {
+    const mgrEmails = CONFIG.approverLv2Emails || [CONFIG.approverLv2Email];
+    for (const mgrEmail of mgrEmails) {
+      if (!mgrEmail || mgrEmail.toLowerCase() === myEmail) continue;
       try {
-        // สร้าง 1:1 chat
-        const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
+        const mgrChatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
           method: 'POST',
-          headers: {
-            'Authorization': 'Bearer ' + accessToken,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             chatType: 'oneOnOne',
             members: [
-              {
-                '@odata.type': '#microsoft.graph.aadUserConversationMember',
-                roles: ['owner'],
-                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${requesterEmail}')`
-              },
-              {
-                '@odata.type': '#microsoft.graph.aadUserConversationMember',
-                roles: ['owner'],
-                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myUserId}`
-              }
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${mgrEmail}')` },
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myUserId}` }
             ]
           })
         });
-
-      let chatId = null;
-      if (chatResp.ok) {
-        const chatData = await chatResp.json();
-        chatId = chatData.id;
-      } else {
-        const chatErr = await chatResp.json();
-        console.error('Create chat error:', chatResp.status, JSON.stringify(chatErr));
-        if (chatResp.status === 409) {
-          chatId = chatErr?.error?.innerError?.id || null;
-          if (!chatId) {
-            const listChats = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
-            const found = listChats?.value?.find(c =>
-              c.members?.some(m => m.email?.toLowerCase() === requesterEmail.toLowerCase())
-            );
-            chatId = found?.id || null;
+        let mgrChatId = null;
+        if (mgrChatResp.ok) { mgrChatId = (await mgrChatResp.json()).id; }
+        else if (mgrChatResp.status === 409) {
+          const e409m = await mgrChatResp.json();
+          mgrChatId = e409m?.error?.innerError?.id || null;
+          if (!mgrChatId) {
+            const listM = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+            const foundM = listM?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === mgrEmail.toLowerCase()));
+            mgrChatId = foundM?.id || null;
           }
         }
-      }
-
-      if (chatId) {
-        // สร้าง message พร้อมข้อมูลครบ
-        const reviewUrl   = `https://dwgppg.github.io/Dwg-eservice/?review=${requestId}`;
-        const attachUrl   = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${requestId}`;
-        // ดึง DataLink และ Detail จาก SharePoint item
-        const dataLink    = spItem?.DataLink || '';
-        const detail      = spItem?.Detail || '';
-        const msgLines = [
-          `📐 <b>PPG Drawing e-Service — งานแล้วเสร็จพร้อมตรวจรับ</b>`,
-          ``,
-          `📋 <b>เลขคำขอ:</b> ${requestId}`,
-          `🏗️ <b>ระบบงาน:</b> ${requestType}`,
-          `📁 <b>โครงการ:</b> ${projectName}`,
-          `📄 <b>Drawing No.:</b> ${drawingNumber}`,
-          `📝 <b>Drawing Name:</b> ${drawingName}`,
-          `🔄 <b>Revise:</b> ${reviseTag}`,
-          `👤 <b>ผู้ดำเนินการ:</b> ${currentUser?.name || ''}`,
-          `📅 <b>วันที่ส่ง:</b> ${new Date().toLocaleDateString('th-TH', { year:'numeric', month:'long', day:'numeric' })}`,
-        ];
-        if (detail)   msgLines.push(`💬 <b>รายละเอียดคำขอ:</b> ${detail}`);
-        if (dataLink) msgLines.push(`🔗 <b>ลิงก์แนบ:</b> <a href="${dataLink}">${dataLink}</a>`);
-        if (note)     msgLines.push(`📌 <b>หมายเหตุจากผู้เขียนแบบ:</b> ${note}`);
-        if (dwgUrl)   msgLines.push(`📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>`);
-        if (pdfUrl)   msgLines.push(`📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>`);
-        msgLines.push(`📎 <a href="${attachUrl}">โฟลเดอร์เอกสารแนบทั้งหมด</a>`);
-        msgLines.push(``, `👉 <a href="${reviewUrl}"><b>คลิกเพื่อตรวจรับงาน (อนุมัติ / แก้ไข / Reject)</b></a>`);
-
-        await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Bearer ' + accessToken,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            body: { contentType: 'html', content: msgLines.join('<br>') }
-          })
-        });
-        console.log('✅ Teams message sent to', requesterEmail);
-      }
-      } catch(teamsErr) {
-        console.warn('Teams chat ไม่สำเร็จ (non-critical):', teamsErr.message);
-      }
+        if (mgrChatId) {
+          const mgrLines = [
+            `🔍 <b>PPG Drawing e-Service — รองานตรวจสอบก่อนส่งมอบ</b>`,
+            ``,
+            `📋 <b>เลขคำขอ:</b> ${requestId}`,
+            `🏗️ <b>ระบบงาน:</b> ${requestType}`,
+            `📁 <b>โครงการ:</b> ${projectName}`,
+            `📄 <b>Drawing No.:</b> ${drawingNumber}`,
+            `📝 <b>Drawing Name:</b> ${drawingName}`,
+            `🔄 <b>Revise:</b> ${reviseTag}`,
+            `👤 <b>ผู้เขียนแบบ:</b> ${currentUser?.name || ''}`,
+            dwgUrl ? `📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>` : '',
+            pdfUrl ? `📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>` : '',
+            note   ? `📌 <b>หมายเหตุ:</b> ${note}` : '',
+            detail ? `💬 <b>รายละเอียด:</b> ${detail}` : '',
+            dataLink ? `🔗 <b>ลิงก์แนบ:</b> <a href="${dataLink}">${dataLink}</a>` : '',
+            `📎 <a href="${attachUrl}">โฟลเดอร์เอกสารทั้งหมด</a>`,
+            ``,
+            `👉 <b>กรุณาเข้าระบบ หน้า "ติดตามสถานะ" เพื่อ ✅ ส่งมอบ หรือ ↩️ ส่งกลับแก้ไข</b>`,
+            `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`,
+          ].filter(Boolean);
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${mgrChatId}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: { contentType: 'html', content: mgrLines.join('<br>') } })
+          });
+          console.log('✅ Teams message sent to manager:', mgrEmail);
+        }
+      } catch(mgrErr) { console.warn('Teams notify mgr failed:', mgrErr.message); }
     }
 
     // ── สำเร็จ ──
@@ -6264,7 +6253,7 @@ async function swSubmitWork() {
     const banner = document.getElementById('sw_success_banner');
     if (banner) {
       banner.style.display = 'flex';
-      banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนไปยัง ' + requesterEmail + ' ใน Microsoft Teams แล้ว';
+      banner.textContent = '✅ ส่งงานสำเร็จ! แจ้งเตือนผู้จัดการใน Microsoft Teams แล้ว — รอตรวจสอบก่อนส่งมอบ';
     }
 
   } catch(e) {
@@ -7653,6 +7642,313 @@ function initTableTopScroll() {
     top.scrollLeft = wrap.scrollLeft;
     wrap._scrolling = false;
   });
+}
+
+
+// ══════════════════════════════════════════════════════════════════
+// MANAGER QC REVIEW — ตรวจสอบและส่งมอบงาน (หน้าติดตามสถานะ)
+// Flow: Sendwork → mgr_review → ผู้จัดการ ✅ส่งมอบ/↩️ส่งกลับ
+// ══════════════════════════════════════════════════════════════════
+
+async function loadMgrReviewItems() {
+  const section = document.getElementById('mgrReviewSection');
+  if (!section) return;
+  if (!isMgr()) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const listEl = document.getElementById('mgrReviewList');
+  listEl.innerHTML = '<div style="padding:16px;color:var(--gray-400);font-size:13px">⏳ กำลังโหลด...</div>';
+
+  try {
+    const all   = await spGetItems();
+    const items = all.filter(r => (r.Status || r.Status0 || '') === 'mgr_review');
+
+    // อัปเดต badge
+    const badge = document.getElementById('mgrReviewBadge');
+    if (badge) badge.textContent = items.length;
+    const trackBadge = document.getElementById('trackMgrBadge');
+    if (trackBadge) {
+      trackBadge.textContent = items.length;
+      trackBadge.style.display = items.length > 0 ? 'inline-flex' : 'none';
+    }
+
+    if (!items.length) {
+      listEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--gray-400);font-size:13px">✅ ไม่มีงานรอตรวจสอบ</div>';
+      return;
+    }
+    listEl.innerHTML = items.map(r => renderMgrReviewCard(r)).join('');
+  } catch(e) {
+    listEl.innerHTML = `<div style="padding:16px;color:var(--danger);font-size:13px">โหลดไม่สำเร็จ: ${e.message}</div>`;
+  }
+}
+
+function renderMgrReviewCard(r) {
+  const dwgUrl    = r.DwgFileUrl?.Url || r.DwgFileUrl || '';
+  const pdfUrl    = r.PdfFileUrl?.Url || r.PdfFileUrl || '';
+  const folderUrl = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${r.Title}`;
+  const dataLink  = r.DataLink || '';
+  const detail    = r.Detail   || '';
+  const submittedDT = r.SubmittedAt ? (() => {
+    const d = new Date(r.SubmittedAt);
+    return d.toLocaleDateString('th-TH',{year:'numeric',month:'short',day:'numeric'})
+      + ' ' + d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  })() : '—';
+
+  return `
+  <div class="card" id="mgr-card-${r.id}" style="border-left:4px solid #7e22ce;margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+      <div>
+        <span onclick="openReqDetail('${r.id}')" style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--navy);cursor:pointer;text-decoration:underline;text-decoration-style:dotted">${r.Title}</span>
+        <span class="badge badge-mgr-review" style="margin-left:8px;font-size:11px">🔍 รอผู้จัดการตรวจ+ส่งมอบ</span>
+      </div>
+      <span style="font-size:11px;color:var(--gray-400);white-space:nowrap">${submittedDT}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-bottom:12px">
+      <div><span style="color:var(--gray-400);font-size:11px">โครงการ</span><div style="font-weight:600;color:var(--navy)">${r.ProjectName0||'—'}</div></div>
+      <div><span style="color:var(--gray-400);font-size:11px">ระบบงาน</span><div>${r.ProjectName||'—'}</div></div>
+      <div><span style="color:var(--gray-400);font-size:11px">Drawing No.</span>
+        <div style="font-family:var(--mono);font-weight:600">${r.DrawingNumber||'—'}${r.CurrentRevise||r.ReviseNumber?` <span style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:6px">${r.CurrentRevise||r.ReviseNumber}</span>`:''}</div>
+      </div>
+      <div><span style="color:var(--gray-400);font-size:11px">Drawing Name</span><div>${r.DrawingName||'—'}</div></div>
+      <div><span style="color:var(--gray-400);font-size:11px">ผู้เขียนแบบ</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:22px;height:22px;border-radius:50%;background:var(--navy-soft);color:var(--sun);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">${(r.AssigneeName||'').slice(0,2)}</div>
+          ${r.AssigneeName||'—'}
+        </div>
+      </div>
+      <div><span style="color:var(--gray-400);font-size:11px">ผู้ร้องขอ</span><div>${r.SenderName||r.SenderEmail||'—'}</div></div>
+    </div>
+    ${r.NoteFromDrawing?`<div style="padding:8px 12px;background:#fdf4ff;border:1px solid #e9d5ff;border-radius:8px;font-size:12px;margin-bottom:10px">📌 <b>หมายเหตุจากผู้เขียนแบบ:</b> ${r.NoteFromDrawing}</div>`:''}
+    ${detail?`<div style="font-size:12px;color:var(--gray-600);margin-bottom:8px;padding:8px 10px;background:var(--gray-100);border-radius:6px">💬 ${detail}</div>`:''}
+    ${dataLink?`<div style="margin-bottom:10px"><a href="${dataLink}" target="_blank" style="font-size:12px;color:var(--info)">🔗 ลิงก์ข้อมูล</a></div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      ${dwgUrl?`<a href="${dwgUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px;text-decoration:none">📐 ดู DWG</a>`:''}
+      ${pdfUrl?`<a href="${pdfUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px;text-decoration:none">📄 ดู PDF</a>`:''}
+      <a href="${folderUrl}" target="_blank" class="btn btn-secondary" style="font-size:12px;text-decoration:none">📁 โฟลเดอร์</a>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-success" onclick="mgrApproveDeliver('${r.id}','${r.Title}')">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ✅ อนุมัติ + ส่งมอบ
+      </button>
+      <button class="btn btn-secondary" style="color:var(--danger);border-color:#fca5a5" onclick="toggleMgrReject('${r.id}')">
+        ↩️ ส่งกลับแก้ไข
+      </button>
+    </div>
+    <div id="mgr-reject-box-${r.id}" style="display:none;margin-top:12px;padding:12px;background:var(--danger-bg);border:1px solid #fca5a5;border-radius:8px">
+      <label style="font-size:12px;font-weight:500;color:var(--danger);display:block;margin-bottom:6px">⚠️ ระบุเหตุผลที่ส่งกลับ</label>
+      <textarea id="mgr-reject-reason-${r.id}" rows="3"
+        placeholder="เช่น แบบยังไม่ถูกต้องตามมาตรฐาน, ขนาดไม่ตรงกับ spec..."
+        style="width:100%;padding:9px 12px;border:1px solid #fca5a5;border-radius:8px;font-family:var(--font);font-size:13px;resize:vertical;background:var(--white)"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-secondary" onclick="toggleMgrReject('${r.id}')">ยกเลิก</button>
+        <button class="btn btn-danger" onclick="mgrRejectWork('${r.id}','${r.Title}')">ยืนยันส่งกลับ</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleMgrReject(id) {
+  const box = document.getElementById(`mgr-reject-box-${id}`);
+  if (box) box.style.display = box.style.display === 'none' ? '' : 'none';
+}
+
+async function mgrApproveDeliver(itemId, requestId) {
+  const clickedBtn = event?.target?.closest('button');
+  if (clickedBtn) { clickedBtn.disabled = true; clickedBtn.classList.add('btn-loading'); }
+  try {
+    const now = new Date().toISOString();
+    await spUpdateItem(itemId, {
+      Status:        'delivered',
+      Status0:       'delivered',
+      DeliveredAt:   now,
+      MgrApprovedBy: currentUser?.name || '',
+      MgrApprovedAt: now,
+    });
+
+    const all    = await spGetItems();
+    const spItem = all.find(r => r.id === itemId || r.Title === requestId);
+    const requesterEmail = spItem?.SenderEmail || '';
+    const meInfo = await graphGet('/me');
+    const myId   = meInfo?.id;
+    const myEmail2 = (meInfo?.mail || meInfo?.userPrincipalName || '').toLowerCase();
+    const reviewUrl  = `${CONFIG.redirectUri}?review=${requestId}`;
+    const folderUrl2 = `https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/${requestId}`;
+    const dwgUrlI = spItem?.DwgFileUrl?.Url || spItem?.DwgFileUrl || '';
+    const pdfUrlI = spItem?.PdfFileUrl?.Url || spItem?.PdfFileUrl || '';
+
+    // อัปเดต cache
+    const idx = (allRequests||[]).findIndex(x => x.id === itemId);
+    if (idx >= 0) { allRequests[idx].Status = 'delivered'; allRequests[idx].DeliveredAt = now; }
+
+    // ── Teams 1:1 ผู้ร้องขอ ──
+    if (requesterEmail && requesterEmail.toLowerCase() !== myEmail2 && myId) {
+      try {
+        const chatResp = await fetch('https://graph.microsoft.com/v1.0/chats', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatType: 'oneOnOne',
+            members: [
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${requesterEmail}')` },
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myId}` }
+            ]
+          })
+        });
+        let chatId = null;
+        if (chatResp.ok) { chatId = (await chatResp.json()).id; }
+        else if (chatResp.status === 409) {
+          const e409 = await chatResp.json();
+          chatId = e409?.error?.innerError?.id || null;
+          if (!chatId) {
+            const listC = await graphGet(`/me/chats?$filter=chatType eq 'oneOnOne'&$expand=members`);
+            const foundC = listC?.value?.find(c => c.members?.some(m => m.email?.toLowerCase() === requesterEmail.toLowerCase()));
+            chatId = foundC?.id || null;
+          }
+        }
+        if (chatId) {
+          const thaiDate = new Date(now).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'});
+          const msgLines = [
+            `📦 <b>PPG Drawing e-Service — งานพร้อมส่งมอบแล้ว!</b>`,
+            ``,
+            `📋 <b>เลขคำขอ:</b> ${requestId}`,
+            `🏗️ <b>ระบบงาน:</b> ${spItem?.ProjectName||'—'}`,
+            `📁 <b>โครงการ:</b> ${spItem?.ProjectName0||'—'}`,
+            `📄 <b>Drawing No.:</b> ${spItem?.DrawingNumber||'—'}`,
+            `📝 <b>Drawing Name:</b> ${spItem?.DrawingName||'—'}`,
+            `🔄 <b>Revise:</b> ${spItem?.CurrentRevise||spItem?.ReviseNumber||'—'}`,
+            `👷 <b>ผู้เขียนแบบ:</b> ${spItem?.AssigneeName||'—'}`,
+            `✅ <b>ตรวจสอบโดย:</b> ${currentUser?.name||''} (ผู้จัดการ)`,
+            `📅 <b>วันที่ส่งมอบ:</b> ${thaiDate}`,
+            dwgUrlI ? `📐 <a href="${dwgUrlI}">เปิดไฟล์ DWG</a>` : '',
+            pdfUrlI ? `📄 <a href="${pdfUrlI}">เปิดไฟล์ PDF</a>` : '',
+            `📎 <a href="${folderUrl2}">โฟลเดอร์เอกสารทั้งหมด</a>`,
+            ``,
+            `👉 <a href="${reviewUrl}"><b>กรุณาตรวจรับงาน (คลิกที่นี่)</b></a>`,
+          ].filter(Boolean);
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: { contentType: 'html', content: msgLines.join('<br>') } })
+          });
+        }
+      } catch(te) { console.warn('Teams notify requester failed:', te.message); }
+    }
+
+    // ── Email ผู้ร้องขอ ──
+    if (requesterEmail) {
+      try {
+        await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: {
+              subject: `📦 [PPG Drawing] งาน ${requestId} พร้อมส่งมอบแล้ว — กรุณาตรวจรับ`,
+              body: { contentType: 'HTML', content: `งาน ${requestId} (${spItem?.ProjectName0||''}) ได้รับการตรวจสอบและอนุมัติโดยผู้จัดการแล้ว กรุณาเข้าระบบเพื่อตรวจรับงาน: <a href="${reviewUrl}">${reviewUrl}</a>` },
+              toRecipients: [{ emailAddress: { address: requesterEmail } }]
+            },
+            saveToSentItems: false
+          })
+        });
+      } catch(me2) { console.warn('Email notify failed:', me2.message); }
+    }
+
+    showToast('✅', `ส่งมอบงาน ${requestId} แล้ว — แจ้ง Teams + Email ผู้ร้องขอเรียบร้อย`);
+    const card = document.getElementById(`mgr-card-${itemId}`);
+    if (card) { card.style.opacity = '.4'; card.style.pointerEvents = 'none'; setTimeout(() => card.remove(), 1500); }
+    await buildDashboard();
+    loadMgrReviewItems();
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
+    console.error('mgrApproveDeliver:', e);
+  } finally {
+    if (clickedBtn) { clickedBtn.disabled = false; clickedBtn.classList.remove('btn-loading'); }
+  }
+}
+
+async function mgrRejectWork(itemId, requestId) {
+  const reason = document.getElementById(`mgr-reject-reason-${itemId}`)?.value?.trim();
+  if (!reason) { showToast('⚠️', 'กรุณาระบุเหตุผลที่ส่งกลับ'); return; }
+  const confirmBtn = event?.target;
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.classList.add('btn-loading'); }
+  try {
+    await spUpdateItem(itemId, {
+      Status:          'mgr_rejected',
+      Status0:         'mgr_rejected',
+      MgrRejectReason: reason,
+      MgrRejectedBy:   currentUser?.name || '',
+      MgrRejectedAt:   new Date().toISOString(),
+    });
+
+    const idx = (allRequests||[]).findIndex(x => x.id === itemId);
+    if (idx >= 0) allRequests[idx].Status = 'mgr_rejected';
+
+    const all2    = await spGetItems();
+    const spItem2 = all2.find(r => r.id === itemId || r.Title === requestId);
+    const assigneeEmail = spItem2?.AssigneeEmail || '';
+    const meInfo2 = await graphGet('/me');
+    const myId2   = meInfo2?.id;
+    const myEmail3 = (meInfo2?.mail || meInfo2?.userPrincipalName || '').toLowerCase();
+
+    if (assigneeEmail && assigneeEmail.toLowerCase() !== myEmail3 && myId2) {
+      try {
+        const chatResp2 = await fetch('https://graph.microsoft.com/v1.0/chats', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatType: 'oneOnOne',
+            members: [
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users('${assigneeEmail}')` },
+              { '@odata.type': '#microsoft.graph.aadUserConversationMember', roles: ['owner'],
+                'user@odata.bind': `https://graph.microsoft.com/v1.0/users/${myId2}` }
+            ]
+          })
+        });
+        let chatId2 = null;
+        if (chatResp2.ok) { chatId2 = (await chatResp2.json()).id; }
+        else if (chatResp2.status === 409) {
+          const e409b = await chatResp2.json();
+          chatId2 = e409b?.error?.innerError?.id || null;
+        }
+        if (chatId2) {
+          const rejectLines = [
+            `↩️ <b>PPG Drawing e-Service — งานถูกส่งกลับแก้ไขโดยผู้จัดการ</b>`,
+            ``,
+            `📋 <b>เลขคำขอ:</b> ${requestId}`,
+            `📁 <b>โครงการ:</b> ${spItem2?.ProjectName0||'—'}`,
+            `📄 <b>Drawing No.:</b> ${spItem2?.DrawingNumber||'—'}`,
+            `📝 <b>Drawing Name:</b> ${spItem2?.DrawingName||'—'}`,
+            ``,
+            `📌 <b>เหตุผลที่ส่งกลับ:</b>`,
+            reason,
+            ``,
+            `👤 <b>ส่งกลับโดย:</b> ${currentUser?.name||''} (ผู้จัดการ)`,
+            ``,
+            `📝 กรุณาแก้ไขแล้วส่งงานใหม่ผ่านหน้า <b>นำส่งงาน</b>`,
+            `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`,
+          ];
+          await fetch(`https://graph.microsoft.com/v1.0/chats/${chatId2}/messages`, {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body: { contentType: 'html', content: rejectLines.join('<br>') } })
+          });
+        }
+      } catch(te2) { console.warn('Teams notify assignee reject failed:', te2.message); }
+    }
+
+    showToast('↩️', `ส่งกลับแก้ไข ${requestId} แล้ว — แจ้ง Teams ผู้เขียนแบบเรียบร้อย`);
+    const card2 = document.getElementById(`mgr-card-${itemId}`);
+    if (card2) { card2.style.opacity = '.4'; card2.style.pointerEvents = 'none'; setTimeout(() => card2.remove(), 1500); }
+    await buildDashboard();
+    loadMgrReviewItems();
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: ' + e.message);
+  } finally {
+    if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.classList.remove('btn-loading'); }
+  }
 }
 
 // ── START ──
