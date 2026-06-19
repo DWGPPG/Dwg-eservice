@@ -5547,51 +5547,220 @@ const STATUS_CLASS = {
 function renderApprovalCard(item, isManager) {
   const urgentClass = { 'เร่งด่วน':'badge-pending', 'เร่งด่วนมาก':'badge-rejected' };
   const statusBadge = `<span class="badge ${STATUS_CLASS[item.Status]||'badge-pending'}">${STATUS_LABEL[item.Status]||item.Status}</span>`;
-  const approveLabel = isManager ? 'อนุมัติ Lv.2 + มอบหมาย' : 'อนุมัติ Lv.1 + มอบหมาย';
+
+  // ── Lv.2: แสดงข้อมูล Lv.1 ที่มอบหมายไว้แล้ว ──
+  const lv1InfoBlock = (isManager && item.AssigneeName) ? `
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:12px">
+      <div style="font-weight:600;color:#15803d;margin-bottom:6px;font-size:11px;text-transform:uppercase;letter-spacing:.04em">✅ Lv.1 มอบหมายแล้ว</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+        <div><span style="color:#6b7280">ผู้รับผิดชอบ:</span> <b>${item.AssigneeName}</b></div>
+        <div><span style="color:#6b7280">อนุมัติ Lv.1 โดย:</span> ${item.ReviewerLv1||'—'}</div>
+        ${item.AssignNote ? `<div style="grid-column:1/-1"><span style="color:#6b7280">หมายเหตุ Lv.1:</span> ${item.AssignNote}</div>` : ''}
+      </div>
+    </div>` : '';
+
+  // ── ปุ่มอนุมัติ ──
+  // Lv.1 → popup เลือกผู้รับผิดชอบ (เดิม)
+  // Lv.2 → กดยืนยันได้เลย ไม่ต้องเลือกใหม่
+  const approveBtn = isManager
+    ? `<button class="btn btn-success" onclick="confirmApproveLv2('${item.id}')">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ✅ อนุมัติ Lv.2
+       </button>`
+    : `<button class="btn btn-success" onclick="openAssignModal('${item.id}','${(item.ProjectName||item.Title||'').replace(/[<>'"]/g,'')}','false')">
+        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2.5"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        ✅ อนุมัติ Lv.1 + มอบหมาย
+       </button>`;
+
   return `
   <div class="req-card" id="card-${item.id}">
     <div class="req-card-header">
-      <div class="req-card-icon">${(item.RequestType||'📁').slice(0,2)}</div>
+      <div class="req-card-icon">${item.ProjectName?.match(/📋|🏛️|🏗️|🏁|✏️|📁/)?.[0]||'📁'}</div>
       <div class="req-card-info">
-        <div class="req-card-title">${item.ProjectName||'คำร้อง'} ${item.DrawingName ? '— '+item.DrawingName : ''}</div>
-        <div class="req-card-ref">${item.Title}</div>
+        <div class="req-card-title">
+          ${item.ProjectName||'คำร้อง'}
+          ${item.DrawingNumber ? `<span style="font-family:var(--mono);font-size:12px;color:var(--gray-400);margin-left:6px">${item.DrawingNumber}</span>` : ''}
+        </div>
+        <div class="req-card-ref">${item.Title} ${item.DrawingName ? '— '+item.DrawingName : ''}</div>
       </div>
       ${statusBadge}
-      ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}">${item.Priority}</span>` : ''}
+      ${item.Priority && item.Priority !== 'ปกติ' ? `<span class="badge ${urgentClass[item.Priority]||'badge-pending'}" style="margin-left:4px">${item.Priority}</span>` : ''}
     </div>
-    <div class="req-card-body">${item.Detail||'—'}</div>
-    <div class="req-card-footer">
+
+    <!-- ข้อมูล Lv.1 (สำหรับ Lv.2 เท่านั้น) -->
+    ${lv1InfoBlock}
+
+    <!-- รายละเอียดคำร้อง -->
+    ${item.Detail ? `<div class="req-card-body">${item.Detail}</div>` : ''}
+
+    <div class="req-card-footer" style="flex-wrap:wrap;gap:8px">
       <span class="req-card-meta">
         <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        ${item.Department||'—'}
+        ${item.SenderName||item.Department||'—'}
       </span>
-      <span class="req-card-meta" style="margin-left:10px">
+      <span class="req-card-meta">
         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         ${item.SubmittedAt ? fmtDate(item.SubmittedAt) : fmtDate(item.Created)}
       </span>
-      ${item.Location ? `<a href="${item.Location}" target="_blank" class="req-card-meta" style="margin-left:10px;color:var(--info)">🗺️ ดูแผนที่</a>` : ''}
-      ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="margin-left:6px;text-decoration:none;font-size:12px;padding:4px 10px">🔗 ลิงก์แนบ</a>` : ''}
-      ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="margin-left:2px;text-decoration:none;font-size:12px;padding:4px 10px">📎 เอกสาร/แบบ</a>` : ''}
-      <div class="approve-actions">
-        <button class="btn btn-secondary" onclick="toggleComment('${item.id}','return')">
-          <svg viewBox="0 0 24 24"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
-          ส่งกลับ
+      ${item.DueDate ? `<span class="req-card-meta" style="color:${new Date(item.DueDate)<new Date()?'#dc2626':'inherit'}">⏰ ${fmtDate(item.DueDate)}</span>` : ''}
+      ${item.DataLink ? `<a href="${item.DataLink}" target="_blank" class="btn btn-secondary" style="text-decoration:none;font-size:12px;padding:4px 10px">🔗 ลิงก์แนบ</a>` : ''}
+
+      <!-- ── ปุ่มทั้งหมด ── -->
+      <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <!-- ส่งกลับ -->
+        <button class="btn btn-secondary" style="font-size:12px" onclick="toggleAdminAction('${item.id}','reject')">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2"><path d="M9 14l-5-5 5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke-linecap="round"/></svg>
+          ↩️ ส่งกลับ
         </button>
-        <button class="btn btn-success" onclick="openAssignModal('${item.id}','${(item.ProjectName||item.Title||'').replace(/[<>'"]/g,'')}','${isManager}')">
-          <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          ${approveLabel}
+        <!-- ยกเลิกคำร้อง -->
+        <button class="btn btn-secondary" style="font-size:12px;color:var(--danger);border-color:#fca5a5" onclick="toggleAdminAction('${item.id}','cancel')">
+          ❌ ยกเลิก
         </button>
+        <!-- อนุมัติ -->
+        ${approveBtn}
       </div>
     </div>
-    <div class="comment-box" id="comment-${item.id}">
-      <label style="display:block;margin-bottom:6px;font-size:12px;font-weight:500;color:var(--gray-600)">หมายเหตุการส่งกลับ</label>
-      <textarea placeholder="ระบุเหตุผลและสิ่งที่ต้องแก้ไข..." rows="3"></textarea>
-      <div class="comment-actions">
-        <button class="btn btn-secondary" onclick="toggleComment('${item.id}','cancel')">ยกเลิก</button>
-        <button class="btn btn-danger" onclick="rejectItem('${item.id}')">ยืนยันส่งกลับ</button>
+
+    <!-- Action boxes (ส่งกลับ / ยกเลิก) -->
+    <div id="admin-action-${item.id}" style="display:none;margin-top:12px;padding:12px;border-radius:8px;border:1px solid var(--gray-200);background:var(--gray-100)">
+      <div id="admin-action-label-${item.id}" style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--gray-600)"></div>
+      <textarea id="admin-action-note-${item.id}" rows="3"
+        placeholder="ระบุเหตุผล / หมายเหตุ..."
+        style="width:100%;padding:9px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:var(--font);font-size:13px;resize:vertical;background:var(--white)"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn btn-secondary" style="font-size:12px" onclick="toggleAdminAction('${item.id}','close')">ยกเลิก</button>
+        <button class="btn btn-danger" style="font-size:12px" id="admin-action-confirm-${item.id}" onclick="submitAdminAction('${item.id}')">ยืนยัน</button>
       </div>
     </div>
+
+    <!-- Lv.2: หมายเหตุเพิ่มเติมก่อนอนุมัติ -->
+    ${isManager ? `
+    <div id="lv2-note-wrap-${item.id}" style="margin-top:10px;display:none">
+      <input type="text" id="lv2-note-${item.id}" placeholder="หมายเหตุเพิ่มเติมถึงผู้เขียนแบบ (ไม่บังคับ)"
+        style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:12px;font-family:var(--font)">
+    </div>` : ''}
   </div>`;
+}
+
+// helper: toggle action ส่งกลับ/ยกเลิก
+function toggleAdminAction(id, mode) {
+  const box   = document.getElementById(`admin-action-${id}`);
+  const label = document.getElementById(`admin-action-label-${id}`);
+  const note  = document.getElementById(`admin-action-note-${id}`);
+  const btn   = document.getElementById(`admin-action-confirm-${id}`);
+  if (!box) return;
+  if (mode === 'close') { box.style.display = 'none'; return; }
+  // toggle: ถ้าเปิดอยู่ mode เดิม → ปิด
+  if (box.style.display !== 'none' && box.dataset.mode === mode) { box.style.display = 'none'; return; }
+  box.dataset.mode = mode;
+  box.style.display = '';
+  if (mode === 'reject') {
+    label.textContent = '↩️ ส่งกลับแก้ไข — ระบุเหตุผล';
+    label.style.color = '#b45309';
+    box.style.background = '#fffbeb';
+    box.style.borderColor = '#fde68a';
+    btn.textContent = 'ยืนยันส่งกลับ';
+    btn.style.background = '#d97706';
+    btn.style.color = '#fff';
+    btn.style.border = 'none';
+  } else {
+    label.textContent = '❌ ยกเลิกคำร้อง — ระบุเหตุผล';
+    label.style.color = '#dc2626';
+    box.style.background = '#fef2f2';
+    box.style.borderColor = '#fca5a5';
+    btn.textContent = 'ยืนยันยกเลิกคำร้อง';
+    btn.style.background = '#dc2626';
+    btn.style.color = '#fff';
+    btn.style.border = 'none';
+  }
+  if (note) { note.value = ''; setTimeout(() => note.focus(), 50); }
+}
+
+async function submitAdminAction(id) {
+  const box    = document.getElementById(`admin-action-${id}`);
+  const mode   = box?.dataset.mode;
+  const reason = document.getElementById(`admin-action-note-${id}`)?.value.trim();
+  if (!reason) { showToast('⚠️', 'กรุณาระบุเหตุผล'); return; }
+  const confirmBtn = document.getElementById(`admin-action-confirm-${id}`);
+  if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.classList.add('btn-loading'); }
+  try {
+    const newStatus = mode === 'cancel' ? 'cancelled' : 'rejected';
+    await spUpdateItem(id, { Status: newStatus, RejectReason: reason });
+    // แจ้ง Teams ผู้ส่งคำร้อง
+    try {
+      const allI = await spGetItems();
+      const spIt = allI.find(r => r.id === id);
+      if (spIt?.SenderEmail) {
+        const meI = await graphGet('/me');
+        const myIdI = meI?.id;
+        const myEmailI = (meI?.mail || meI?.userPrincipalName || '').toLowerCase();
+        if (spIt.SenderEmail.toLowerCase() !== myEmailI && myIdI) {
+          const cr = await fetch('https://graph.microsoft.com/v1.0/chats', {
+            method:'POST', headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+            body: JSON.stringify({ chatType:'oneOnOne', members:[
+              {'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],'user@odata.bind':`https://graph.microsoft.com/v1.0/users('${spIt.SenderEmail}')`},
+              {'@odata.type':'#microsoft.graph.aadUserConversationMember',roles:['owner'],'user@odata.bind':`https://graph.microsoft.com/v1.0/users/${myIdI}`}
+            ]})
+          });
+          let cid = null;
+          if (cr.ok) { cid = (await cr.json()).id; }
+          else if (cr.status===409) { const e409=(await cr.json()); cid=e409?.error?.innerError?.id||null; }
+          if (cid) {
+            const emoji = mode==='cancel' ? '❌' : '↩️';
+            const actionTh = mode==='cancel' ? 'ยกเลิกคำร้อง' : 'ส่งกลับแก้ไข';
+            await fetch(`https://graph.microsoft.com/v1.0/chats/${cid}/messages`, {
+              method:'POST', headers:{'Authorization':'Bearer '+accessToken,'Content-Type':'application/json'},
+              body: JSON.stringify({body:{contentType:'html',content:[
+                `${emoji} <b>PPG Drawing e-Service — ${actionTh}</b>`,``,
+                `📋 <b>เลขคำขอ:</b> ${spIt.Title}`,
+                `📁 <b>โครงการ:</b> ${spIt.ProjectName0||'—'}`,
+                `📌 <b>เหตุผล:</b> ${reason}`,
+                `👤 <b>โดย:</b> ${currentUser?.name||''}`,
+                `<a href="${CONFIG.redirectUri}">${CONFIG.redirectUri}</a>`
+              ].join('<br>')}})
+            });
+          }
+        }
+      }
+    } catch(te) { console.warn('Teams notify failed:', te.message); }
+    const card = document.getElementById(`card-${id}`);
+    if (card) { card.style.opacity='.4'; card.style.pointerEvents='none'; setTimeout(()=>card.remove(),1500); }
+    showToast(mode==='cancel'?'❌':'↩️', `${mode==='cancel'?'ยกเลิก':'ส่งกลับ'}คำร้องแล้ว`);
+    await buildAdmin(); await buildDashboard();
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: '+e.message);
+  } finally {
+    if (confirmBtn) { confirmBtn.disabled=false; confirmBtn.classList.remove('btn-loading'); }
+  }
+}
+
+async function confirmApproveLv2(itemId) {
+  // หา note จาก input ถ้ามี
+  const noteEl = document.getElementById(`lv2-note-${itemId}`);
+  const note   = noteEl?.value?.trim() || '';
+  const btn    = event?.target?.closest('button');
+  if (btn) { btn.disabled=true; btn.classList.add('btn-loading'); }
+  try {
+    // ดึงข้อมูลคำร้อง — ต้องมี AssigneeName จาก Lv.1 อยู่แล้ว
+    const allI  = await spGetItems();
+    const spIt  = allI.find(r => r.id === itemId);
+    if (!spIt?.AssigneeName) {
+      showToast('⚠️', 'ไม่พบผู้รับผิดชอบจาก Lv.1 — กรุณาตรวจสอบ');
+      return;
+    }
+    // ใช้ selectedAssignee จาก Lv.1
+    const fakeAssignee = { name: spIt.AssigneeName, email: spIt.AssigneeEmail||'' };
+    pendingApproveId = itemId;
+    pendingIsManager = true;
+    selectedAssignee = fakeAssignee;
+    const _an = document.getElementById('assignNote');
+    if (_an) _an.value = note;
+    await confirmAssign();
+  } catch(e) {
+    showToast('❌', 'เกิดข้อผิดพลาด: '+e.message);
+  } finally {
+    if (btn) { btn.disabled=false; btn.classList.remove('btn-loading'); }
+  }
 }
 
 function renderWorkCard(item) {
@@ -5654,14 +5823,25 @@ function openAssignModal(id, project, isManagerStr) {
   selectedAssignee = null;
   document.getElementById('assignSubtitle').textContent = 'โครงการ: ' + project;
   document.getElementById('assignModalTitle').textContent = pendingIsManager
-    ? 'อนุมัติ Lv.2 — ระบุผู้รับผิดชอบในแผนก'
+    ? 'อนุมัติ Lv.2 — ยืนยันมอบหมายงาน'
     : 'อนุมัติ Lv.1 — มอบหมายงานเบื้องต้น';
   const _an = document.getElementById('assignNote'); if(_an) _an.value = '';
-  document.getElementById('assigneeGrid').innerHTML = CONFIG.teamMembers.map(m => `
-    <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
-      <div class="assignee-av">${m.name.split(' ')[0].slice(0,2)}</div>
-      <div><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--gray-400)">${m.role}</div></div>
-    </div>`).join('');
+  // Lv.2: ไม่ต้องเลือกผู้รับผิดชอบใหม่ — ใช้ข้อมูลจาก Lv.1
+  const grid = document.getElementById('assigneeGrid');
+  const subEl = document.getElementById('assignSubtitle');
+  if (pendingIsManager) {
+    // ซ่อน grid — แสดงข้อความยืนยันแทน
+    grid.style.display = 'none';
+    if (subEl) subEl.textContent = 'โครงการ: ' + project + ' — กด "ยืนยันอนุมัติ" เพื่อดำเนินการ';
+  } else {
+    grid.style.display = '';
+    if (subEl) subEl.textContent = 'โครงการ: ' + project + ' — เลือกผู้รับงาน';
+    grid.innerHTML = CONFIG.teamMembers.map(m => `
+      <div class="assignee-card" id="ac-${m.id}" onclick="selectAssignee('${m.id}')">
+        <div class="assignee-av">${m.name.split(' ')[0].slice(0,2)}</div>
+        <div><div style="font-size:13px;font-weight:500">${m.name}</div><div style="font-size:11px;color:var(--gray-400)">${m.role}</div></div>
+      </div>`).join('');
+  }
   document.getElementById('assignModal').classList.add('show');
 }
 
@@ -5672,7 +5852,8 @@ function selectAssignee(id) {
 }
 
 async function confirmAssign() {
-  if (!selectedAssignee) { showToast('⚠️', 'กรุณาเลือกผู้รับผิดชอบก่อน'); return; }
+  // Lv.1 ต้องเลือกผู้รับผิดชอบ / Lv.2 ใช้ข้อมูลที่ Lv.1 มอบหมายไว้แล้ว
+  if (!pendingIsManager && !selectedAssignee) { showToast('⚠️', 'กรุณาเลือกผู้รับผิดชอบก่อน'); return; }
   const btn = document.getElementById('confirmAssignBtn');
   btn.classList.add('btn-loading'); btn.disabled = true;
   try {
@@ -5687,7 +5868,13 @@ async function confirmAssign() {
       throw new Error('ไม่สามารถอัปเดต Status: ' + e1.message);
     }
 
-    const updateData2 = { AssigneeName: selectedAssignee.name, AssigneeEmail: selectedAssignee.email };
+    // Lv.2: ใช้ข้อมูล assignee จาก Lv.1 (ไม่เลือกใหม่)
+    // Lv.1: ใช้ selectedAssignee ที่เลือกในหน้า
+    const updateData2 = {};
+    if (selectedAssignee) {
+      updateData2.AssigneeName  = selectedAssignee.name;
+      updateData2.AssigneeEmail = selectedAssignee.email;
+    }
     if (!isManager) updateData2.ReviewerLv1 = currentUser.name;
     if (isManager)  updateData2.ReviewerLv2 = currentUser.name;
     if (note)       updateData2.AssignNote  = note;
