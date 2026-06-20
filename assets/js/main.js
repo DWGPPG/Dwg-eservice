@@ -1,0 +1,171 @@
+import { initAuth, login, logout, refreshUserRole } from "./auth.js";
+import { initRouter, navigate, refreshNavBadges } from "./router.js";
+import { loadMasterData } from "./sharepoint.js";
+import { hydrateRequests } from "./services/request-service.js";
+import {
+  checkAndNotifyManager,
+  requestNotificationPermission,
+  resetNotificationBaseline,
+} from "./services/notification-service.js";
+import { state, subscribe } from "./state.js";
+import { qs } from "./utils.js";
+import { showToast } from "./components/toast.js";
+
+const POLL_INTERVAL_MS = 2 * 60 * 1000; // เช็คคำร้องใหม่ทุก 2 นาทีตอนเปิดแอปค้างไว้
+let pollTimer = null;
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+
+async function boot() {
+  document.documentElement.dataset.theme = state.theme;
+  bindChrome();
+  subscribe(updateShell);
+  subscribe(onRequestsChanged);
+  updateShell(state);
+
+  try {
+    await initAuth();
+    if (state.account) {
+      await afterSignedIn();
+      return;
+    }
+  } catch (error) {
+    console.error("initAuth failed:", error);
+    showToast("เริ่มต้นระบบ Microsoft 365 ไม่สำเร็จ — ลองรีเฟรชหน้าเว็บ", "error");
+  }
+
+  showAuthPanel(true);
+  initRouter();
+}
+
+async function afterSignedIn() {
+  showAuthPanel(false);
+  initRouter();
+  try {
+    await loadMasterData();
+    refreshUserRole();
+    await hydrateRequests();
+    navigate();
+
+    if (state.user?.role === "manager") {
+      await requestNotificationPermission();
+    }
+    startPolling();
+  } catch (error) {
+    console.error("Failed to load SharePoint data:", error);
+    showToast("เซสชันหมดอายุหรือเชื่อมต่อ SharePoint ไม่สำเร็จ — กรุณาเข้าสู่ระบบใหม่", "error");
+    await logout();
+    resetNotificationBaseline();
+    showAuthPanel(true);
+  }
+}
+
+/**
+ * เช็คคำร้องใหม่เป็นระยะตอนเปิดแอปค้างไว้ — ไม่ใช่ push notification จริง (ระบบนี้ไม่มี backend
+ * server แยกต่างหาก) แต่เป็น polling ฝั่ง client เพื่อให้เห็น badge/แจ้งเตือนอัปเดตโดยไม่ต้อง
+ * รีเฟรชหน้าเอง ช่องทางแจ้งเตือนหลักของระบบยังคงเป็น Teams 1:1 chat ที่ทำงานได้แม้ปิดแอปสนิท
+ */
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (!state.account || document.hidden) return;
+    try {
+      await hydrateRequests(); // onRequestsChanged subscriber จะรีเฟรช badge + แจ้งเตือนให้อัตโนมัติ
+      if (state.currentRoute) navigate();
+    } catch (error) {
+      console.warn("Polling refresh failed (non-critical):", error.message);
+    }
+  }, POLL_INTERVAL_MS);
+}
+
+function bindChrome() {
+  const loginButtons = [qs("#login-button"), qs("#login-button-panel")].filter(Boolean);
+  loginButtons.forEach((button) => {
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+      try {
+        const account = await login();
+        if (account) await afterSignedIn();
+      } catch (error) {
+        showToast(error.message || "เข้าสู่ระบบไม่สำเร็จ", "error");
+      }
+    });
+  });
+
+  const logoutButton = qs("#logout-button");
+  if (logoutButton) {
+    logoutButton.hidden = false;
+    logoutButton.addEventListener("click", async () => {
+      await logout();
+      location.reload();
+    });
+  }
+
+  qs("#theme-toggle").addEventListener("click", toggleTheme);
+  qs("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("nav-open"));
+}
+
+let requestsChangedDebounce = null;
+
+/**
+ * ทำงานทุกครั้งที่ state เปลี่ยน (subscribe ทั่วไป) — กรองเฉพาะตอน requests array
+ * เปลี่ยนค่าจริงๆ ด้วย debounce กันยิงถี่เกินไปตอน action เดียวเรียก setState หลายครั้งติดกัน
+ */
+let lastRequestsRef = null;
+function onRequestsChanged(nextState) {
+  if (nextState.requests === lastRequestsRef) return;
+  lastRequestsRef = nextState.requests;
+
+  if (requestsChangedDebounce) clearTimeout(requestsChangedDebounce);
+  requestsChangedDebounce = setTimeout(() => {
+    if (!nextState.account) return;
+    refreshNavBadges();
+    checkAndNotifyManager(nextState.user?.role === "manager");
+  }, 150);
+}
+
+function showAuthPanel(show) {
+  const panel = qs("#auth-panel");
+  if (panel) panel.hidden = !show;
+  const view = qs("#app-view");
+  if (view) view.hidden = show;
+  const sidebar = document.querySelector(".sidebar");
+  if (sidebar) sidebar.hidden = show;
+  const topbar = document.querySelector(".topbar");
+  if (topbar) topbar.hidden = show;
+  document.body.classList.toggle("auth-mode", show);
+}
+
+function toggleTheme() {
+  const theme = state.theme === "light" ? "dark" : "light";
+  localStorage.setItem("ppg-theme", theme);
+  document.documentElement.dataset.theme = theme;
+  state.theme = theme;
+}
+
+function updateShell(nextState) {
+  const roleChip = qs("#user-role-chip");
+  if (roleChip) roleChip.textContent = nextState.user?.roleLabel || "";
+  const userName = qs("#sidebar-user-name");
+  if (userName) userName.textContent = nextState.user?.name || "";
+  const logoutButton = qs("#logout-button");
+  if (logoutButton) logoutButton.hidden = !nextState.account;
+  const loginButton = qs("#login-button");
+  if (loginButton) loginButton.hidden = Boolean(nextState.account);
+  const authNote = qs("#sidebar-auth-note");
+  if (authNote) authNote.hidden = Boolean(nextState.account);
+}
+
+// ── PWA: ลงทะเบียน Service Worker เพื่อให้ "เพิ่มลงหน้าจอโฮม" ได้ทั้ง Android/iOS ──
+// ไม่ block boot flow หลัก — ถ้าลงทะเบียนไม่สำเร็จ แอปยังใช้งานได้ปกติทุกอย่างผ่านเครือข่าย
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((error) => {
+      console.warn("Service worker registration failed (non-critical):", error.message);
+    });
+  });
+}
