@@ -3,6 +3,13 @@ import { setState, state } from "./state.js";
 import { showToast } from "./components/toast.js";
 import { computeRole, roleLabel } from "./services/role-service.js";
 
+// หมายเหตุสำคัญ: ใช้ loginPopup/logoutPopup/acquireTokenPopup เท่านั้น ไม่ใช้ *Redirect()
+// เพราะ MSAL redirect flow ใช้ location.hash รับ token กลับมา (#code=...) ซึ่งชนกับ
+// SPA router ของแอปนี้ที่ใช้ location.hash เป็น route (#/dashboard, #/submit ฯลฯ) เหมือนกัน
+// ทำให้เกิด race condition: router เขียนทับ hash ก่อน MSAL อ่าน token ได้ทัน
+// (error: hash_does_not_contain_known_properties) popup flow ไม่แตะ hash ของหน้าหลักเลย
+// จึงไม่มีปัญหานี้ และใช้งานได้เหมือนกันทั้ง desktop และ mobile
+
 let msalInstance;
 let signingIn = false;
 
@@ -30,16 +37,7 @@ export async function initAuth() {
     await msalInstance.initialize();
   }
 
-  let redirectResponse = null;
-  if (typeof msalInstance.handleRedirectPromise === "function") {
-    try {
-      redirectResponse = await msalInstance.handleRedirectPromise();
-    } catch (error) {
-      console.warn("Microsoft redirect login failed", error);
-    }
-  }
-
-  const account = redirectResponse?.account || msalInstance.getAllAccounts()[0];
+  const account = msalInstance.getAllAccounts()[0];
   if (!account) return msalInstance;
 
   if (!isAllowedAccount(account)) {
@@ -69,11 +67,6 @@ export async function login() {
   };
 
   try {
-    if (isMobileDevice()) {
-      await msalInstance.loginRedirect(request);
-      return null;
-    }
-
     const response = await msalInstance.loginPopup(request);
     if (!isAllowedAccount(response.account)) {
       await signOutAccount(response.account);
@@ -92,11 +85,6 @@ export async function logout() {
   const account = state.account;
   setState({ account: null, user: null, accessToken: null, siteId: null, requests: [] });
   if (!account || !msalInstance) return;
-
-  if (isMobileDevice()) {
-    await msalInstance.logoutRedirect({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });
-    return;
-  }
   await msalInstance.logoutPopup({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });
 }
 
@@ -110,13 +98,6 @@ export async function acquireToken() {
     setState({ accessToken: response.accessToken });
     return response.accessToken;
   } catch (error) {
-    if (isMobileDevice()) {
-      await msalInstance.acquireTokenRedirect({
-        account: state.account,
-        scopes: appConfig.azure.scopes,
-      });
-      return null;
-    }
     const response = await msalInstance.acquireTokenPopup({
       account: state.account,
       scopes: appConfig.azure.scopes,
@@ -159,15 +140,10 @@ function isAllowedAccount(account) {
   return email.endsWith(`@${appConfig.azure.allowedDomain.toLowerCase()}`);
 }
 
-function isMobileDevice() {
-  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-}
-
 async function signOutAccount(account) {
   if (!msalInstance || !account) return;
   try {
-    if (isMobileDevice()) await msalInstance.logoutRedirect({ account });
-    else await msalInstance.logoutPopup({ account });
+    await msalInstance.logoutPopup({ account });
   } catch {
     // The local account is cleared even if the Microsoft logout window is closed.
   }
