@@ -99,8 +99,8 @@ function renderManagerAdmin(view, state) {
         </div>
       </div>
 
-      <div class="admin-jump-bar">
-        ${jumpButton("pickup-section", "📥 รับงาน", pendingItems.length)}
+      <div class="admin-jump-row">
+        ${jumpButton("pickup-section", "📥 รับงาน", pendingItems.length, true)}
         ${jumpButton("approve-section", "✅ อนุมัติเริ่มงาน", approveItems.length)}
         ${jumpButton("mgr-review-section", "🔍 ตรวจสอบและส่งมอบงาน", mgrReviewItems.length)}
       </div>
@@ -151,10 +151,13 @@ function renderManagerAdmin(view, state) {
   bindJumpBarEvents(view);
 }
 
-function jumpButton(targetId, label, count) {
+function jumpButton(targetId, label, count, primary = false) {
   const hasItems = count > 0;
+  const classes = ["admin-jump-button"];
+  if (primary) classes.push("admin-jump-primary");
+  if (hasItems) classes.push("has-items");
   return `
-    <button class="admin-jump-button ${hasItems ? "has-items" : ""}" data-jump-to="${targetId}" type="button">
+    <button class="${classes.join(" ")}" data-jump-to="${targetId}" type="button">
       <span class="admin-jump-label">${label}</span>
       <span class="admin-jump-count">${count}</span>
     </button>
