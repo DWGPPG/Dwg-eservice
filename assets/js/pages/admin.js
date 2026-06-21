@@ -99,6 +99,12 @@ function renderManagerAdmin(view, state) {
         </div>
       </div>
 
+      <div class="admin-jump-bar">
+        ${jumpButton("pickup-section", "📥 รับงาน", pendingItems.length)}
+        ${jumpButton("approve-section", "✅ อนุมัติเริ่มงาน", approveItems.length)}
+        ${jumpButton("mgr-review-section", "🔍 ตรวจสอบและส่งมอบงาน", mgrReviewItems.length)}
+      </div>
+
       <div class="admin-toolbar">
         <div class="filter-row">
           ${typeFilterButton("all", "ทั้งหมด")}
@@ -111,7 +117,7 @@ function renderManagerAdmin(view, state) {
         <input id="admin-search" class="search-input" type="search" placeholder="🔍 ค้นหาเลขคำร้อง โครงการ ชื่อ..." value="${escapeHtml(adminSearchQuery)}" />
       </div>
 
-      <div class="admin-section-block">
+      <div class="admin-section-block" id="pickup-section">
         <div class="admin-section-heading">📥 รับงาน</div>
         <button id="pickup-bulk-button" class="primary-button pickup-bulk-button" type="button" disabled>
           รับงาน <span class="pickup-bulk-count">0</span>
@@ -119,7 +125,7 @@ function renderManagerAdmin(view, state) {
         ${renderPickupTableSection(pendingItems, "รอฝ่ายแบบรับงาน")}
       </div>
 
-      <div class="admin-section-block">
+      <div class="admin-section-block" id="approve-section">
         <div class="admin-section-heading">✅ อนุมัติเริ่มงาน <span class="admin-section-count">${approveItems.length}</span></div>
         <div id="admin-list" class="admin-list">
           ${approveItems.length
@@ -128,7 +134,7 @@ function renderManagerAdmin(view, state) {
         </div>
       </div>
 
-      <div class="admin-section-block">
+      <div class="admin-section-block" id="mgr-review-section">
         <div class="admin-section-heading">🔍 ตรวจสอบและส่งมอบงาน <span class="admin-section-count">${mgrReviewItems.length}</span></div>
         <div id="mgr-review-list" class="admin-list">
           ${mgrReviewItems.length
@@ -142,6 +148,26 @@ function renderManagerAdmin(view, state) {
   bindPickupEvents(view, state);
   bindApprovalEvents(view, state);
   bindMgrReviewEvents(view, state);
+  bindJumpBarEvents(view);
+}
+
+function jumpButton(targetId, label, count) {
+  const hasItems = count > 0;
+  return `
+    <button class="admin-jump-button ${hasItems ? "has-items" : ""}" data-jump-to="${targetId}" type="button">
+      <span class="admin-jump-label">${label}</span>
+      <span class="admin-jump-count">${count}</span>
+    </button>
+  `;
+}
+
+function bindJumpBarEvents(view) {
+  view.querySelectorAll("[data-jump-to]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const target = view.querySelector(`#${button.dataset.jumpTo}`);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
