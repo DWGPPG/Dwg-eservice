@@ -111,6 +111,8 @@ function fromSharePoint(item) {
     deliveryRejectReason: item[f.deliveryRejectReason],
     reviewedAt: item[f.reviewedAt],
     doneAt: item[f.doneAt],
+    reviewDeadline: item[f.reviewDeadline],
+    autoApproved: item[f.autoApproved] === true || item[f.autoApproved] === "Yes",
   };
 }
 
@@ -157,7 +159,57 @@ function toSharePoint(request) {
 
 export async function hydrateRequests() {
   const items = await getListItems(lists.requests);
-  setRequests(items.map(fromSharePoint));
+  const requests = items.map(fromSharePoint);
+  setRequests(requests);
+  // เช็ค auto-approve หลังโหลดข้อมูลทุกครั้ง (ระบบไม่มี server แยก จึงเช็คได้แค่ตอนมีคนเปิดแอป)
+  await checkAndAutoApproveOverdue(requests);
+}
+
+/**
+ * เช็คคำร้องสถานะ "ส่งมอบแล้ว รอตรวจรับ" (delivered) ที่เกินกำหนด reviewDeadline แล้ว
+ * → อนุมัติให้อัตโนมัติเป็น "เสร็จสิ้น" (done) แทนผู้ร้องขอ
+ * หมายเหตุ: ระบบนี้ไม่มี server/cron job แยกต่างหาก จึงเช็คได้เฉพาะตอนมีคนเปิดแอปขึ้นมาเท่านั้น
+ * (ไม่ใช่ทันทีตอนเที่ยงคืนของวัน deadline แต่จะถูกตรวจจับและอนุมัติในครั้งถัดไปที่มีคน login)
+ */
+async function checkAndAutoApproveOverdue(requests) {
+  const now = Date.now();
+  const overdueItems = requests.filter(
+    (item) => item.status === STATUS.DELIVERED && item.reviewDeadline && new Date(item.reviewDeadline).getTime() < now
+  );
+  if (!overdueItems.length) return;
+
+  for (const item of overdueItems) {
+    try {
+      await autoApproveOverdueRequest(item);
+    } catch (error) {
+      console.warn(`Auto-approve failed for ${item.requestNo} (non-critical):`, error.message);
+    }
+  }
+  // โหลดข้อมูลใหม่อีกครั้งหลัง auto-approve เพื่อให้ state ตรงกับ SharePoint ล่าสุด
+  const refreshed = await getListItems(lists.requests);
+  setRequests(refreshed.map(fromSharePoint));
+}
+
+async function autoApproveOverdueRequest(request) {
+  const now = new Date().toISOString();
+  await patchRequest(request, {
+    status: STATUS.DONE,
+    reviewResult: "approved",
+    reviewedAt: now,
+    doneAt: now,
+    autoApproved: true,
+  }, "ระบบอนุมัติอัตโนมัติ (เกินกำหนด 3 วันทำการ)");
+
+  if (request.requesterEmail) {
+    const lines = [
+      "🤖 <b>PPG Drawing e-Service — ระบบอนุมัติงานให้อัตโนมัติ</b>", "",
+      `📋 <b>เลขคำขอ:</b> ${request.requestNo}`,
+      `📁 <b>โครงการ:</b> ${request.projectName || "—"}`,
+      "",
+      "เนื่องจากเกินกำหนด 3 วันทำการนับจากวันที่ส่งมอบงานโดยไม่มีการตรวจรับ ระบบจึงอนุมัติงานนี้ให้อัตโนมัติและปิดงานเป็นเสร็จสิ้น",
+    ];
+    await sendTeams1on1(request.requesterEmail, lines.join("<br>")).catch(() => {});
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -475,17 +527,47 @@ async function notifyManagersForReview(request, { dwgUrl, pdfUrl, note }) {
 // MGR REVIEW — ผู้จัดการ ✅ ส่งมอบ หรือ ↩️ ส่งกลับให้ผู้เขียนแบบแก้ไข
 // ══════════════════════════════════════════════════════════════
 
+/**
+ * คำนวณวันที่ห่างไปข้างหน้า N "วันทำการ" (ข้ามเสาร์-อาทิตย์ และวันหยุดนักขัตฤกษ์
+ * จาก SharePoint List "HolidayList" ที่โหลดไว้ใน state.masterData.holidays)
+ * ใช้สำหรับคำนวณ deadline 3 วันทำการที่ผู้ร้องขอต้องตรวจรับงาน
+ */
+function addBusinessDays(startDate, days) {
+  const holidaySet = new Set(
+    (state.masterData.holidays || [])
+      .map((h) => h[fields.holidays.holidayDate])
+      .filter(Boolean)
+      .map((d) => new Date(d).toDateString())
+  );
+
+  const result = new Date(startDate);
+  let remaining = days;
+  while (remaining > 0) {
+    result.setDate(result.getDate() + 1);
+    const dayOfWeek = result.getDay(); // 0 = อาทิตย์, 6 = เสาร์
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    const isHoliday = holidaySet.has(result.toDateString());
+    if (!isWeekend && !isHoliday) remaining -= 1;
+  }
+  return result;
+}
+
 export async function mgrApproveDeliver(request) {
   const now = new Date().toISOString();
+  const deadline = addBusinessDays(new Date(), 3);
   await patchRequest(request, {
     status: STATUS.DELIVERED,
     deliveredAt: now,
     mgrApprovedBy: state.user?.name || "",
     mgrApprovedAt: now,
+    reviewDeadline: deadline.toISOString(),
   }, "ผู้จัดการอนุมัติส่งมอบ");
 
   const thaiDate = new Date(now).toLocaleDateString("th-TH", {
     year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+  const thaiDeadline = deadline.toLocaleDateString("th-TH", {
+    year: "numeric", month: "long", day: "numeric",
   });
   const lines = [
     "📦 <b>PPG Drawing e-Service — งานพร้อมส่งมอบแล้ว!</b>", "",
@@ -501,13 +583,15 @@ export async function mgrApproveDeliver(request) {
     request.dwgFileUrl ? `📐 <a href="${request.dwgFileUrl}">เปิดไฟล์ DWG</a>` : "",
     request.pdfFileUrl ? `📄 <a href="${request.pdfFileUrl}">เปิดไฟล์ PDF</a>` : "",
     "",
+    `⏰ <b>กรุณาตรวจสอบและอนุมัติกลับภายในวันที่ ${thaiDeadline}</b> (ไม่เกิน 3 วันทำการ ไม่นับวันเสาร์-อาทิตย์และวันหยุดนักขัตฤกษ์) — หากเกินกำหนด ระบบจะอนุมัติให้อัตโนมัติ`,
+    "",
     `👉 <a href="${appConfig.azure.redirectUri}#/track"><b>กรุณาตรวจรับงาน (คลิกที่นี่)</b></a>`,
   ].filter(Boolean);
   await sendTeams1on1(request.requesterEmail, lines.join("<br>"));
   await sendMail(
     request.requesterEmail,
-    `📦 [PPG Drawing] งาน ${request.requestNo} พร้อมส่งมอบแล้ว — กรุณาตรวจรับ`,
-    `งาน ${request.requestNo} (${request.projectName || ""}) ได้รับการตรวจสอบและอนุมัติโดยผู้จัดการแล้ว กรุณาเข้าระบบเพื่อตรวจรับงาน: <a href="${appConfig.azure.redirectUri}#/track">${appConfig.azure.redirectUri}#/track</a>`
+    `📦 [PPG Drawing] งาน ${request.requestNo} พร้อมส่งมอบแล้ว — กรุณาตรวจรับภายใน ${thaiDeadline}`,
+    `งาน ${request.requestNo} (${request.projectName || ""}) ได้รับการตรวจสอบและอนุมัติโดยผู้จัดการแล้ว กรุณาเข้าระบบเพื่อตรวจรับงานภายในวันที่ ${thaiDeadline} (ไม่เกิน 3 วันทำการ) มิฉะนั้นระบบจะอนุมัติให้อัตโนมัติ: <a href="${appConfig.azure.redirectUri}#/track">${appConfig.azure.redirectUri}#/track</a>`
   );
 }
 
