@@ -201,6 +201,11 @@ function pickupDueLabel(dueDate) {
 }
 
 function bindPickupEvents(view, state) {
+  view._pickupEvents?.abort();
+  const controller = new AbortController();
+  view._pickupEvents = controller;
+  const opts = { signal: controller.signal };
+
   const updateBulkButton = () => {
     const button = view.querySelector("#pickup-bulk-button");
     const countSpan = button?.querySelector(".pickup-bulk-count");
@@ -217,26 +222,26 @@ function bindPickupEvents(view, state) {
       else selectedPickupIds.delete(checkbox.dataset.pickupId);
     });
     updateBulkButton();
-  });
+  }, opts);
 
   view.querySelectorAll(".pickup-checkbox").forEach((checkbox) => {
     checkbox.addEventListener("change", () => {
       if (checkbox.checked) selectedPickupIds.add(checkbox.dataset.pickupId);
       else selectedPickupIds.delete(checkbox.dataset.pickupId);
       updateBulkButton();
-    });
+    }, opts);
   });
 
   view.querySelector("#pickup-bulk-button")?.addEventListener("click", async () => {
     const ids = [...selectedPickupIds];
     if (!ids.length) return;
     await pickupRequests(view, state, ids);
-  });
+  }, opts);
 
   view.querySelectorAll("[data-pickup-self]").forEach((button) => {
     button.addEventListener("click", async () => {
       await pickupRequests(view, state, [button.dataset.pickupSelf]);
-    });
+    }, opts);
   });
 }
 
@@ -332,10 +337,15 @@ function renderApprovalCard(item) {
 }
 
 function bindApprovalEvents(view, state) {
+  view._approvalEvents?.abort();
+  const controller = new AbortController();
+  view._approvalEvents = controller;
+  const opts = { signal: controller.signal };
+
   view.querySelector("#admin-search")?.addEventListener("input", (event) => {
     adminSearchQuery = event.target.value;
     renderAdmin(view, state);
-  });
+  }, opts);
 
   view.addEventListener("click", async (event) => {
     const filterButton = event.target.closest("[data-admin-filter]");
@@ -387,7 +397,7 @@ function bindApprovalEvents(view, state) {
       await submitActionBox(view, state, request, true);
       return;
     }
-  });
+  }, opts);
 }
 
 function toggleActionBox(view, requestNo, mode, isManager, hasLv1) {
@@ -576,6 +586,11 @@ function renderMgrReviewCard(item) {
 }
 
 function bindMgrReviewEvents(view, state) {
+  view._mgrReviewEvents?.abort();
+  const controller = new AbortController();
+  view._mgrReviewEvents = controller;
+  const opts = { signal: controller.signal };
+
   view.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-mgr-action]");
     if (!button) return;
@@ -628,7 +643,7 @@ function bindMgrReviewEvents(view, state) {
         button.classList.remove("is-loading");
       }
     }
-  });
+  }, opts);
 }
 
 // ══════════════════════════════════════════════════════════════
