@@ -107,6 +107,7 @@ function bindChrome() {
 
   qs("#theme-toggle").addEventListener("click", toggleTheme);
   qs("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("nav-open"));
+  qs("#sidebar-backdrop")?.addEventListener("click", () => document.body.classList.remove("nav-open"));
 }
 
 let requestsChangedDebounce = null;
