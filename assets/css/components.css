@@ -6610,36 +6610,40 @@ body.auth-mode .main-panel {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   ADMIN JUMP BAR — ปุ่มลัดเลื่อนไปยังแต่ละ section ป้องกันตกหล่น
+   ADMIN JUMP ROW — ปุ่มลัดเลื่อนไปยังแต่ละ section อยู่ข้างปุ่มรับงานเดิม
    ══════════════════════════════════════════════════════════════ */
 
-.admin-jump-bar {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.admin-jump-row {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  margin: 16px 0 20px;
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding: 10px;
-  border-radius: 14px;
-  background: var(--surface-strong);
-  border: 1px solid var(--line);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  flex-wrap: wrap;
+  margin: 4px 0 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
 }
 
 .admin-jump-button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px;
+  height: 40px;
+  padding: 0 16px;
   border-radius: 10px;
   border: 1.5px solid var(--line);
   background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
   transition: all var(--transition-fast);
-  text-align: left;
+  white-space: nowrap;
+}
+
+.admin-jump-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .admin-jump-button:hover {
@@ -6647,22 +6651,13 @@ body.auth-mode .main-panel {
   transform: translateY(-1px);
 }
 
-.admin-jump-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .admin-jump-count {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 8px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
   border-radius: 999px;
   background: var(--surface-strong);
   color: var(--muted);
@@ -6671,22 +6666,40 @@ body.auth-mode .main-panel {
   flex-shrink: 0;
 }
 
-.admin-jump-button.has-items {
+/* ปุ่มแรก (รับงาน) เด่นเป็นสีเขียวหลัก เหมือนปุ่ม #pickup-bulk-button เดิม */
+.admin-jump-button.admin-jump-primary {
+  border: none;
+  background: var(--primary, #0DB14B);
+  color: #fff;
+}
+
+.admin-jump-button.admin-jump-primary .admin-jump-count {
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.admin-jump-button.admin-jump-primary:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+/* ปุ่มรอง (อนุมัติ/ตรวจสอบ) เน้นแดงเมื่อมีรายการค้าง */
+.admin-jump-button.has-items:not(.admin-jump-primary) {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.04);
 }
 
-.admin-jump-button.has-items .admin-jump-count {
+.admin-jump-button.has-items:not(.admin-jump-primary) .admin-jump-count {
   background: #ef4444;
   color: #fff;
 }
 
-@media (max-width: 860px) {
-  .admin-jump-bar {
-    grid-template-columns: 1fr;
-    position: static;
+@media (max-width: 700px) {
+  .admin-jump-row {
+    flex-direction: column;
+    align-items: stretch;
   }
-  .admin-jump-label {
-    white-space: normal;
+  .admin-jump-button {
+    justify-content: space-between;
   }
 }
