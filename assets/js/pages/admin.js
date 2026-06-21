@@ -101,7 +101,7 @@ function renderManagerAdmin(view, state) {
       </div>
 
       <div class="admin-jump-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 20px;padding-bottom:18px;border-bottom:1px solid #e2e8f0;">
-        ${jumpButton("pickup-section", "📥 รับงาน", pendingItems.length, true)}
+        ${jumpButton("pickup-section", "📥 รับงาน", pendingItems.length, true, "pickup-bulk-button", "pickup-bulk-count")}
         ${jumpButton("approve-section", "✅ อนุมัติเริ่มงาน", approveItems.length)}
         ${jumpButton("mgr-review-section", "🔍 ตรวจสอบและส่งมอบงาน", mgrReviewItems.length)}
       </div>
@@ -119,10 +119,7 @@ function renderManagerAdmin(view, state) {
       </div>
 
       <div class="admin-section-block" id="pickup-section" ${sectionHidden("pickup-section")}>
-        <div class="admin-section-heading">📥 รับงาน</div>
-        <button id="pickup-bulk-button" class="primary-button pickup-bulk-button" type="button" disabled>
-          รับงาน <span class="pickup-bulk-count">0</span>
-        </button>
+        <div class="admin-section-heading">📥 รับงาน — ติ๊กเลือกแล้วกดปุ่ม "รับงาน" ด้านบนเพื่อรับพร้อมกัน</div>
         ${renderPickupTableSection(pendingItems, "รอฝ่ายแบบรับงาน")}
       </div>
 
@@ -152,7 +149,7 @@ function renderManagerAdmin(view, state) {
   bindJumpBarEvents(view, state);
 }
 
-function jumpButton(targetId, label, count, primary = false) {
+function jumpButton(targetId, label, count, primary = false, buttonId = "", countId = "") {
   const hasItems = count > 0;
   const baseStyle = "display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s ease;";
   let style;
@@ -165,10 +162,11 @@ function jumpButton(targetId, label, count, primary = false) {
   }
   const countBg = primary ? "background:rgba(255,255,255,0.3);color:#fff;" : hasItems ? "background:#ef4444;color:#fff;" : "background:#f1f3f5;color:#666;";
   const countStyle = `display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;font-size:13px;font-weight:800;${countBg}`;
+  const idAttr = buttonId ? ` id="${buttonId}"` : "";
   return `
-    <button class="admin-jump-button" data-jump-to="${targetId}" type="button" style="${style}">
+    <button class="admin-jump-button" data-jump-to="${targetId}" type="button" style="${style}"${idAttr}>
       <span>${label}</span>
-      <span style="${countStyle}">${count}</span>
+      <span style="${countStyle}"${countId ? ` id="${countId}"` : ""}>${count}</span>
     </button>
   `;
 }
@@ -258,12 +256,23 @@ function bindPickupEvents(view, state) {
   view._pickupEvents = controller;
   const opts = { signal: controller.signal };
 
+  const bulkButton = view.querySelector("#pickup-bulk-button");
+  const isManagerView = bulkButton?.hasAttribute("data-jump-to");
+
   const updateBulkButton = () => {
     const button = view.querySelector("#pickup-bulk-button");
-    const countSpan = button?.querySelector(".pickup-bulk-count");
     if (!button) return;
-    button.disabled = selectedPickupIds.size === 0;
-    if (countSpan) countSpan.textContent = selectedPickupIds.size;
+    const countSpan = button.querySelector(".pickup-bulk-count, #pickup-bulk-count");
+    const labelSpan = button.querySelector("span:first-child");
+    const count = selectedPickupIds.size;
+    if (countSpan) countSpan.textContent = count;
+
+    if (isManagerView) {
+      // ปุ่มในแถบบน (jump bar) — สลับข้อความบอกสถานะว่าตอนนี้กดแล้วจะ "รับงานที่เลือก" หรือแค่ดูรายการ
+      if (labelSpan) labelSpan.textContent = count > 0 ? "✅ รับงานที่เลือก" : "📥 รับงาน";
+    } else {
+      button.disabled = count === 0;
+    }
   };
 
   view.querySelector("#pickup-select-all")?.addEventListener("change", (event) => {
@@ -284,9 +293,10 @@ function bindPickupEvents(view, state) {
     }, opts);
   });
 
-  view.querySelector("#pickup-bulk-button")?.addEventListener("click", async () => {
+  bulkButton?.addEventListener("click", async (event) => {
     const ids = [...selectedPickupIds];
-    if (!ids.length) return;
+    if (!ids.length) return; // ไม่มีอะไรเลือกไว้ — ปล่อยให้ bindJumpBarEvents จัดการ filter/scroll ตามปกติ
+    event.stopImmediatePropagation(); // กันไม่ให้ jump-bar click handler ทำงานซ้อน (filter) ตอนกำลังจะรับงานจริง
     await pickupRequests(view, state, ids);
   }, opts);
 
