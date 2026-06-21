@@ -6608,3 +6608,85 @@ body.auth-mode .main-panel {
   color: var(--accent, #005DAC);
   font-weight: 700;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ADMIN JUMP BAR — ปุ่มลัดเลื่อนไปยังแต่ละ section ป้องกันตกหล่น
+   ══════════════════════════════════════════════════════════════ */
+
+.admin-jump-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 20px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
+
+.admin-jump-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.admin-jump-button:hover {
+  border-color: var(--accent, #005DAC);
+  transform: translateY(-1px);
+}
+
+.admin-jump-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-jump-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.admin-jump-button.has-items {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.admin-jump-button.has-items .admin-jump-count {
+  background: #ef4444;
+  color: #fff;
+}
+
+@media (max-width: 860px) {
+  .admin-jump-bar {
+    grid-template-columns: 1fr;
+    position: static;
+  }
+  .admin-jump-label {
+    white-space: normal;
+  }
+}
