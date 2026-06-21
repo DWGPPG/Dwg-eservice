@@ -33,6 +33,7 @@ const permitCategoryMeta = {
 };
 
 let selectedProjectName = "";
+let pendingDrawingEdits = new Map(); // itemId -> { no, name } — แก้ไข Drawing เดิมหลายรายการสลับกันใน popup เพิ่ม/แก้โครงการ
 let selectedDrawings = []; // [{ key, no, name, category, prevRev }]
 let drawingDetails = {};   // key -> { dueDate, priority, description, referenceLink, files, newRev }
 let activeCategory = "";
@@ -114,7 +115,7 @@ function bindSubmitFlow(view) {
   view.querySelector("#project-clear").addEventListener("click", () => clearProject(view));
   view.querySelector("#add-project").addEventListener("click", () => {
     const checkedType = view.querySelector("#drawing-submit-form input[name='requestType']:checked")?.value || "";
-    openAddProjectModal(view, checkedType);
+    openAddProjectModal(view, checkedType, selectedProjectName);
   });
   view.querySelector("#reset-submit").addEventListener("click", () => renderSubmit(view));
 
@@ -586,7 +587,7 @@ function confirmRow(label, value) {
 // ADD PROJECT MODAL — เขียนลง SharePoint ProjectList + DrawingNumberList จริง
 // ══════════════════════════════════════════════════════════════
 
-function openAddProjectModal(view, requestType = "") {
+function openAddProjectModal(view, requestType = "", prefilledProjectName = "") {
   const isPermitFlow = requestType === PERMIT_REQUEST_TYPE;
   const effectiveCategories = isPermitFlow
     ? { ...categoryMeta, ...permitCategoryMeta }
@@ -596,7 +597,7 @@ function openAddProjectModal(view, requestType = "") {
     <form id="new-project-form" class="new-project-form">
       <label class="field">
         <span>ชื่อโครงการ <b class="req">*</b></span>
-        <input id="new-project-name" name="name" type="text" list="existing-project-list" autocomplete="off" required placeholder="พิมพ์ชื่อโครงการใหม่ หรือเลือกโครงการเดิม..." />
+        <input id="new-project-name" name="name" type="text" list="existing-project-list" autocomplete="off" required placeholder="พิมพ์ชื่อโครงการใหม่ หรือเลือกโครงการเดิม..." value="${escapeHtml(prefilledProjectName)}" />
         <datalist id="existing-project-list">
           ${getProjects().map((project) => `<option value="${escapeHtml(project.Title)}"></option>`).join("")}
         </datalist>
@@ -614,8 +615,13 @@ function openAddProjectModal(view, requestType = "") {
       </div>
 
       <div id="existing-drawings-block" class="existing-drawings-block" hidden>
-        <span class="new-doc-picker-title">Drawing ที่มีอยู่แล้วในโครงการนี้ (แก้ไขชื่อ/เลขได้โดยตรง)</span>
-        <div id="existing-drawings-list" class="existing-drawings-by-category"></div>
+        <span class="new-doc-picker-title">Drawing ที่มีอยู่แล้วในโครงการนี้</span>
+        <div class="existing-drawing-picker">
+          <select id="existing-drawing-category-select" class="existing-drawing-select"></select>
+          <select id="existing-drawing-item-select" class="existing-drawing-select"></select>
+          <button id="existing-drawing-edit-btn" class="small-button" type="button" disabled>✏️ แก้ไข</button>
+        </div>
+        <div id="existing-drawing-edit-box" class="existing-drawing-edit-box" hidden></div>
       </div>
 
       <div class="new-doc-picker">
@@ -660,16 +666,20 @@ function openAddProjectModal(view, requestType = "") {
             }
           }
 
-          // เก็บการแก้ไข Drawing เดิมที่เปลี่ยนค่าไปจากตอนโหลดครั้งแรก
-          const editedDrawings = [];
+          // เก็บการแก้ไข Drawing เดิม — รวมทั้งแถวที่เปิดอยู่ตอนนี้ และค่าที่เก็บไว้ตอนสลับดูรายการอื่นก่อนหน้า
+          const editedMap = new Map(pendingDrawingEdits);
           document.querySelectorAll("[data-existing-drawing-row]").forEach((row) => {
             const itemId = row.dataset.existingDrawingRow;
-            const no = row.querySelector("[data-existing-no]")?.value.trim();
-            const name = row.querySelector("[data-existing-name]")?.value.trim();
+            const no = row.querySelector("[data-existing-no]")?.value.trim() || "";
+            const name = row.querySelector("[data-existing-name]")?.value.trim() || "";
+            editedMap.set(itemId, { no, name });
+          });
+          const editedDrawings = [];
+          editedMap.forEach((value, itemId) => {
             const original = state.masterData.drawingNumbers.find((d) => String(d.id) === String(itemId));
             if (!original) return;
-            if (no !== (original.Title || "") || name !== (original.DrawingName || "")) {
-              editedDrawings.push({ itemId, no, name });
+            if (value.no !== (original.Title || "") || value.name !== (original.DrawingName || "")) {
+              editedDrawings.push({ itemId, no: value.no, name: value.name });
             }
           });
 
@@ -766,37 +776,69 @@ function newDrawingRowHtml(category) {
   `;
 }
 
-function existingDrawingCategoryBlock(category, drawings) {
-  const meta = categoryMeta[category] || { label: category, short: "?", className: "ao" };
-  return `
-    <div class="existing-drawing-category">
-      <div class="existing-drawing-category-head">
-        <b class="doc-badge ${meta.className}">${escapeHtml(meta.short)}</b>
-        <span>${escapeHtml(meta.label)}</span>
-        <small>${drawings.length} รายการ</small>
-      </div>
-      <div class="existing-drawing-rows">
-        ${drawings.map((drawing) => `
-          <div class="existing-drawing-row" data-existing-drawing-row="${escapeHtml(String(drawing.id))}">
-            <input type="text" value="${escapeHtml(drawing.Title || "")}" data-existing-no placeholder="Drawing No." />
-            <input type="text" value="${escapeHtml(drawing.DrawingName || "")}" data-existing-name placeholder="Drawing Name" />
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
 function bindAddProjectModalEvents() {
   const nameInput = document.querySelector("#new-project-name");
   const kwpInput = document.querySelector("#new-project-kwp");
   const locationInput = document.querySelector("#new-project-location");
   const existingNote = document.querySelector("#existing-project-note");
   const existingBlock = document.querySelector("#existing-drawings-block");
-  const existingList = document.querySelector("#existing-drawings-list");
+  const categorySelect = document.querySelector("#existing-drawing-category-select");
+  const itemSelect = document.querySelector("#existing-drawing-item-select");
+  const editButton = document.querySelector("#existing-drawing-edit-btn");
+  const editBox = document.querySelector("#existing-drawing-edit-box");
   const saveButton = document.querySelector(".modal footer .primary-button");
 
-  nameInput?.addEventListener("input", () => {
+  let currentDrawings = []; // Drawing ทั้งหมดของโครงการที่กำลังแก้ไข
+  pendingDrawingEdits = new Map(); // รีเซ็ตทุกครั้งที่เปิด popup ใหม่
+
+  const saveCurrentEditBoxIfAny = () => {
+    const row = editBox.querySelector("[data-existing-drawing-row]");
+    if (!row) return;
+    const itemId = row.dataset.existingDrawingRow;
+    const no = row.querySelector("[data-existing-no]")?.value.trim() || "";
+    const name = row.querySelector("[data-existing-name]")?.value.trim() || "";
+    pendingDrawingEdits.set(itemId, { no, name });
+  };
+
+  const renderItemOptions = () => {
+    const cat = categorySelect.value;
+    const items = currentDrawings.filter((d) => (d.DrawingCategory || "อื่นๆ") === cat);
+    itemSelect.innerHTML = items
+      .map((d) => `<option value="${escapeHtml(String(d.id))}">${escapeHtml(d.Title || "(ไม่มีเลข)")} — ${escapeHtml(d.DrawingName || "ไม่มีชื่อ")}</option>`)
+      .join("");
+    editButton.disabled = items.length === 0;
+    editBox.hidden = true;
+    editBox.innerHTML = "";
+  };
+
+  categorySelect?.addEventListener("change", () => {
+    saveCurrentEditBoxIfAny();
+    renderItemOptions();
+  });
+
+  itemSelect?.addEventListener("change", () => {
+    saveCurrentEditBoxIfAny();
+    editBox.hidden = true;
+    editBox.innerHTML = "";
+  });
+
+  editButton?.addEventListener("click", () => {
+    const itemId = itemSelect.value;
+    const drawing = currentDrawings.find((d) => String(d.id) === String(itemId));
+    if (!drawing) return;
+    const pending = pendingDrawingEdits.get(itemId);
+    const noValue = pending ? pending.no : (drawing.Title || "");
+    const nameValue = pending ? pending.name : (drawing.DrawingName || "");
+    editBox.hidden = false;
+    editBox.innerHTML = `
+      <div class="existing-drawing-row" data-existing-drawing-row="${escapeHtml(String(drawing.id))}">
+        <input type="text" value="${escapeHtml(noValue)}" data-existing-no placeholder="Drawing No." />
+        <input type="text" value="${escapeHtml(nameValue)}" data-existing-name placeholder="Drawing Name" />
+      </div>
+    `;
+  });
+
+  const syncProjectModeFromName = () => {
     const project = getProjects().find((item) => item.Title === nameInput.value);
     if (!project) {
       existingNote.hidden = true;
@@ -810,24 +852,32 @@ function bindAddProjectModalEvents() {
     kwpInput.value = (project.DefaultKwp || project.SolarKwp || "").replace(/\s*kWp\s*$/i, "");
     locationInput.value = project.DefaultLocation || "";
 
-    const drawings = (state.masterData.drawingNumbers || []).filter(
+    currentDrawings = (state.masterData.drawingNumbers || []).filter(
       (item) => !item.IsHidden && item.ProjectName === project.Title
     );
-    if (drawings.length) {
+
+    if (currentDrawings.length) {
       existingBlock.hidden = false;
-      const grouped = {};
-      drawings.forEach((d) => {
-        const cat = d.DrawingCategory || "อื่นๆ";
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(d);
-      });
-      existingList.innerHTML = Object.keys(grouped)
-        .map((cat) => existingDrawingCategoryBlock(cat, grouped[cat]))
+      const categories = [...new Set(currentDrawings.map((d) => d.DrawingCategory || "อื่นๆ"))];
+      categorySelect.innerHTML = categories
+        .map((cat) => {
+          const meta = categoryMeta[cat] || permitCategoryMeta[cat] || { label: cat };
+          const count = currentDrawings.filter((d) => (d.DrawingCategory || "อื่นๆ") === cat).length;
+          return `<option value="${escapeHtml(cat)}">${escapeHtml(meta.label)} (${count})</option>`;
+        })
         .join("");
+      renderItemOptions();
     } else {
       existingBlock.hidden = true;
+      currentDrawings = [];
     }
-  });
+  };
+
+  nameInput?.addEventListener("input", syncProjectModeFromName);
+
+  // ถ้าเปิด popup มาพร้อมชื่อโครงการเดิมอยู่แล้ว (กดจากช่องที่เลือกโครงการไว้แล้ว)
+  // ให้เช็คโหมดแก้ไขทันที ไม่ต้องรอผู้ใช้พิมพ์ใหม่
+  if (nameInput?.value) syncProjectModeFromName();
 
   document.querySelectorAll("[data-add-row]").forEach((button) => {
     button.addEventListener("click", () => {
