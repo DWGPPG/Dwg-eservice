@@ -295,6 +295,7 @@ function openCancelOwnWorkModal(view, state, request) {
       },
     ],
   });
+}
 
 // ══════════════════════════════════════════════════════════════
 // SENDWORK MODAL — ส่งงานคืน → mgr_review (รอผู้จัดการตรวจที่หน้า "รับงาน/อนุมัติ")
