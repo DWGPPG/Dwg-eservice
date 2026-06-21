@@ -61,6 +61,8 @@ export const fields = {
     deliveryRejectReason: "DeliveryRejectReason",
     reviewedAt: "ReviewedAt",
     doneAt: "DoneAt",
+    reviewDeadline: "ReviewDeadline",
+    autoApproved: "AutoApproved",
   },
   projects: {
     title: "Title",
