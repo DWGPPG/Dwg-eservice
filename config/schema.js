@@ -34,7 +34,7 @@ export const fields = {
     revisionReason: "RevisionReason",
     refRequestId: "RefRequestId",
     isRevision: "IsRevision",
-    status: "Status0",
+    status: "Status",
     submittedAt: "SubmittedAt",
     // ── Lv.1 / Lv.2 (2-level approval) ──
     assignedToName: "AssigneeName",
@@ -42,14 +42,14 @@ export const fields = {
     reviewerLv1: "ReviewerLv1",
     reviewerLv2: "ReviewerLv2",
     assignNote: "AssignNote",
-    approvedLv2At: "ApprovedLv2At",
+    approvedLv2At: "ApprovedAt",
     // ── reject / cancel ──
     rejectReason: "RejectReason",
     // ── sendwork → mgr_review → delivered ──
     dwgFileUrl: "DwgFileUrl",
     pdfFileUrl: "PdfFileUrl",
     noteFromDrawing: "NoteFromDrawing",
-    deliveredAt: "eliveredAt",            // หมายเหตุ: internal name ของ SharePoint ขาดตัว D จริง (legacy typo คงไว้ตามของเดิม)
+    deliveredAt: "DeliveredAt",
     mgrApprovedBy: "MgrApprovedBy",
     mgrApprovedAt: "MgrApprovedAt",
     mgrRejectReason: "MgrRejectReason",
