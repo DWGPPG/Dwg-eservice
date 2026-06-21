@@ -18,10 +18,24 @@
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     z-index: 15;
+    background: var(--bg);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   }
 
   body.nav-open .sidebar {
     transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 14;
+  }
+
+  body.nav-open .sidebar-backdrop {
+    display: block;
   }
 
   .menu-toggle {
