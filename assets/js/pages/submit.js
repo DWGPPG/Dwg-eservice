@@ -220,6 +220,7 @@ function pickProject(view, projectName) {
   view.querySelector("#project-search").value = projectName;
   view.querySelector("#project-clear").hidden = false;
   closeProjectMenu(view);
+  updateAddProjectButtonText(view);
 
   const project = getProjects().find((item) => item.Title === projectName);
   const kwp = project?.DefaultKwp || project?.SolarKwp || "—";
@@ -242,8 +243,20 @@ function clearProject(view) {
   view.querySelector("#project-clear").hidden = true;
   view.querySelector("#project-info").classList.remove("show");
   view.querySelector("#project-info").innerHTML = "";
+  updateAddProjectButtonText(view);
   renderDrawingArea(view);
   renderSelectedDrawingQueue(view);
+}
+
+/**
+ * เปลี่ยนข้อความปุ่ม "+ โครงการใหม่" เป็น "✏️ แก้ไขโครงการ" เมื่อมีการเลือกโครงการที่มีอยู่แล้ว
+ * เพราะตอนนี้กดปุ่มนี้จะเปิด popup ในโหมดแก้ไขโครงการเดิม ไม่ใช่สร้างใหม่
+ */
+function updateAddProjectButtonText(view) {
+  const button = view.querySelector("#add-project");
+  if (!button) return;
+  const isExisting = selectedProjectName && getProjects().some((p) => p.Title === selectedProjectName);
+  button.textContent = isExisting ? "✏️ แก้ไขโครงการ" : "+ โครงการใหม่";
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -592,6 +605,7 @@ function openAddProjectModal(view, requestType = "", prefilledProjectName = "") 
   const effectiveCategories = isPermitFlow
     ? { ...categoryMeta, ...permitCategoryMeta }
     : categoryMeta;
+  const isEditMode = prefilledProjectName && getProjects().some((p) => p.Title === prefilledProjectName);
 
   const body = `
     <form id="new-project-form" class="new-project-form">
@@ -634,12 +648,12 @@ function openAddProjectModal(view, requestType = "", prefilledProjectName = "") 
   `;
 
   openModal({
-    title: "เพิ่มโครงการใหม่",
+    title: isEditMode ? "แก้ไขโครงการ" : "เพิ่มโครงการใหม่",
     body,
     actions: [
       { label: "ยกเลิก", className: "secondary-button" },
       {
-        label: "บันทึกโครงการ",
+        label: isEditMode ? "บันทึกการแก้ไข" : "บันทึกโครงการ",
         className: "primary-button",
         onClick: async (close) => {
           const form = document.querySelector("#new-project-form");
