@@ -99,7 +99,7 @@ function renderManagerAdmin(view, state) {
         </div>
       </div>
 
-      <div class="admin-jump-row">
+      <div class="admin-jump-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 20px;padding-bottom:18px;border-bottom:1px solid #e2e8f0;">
         ${jumpButton("pickup-section", "📥 รับงาน", pendingItems.length, true)}
         ${jumpButton("approve-section", "✅ อนุมัติเริ่มงาน", approveItems.length)}
         ${jumpButton("mgr-review-section", "🔍 ตรวจสอบและส่งมอบงาน", mgrReviewItems.length)}
@@ -153,13 +153,21 @@ function renderManagerAdmin(view, state) {
 
 function jumpButton(targetId, label, count, primary = false) {
   const hasItems = count > 0;
-  const classes = ["admin-jump-button"];
-  if (primary) classes.push("admin-jump-primary");
-  if (hasItems) classes.push("has-items");
+  const baseStyle = "display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s ease;";
+  let style;
+  if (primary) {
+    style = baseStyle + "border:none;background:#0DB14B;color:#fff;";
+  } else if (hasItems) {
+    style = baseStyle + "border:1.5px solid #ef4444;background:rgba(239,68,68,0.06);color:#111;";
+  } else {
+    style = baseStyle + "border:1.5px solid #d0d7de;background:#fff;color:#111;";
+  }
+  const countBg = primary ? "background:rgba(255,255,255,0.3);color:#fff;" : hasItems ? "background:#ef4444;color:#fff;" : "background:#f1f3f5;color:#666;";
+  const countStyle = `display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;font-size:13px;font-weight:800;${countBg}`;
   return `
-    <button class="${classes.join(" ")}" data-jump-to="${targetId}" type="button">
-      <span class="admin-jump-label">${label}</span>
-      <span class="admin-jump-count">${count}</span>
+    <button class="admin-jump-button" data-jump-to="${targetId}" type="button" style="${style}">
+      <span>${label}</span>
+      <span style="${countStyle}">${count}</span>
     </button>
   `;
 }
@@ -170,6 +178,8 @@ function bindJumpBarEvents(view) {
       const target = view.querySelector(`#${button.dataset.jumpTo}`);
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
+    button.addEventListener("mouseenter", () => { button.style.transform = "translateY(-1px)"; });
+    button.addEventListener("mouseleave", () => { button.style.transform = "translateY(0)"; });
   });
 }
 
