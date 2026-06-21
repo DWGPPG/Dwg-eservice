@@ -26,6 +26,7 @@ export function initRouter() {
 
 export function navigate() {
   renderNav();
+  document.body.classList.remove("nav-open");
   const requestedRoute = location.hash.replace("#", "");
   const route = normalizeRoute(requestedRoute);
   if (requestedRoute !== route) {
