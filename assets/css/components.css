@@ -6470,41 +6470,25 @@ body.auth-mode .main-panel {
   color: var(--muted);
 }
 
-.existing-drawings-by-category {
+.existing-drawing-picker {
   display: grid;
-  gap: 10px;
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 4px;
-}
-
-.existing-drawing-category {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
-}
-
-.existing-drawing-category-head {
-  display: flex;
-  align-items: center;
+  grid-template-columns: 1fr 1.4fr auto;
   gap: 8px;
-  margin-bottom: 6px;
+  align-items: center;
 }
 
-.existing-drawing-category-head span {
-  flex: 1;
+.existing-drawing-select {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
   font-size: 12.5px;
-  font-weight: 700;
+  color: var(--text);
 }
 
-.existing-drawing-category-head small {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.existing-drawing-rows {
-  display: grid;
-  gap: 6px;
+.existing-drawing-edit-box {
+  margin-top: 10px;
 }
 
 .existing-drawing-row {
@@ -6528,6 +6512,9 @@ body.auth-mode .main-panel {
 }
 
 @media (max-width: 700px) {
+  .existing-drawing-picker {
+    grid-template-columns: 1fr;
+  }
   .existing-drawing-row {
     grid-template-columns: 1fr;
   }
