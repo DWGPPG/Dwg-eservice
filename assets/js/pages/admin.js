@@ -16,6 +16,7 @@ import { escapeHtml, formatDate } from "../utils.js";
 let adminFilter = "all";
 let adminSearchQuery = "";
 let selectedPickupIds = new Set();
+let activeAdminSection = "all"; // "all" | "pickup-section" | "approve-section" | "mgr-review-section"
 
 export function renderAdmin(view, state) {
   const isManager = state.user?.role === "manager";
@@ -117,7 +118,7 @@ function renderManagerAdmin(view, state) {
         <input id="admin-search" class="search-input" type="search" placeholder="🔍 ค้นหาเลขคำร้อง โครงการ ชื่อ..." value="${escapeHtml(adminSearchQuery)}" />
       </div>
 
-      <div class="admin-section-block" id="pickup-section">
+      <div class="admin-section-block" id="pickup-section" ${sectionHidden("pickup-section")}>
         <div class="admin-section-heading">📥 รับงาน</div>
         <button id="pickup-bulk-button" class="primary-button pickup-bulk-button" type="button" disabled>
           รับงาน <span class="pickup-bulk-count">0</span>
@@ -125,7 +126,7 @@ function renderManagerAdmin(view, state) {
         ${renderPickupTableSection(pendingItems, "รอฝ่ายแบบรับงาน")}
       </div>
 
-      <div class="admin-section-block" id="approve-section">
+      <div class="admin-section-block" id="approve-section" ${sectionHidden("approve-section")}>
         <div class="admin-section-heading">✅ อนุมัติเริ่มงาน <span class="admin-section-count">${approveItems.length}</span></div>
         <div id="admin-list" class="admin-list">
           ${approveItems.length
@@ -134,7 +135,7 @@ function renderManagerAdmin(view, state) {
         </div>
       </div>
 
-      <div class="admin-section-block" id="mgr-review-section">
+      <div class="admin-section-block" id="mgr-review-section" ${sectionHidden("mgr-review-section")}>
         <div class="admin-section-heading">🔍 ตรวจสอบและส่งมอบงาน <span class="admin-section-count">${mgrReviewItems.length}</span></div>
         <div id="mgr-review-list" class="admin-list">
           ${mgrReviewItems.length
@@ -148,7 +149,7 @@ function renderManagerAdmin(view, state) {
   bindPickupEvents(view, state);
   bindApprovalEvents(view, state);
   bindMgrReviewEvents(view, state);
-  bindJumpBarEvents(view);
+  bindJumpBarEvents(view, state);
 }
 
 function jumpButton(targetId, label, count, primary = false) {
@@ -172,15 +173,27 @@ function jumpButton(targetId, label, count, primary = false) {
   `;
 }
 
-function bindJumpBarEvents(view) {
+function bindJumpBarEvents(view, state) {
   view.querySelectorAll("[data-jump-to]").forEach((button) => {
+    const targetId = button.dataset.jumpTo;
+    // ไฮไลต์ปุ่มที่กำลังเลือกอยู่ ด้วยเส้นขอบหนาขึ้นเพื่อบอกสถานะ active
+    if (activeAdminSection === targetId) {
+      button.style.boxShadow = "0 0 0 2px rgba(0,93,172,0.5) inset";
+    }
     button.addEventListener("click", () => {
-      const target = view.querySelector(`#${button.dataset.jumpTo}`);
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // กดปุ่มเดิมซ้ำ → กลับไปแสดงทุก section เหมือนเดิม (toggle)
+      activeAdminSection = activeAdminSection === targetId ? "all" : targetId;
+      renderManagerAdmin(view, state);
+      const firstVisible = view.querySelector(".admin-section-block:not([hidden])");
+      firstVisible?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     button.addEventListener("mouseenter", () => { button.style.transform = "translateY(-1px)"; });
     button.addEventListener("mouseleave", () => { button.style.transform = "translateY(0)"; });
   });
+}
+
+function sectionHidden(sectionId) {
+  return activeAdminSection !== "all" && activeAdminSection !== sectionId ? "hidden" : "";
 }
 
 // ══════════════════════════════════════════════════════════════
