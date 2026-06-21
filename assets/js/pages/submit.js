@@ -2,7 +2,7 @@ import { lists } from "../../../config/schema.js";
 import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import { createRequest } from "../services/request-service.js";
-import { addItem } from "../sharepoint.js";
+import { addItem, patchItem } from "../sharepoint.js";
 import { state } from "../state.js";
 import { escapeHtml, serializeForm } from "../utils.js";
 
@@ -20,6 +20,16 @@ const categoryMeta = {
   "Structural Drawing": { label: "Structural", short: "S", className: "ac" },
   "Electrical Drawing": { label: "Electrical", short: "E", className: "ae" },
   "Mechanical Drawing": { label: "Mechanical", short: "M", className: "am" },
+};
+
+// หมวด Drawing พิเศษ — แสดงเพิ่มเติมเฉพาะตอนสร้าง/แก้ไขโครงการขณะเลือกประเภทคำร้อง "ขออนุญาตก่อสร้าง"
+const PERMIT_REQUEST_TYPE = "🏛️ ขออนุญาตก่อสร้าง";
+const permitCategoryMeta = {
+  "ขออนุญาต อ.1": { label: "ขออนุญาต อ.1", short: "อ1", className: "ap1" },
+  "ขออนุญาต PEA/MEA": { label: "ขออนุญาต PEA/MEA", short: "PM", className: "ap2" },
+  "ขออนุญาต กกพ/พค.2": { label: "ขออนุญาต กกพ/พค.2", short: "กพ", className: "ap3" },
+  "ขออนุญาต COP/รง.4": { label: "ขออนุญาต COP/รง.4", short: "รง", className: "ap4" },
+  "อื่นๆ (ขออนุญาต)": { label: "อื่นๆ (ระบุรายละเอียด)", short: "อ", className: "ap5" },
 };
 
 let selectedProjectName = "";
@@ -102,7 +112,10 @@ function bindSubmitFlow(view) {
   window.addEventListener("resize", () => positionProjectMenu(view));
   window.addEventListener("scroll", () => positionProjectMenu(view), true);
   view.querySelector("#project-clear").addEventListener("click", () => clearProject(view));
-  view.querySelector("#add-project").addEventListener("click", () => openAddProjectModal(view));
+  view.querySelector("#add-project").addEventListener("click", () => {
+    const checkedType = view.querySelector("#drawing-submit-form input[name='requestType']:checked")?.value || "";
+    openAddProjectModal(view, checkedType);
+  });
   view.querySelector("#reset-submit").addEventListener("click", () => renderSubmit(view));
 
   view.querySelectorAll("input[name='requestType']").forEach((radio) => {
@@ -573,9 +586,11 @@ function confirmRow(label, value) {
 // ADD PROJECT MODAL — เขียนลง SharePoint ProjectList + DrawingNumberList จริง
 // ══════════════════════════════════════════════════════════════
 
-function openAddProjectModal(view) {
-  let drawingRows = {}; // category -> [{ no: "", name: "" }]
-  Object.keys(categoryMeta).forEach((key) => { drawingRows[key] = []; });
+function openAddProjectModal(view, requestType = "") {
+  const isPermitFlow = requestType === PERMIT_REQUEST_TYPE;
+  const effectiveCategories = isPermitFlow
+    ? { ...categoryMeta, ...permitCategoryMeta }
+    : categoryMeta;
 
   const body = `
     <form id="new-project-form" class="new-project-form">
@@ -588,8 +603,10 @@ function openAddProjectModal(view) {
       </label>
 
       <div id="existing-project-note" class="existing-project-note" hidden>
-        ℹ️ พบโครงการนี้ในระบบแล้ว — ข้อมูลขนาด Solar/พิกัด และ Drawing เดิมถูกดึงมาแสดงให้อัตโนมัติ
+        ℹ️ พบโครงการนี้ในระบบแล้ว — กำลังแก้ไขข้อมูลโครงการเดิม ไม่ใช่สร้างใหม่
       </div>
+
+      ${isPermitFlow ? `<div class="permit-flow-note">🏛️ กำลังเพิ่ม Drawing สำหรับคำร้อง "ขออนุญาตก่อสร้าง" — มีหมวดขออนุญาตเพิ่มเติมให้เลือกด้านล่าง</div>` : ""}
 
       <div class="form-grid">
         <label class="field"><span>ขนาด Solar (kWp)</span><input id="new-project-kwp" name="kwp" type="text" placeholder="500" /></label>
@@ -597,14 +614,14 @@ function openAddProjectModal(view) {
       </div>
 
       <div id="existing-drawings-block" class="existing-drawings-block" hidden>
-        <span class="new-doc-picker-title">Drawing ที่มีอยู่แล้วในโครงการนี้</span>
-        <div id="existing-drawings-list" class="existing-drawings-list"></div>
+        <span class="new-doc-picker-title">Drawing ที่มีอยู่แล้วในโครงการนี้ (แก้ไขชื่อ/เลขได้โดยตรง)</span>
+        <div id="existing-drawings-list" class="existing-drawings-by-category"></div>
       </div>
 
       <div class="new-doc-picker">
         <span>เพิ่ม Drawing ใหม่ (เลือกได้หลายหมวด หลายแถว — ไม่บังคับ)</span>
         <div id="new-drawing-categories" class="new-drawing-categories">
-          ${Object.keys(categoryMeta).map((key) => newDrawingCategoryBlock(key)).join("")}
+          ${Object.keys(effectiveCategories).map((key) => newDrawingCategoryBlock(key, effectiveCategories)).join("")}
         </div>
       </div>
     </form>
@@ -624,14 +641,36 @@ function openAddProjectModal(view) {
           const data = serializeForm(form);
           const isExisting = getProjects().some((project) => project.Title === data.name);
 
-          // เก็บแถว Drawing ใหม่ทั้งหมดจากทุกหมวด (อ่านจาก DOM ตรงๆ เผื่อผู้ใช้แก้ไขหลังเพิ่มแถว)
+          // เก็บแถว Drawing ใหม่ทั้งหมดจากทุกหมวด (รวมหมวดขออนุญาตพิเศษถ้าอยู่ในโหมด permit)
           const newDrawings = [];
-          Object.keys(categoryMeta).forEach((category) => {
+          Object.keys(effectiveCategories).forEach((category) => {
             document.querySelectorAll(`[data-drawing-row][data-category="${cssEscapeAttr(category)}"]`).forEach((row) => {
               const no = row.querySelector("[data-row-no]")?.value.trim();
               const name = row.querySelector("[data-row-name]")?.value.trim();
               if (no) newDrawings.push({ category, no, name: name || "" });
             });
+          });
+
+          // หมวด "อื่นๆ (ขออนุญาต)" ใส่รายละเอียดได้แม้ไม่กรอก Drawing No. — ใช้ค่าจาก textarea แทน
+          const permitOtherDetail = document.querySelector('[data-permit-other-for="อื่นๆ (ขออนุญาต)"]')?.value.trim();
+          if (isPermitFlow && permitOtherDetail) {
+            const hasOtherRow = newDrawings.some((d) => d.category === "อื่นๆ (ขออนุญาต)");
+            if (!hasOtherRow) {
+              newDrawings.push({ category: "อื่นๆ (ขออนุญาต)", no: "OTHER", name: permitOtherDetail });
+            }
+          }
+
+          // เก็บการแก้ไข Drawing เดิมที่เปลี่ยนค่าไปจากตอนโหลดครั้งแรก
+          const editedDrawings = [];
+          document.querySelectorAll("[data-existing-drawing-row]").forEach((row) => {
+            const itemId = row.dataset.existingDrawingRow;
+            const no = row.querySelector("[data-existing-no]")?.value.trim();
+            const name = row.querySelector("[data-existing-name]")?.value.trim();
+            const original = state.masterData.drawingNumbers.find((d) => String(d.id) === String(itemId));
+            if (!original) return;
+            if (no !== (original.Title || "") || name !== (original.DrawingName || "")) {
+              editedDrawings.push({ itemId, no, name });
+            }
           });
 
           try {
@@ -643,6 +682,27 @@ function openAddProjectModal(view) {
                 DefaultLocation: data.location || "",
               });
               state.masterData.projects.push({ Title: data.name, DefaultKwp: data.kwp ? `${data.kwp} kWp` : "", DefaultLocation: data.location || "" });
+            } else {
+              const project = getProjects().find((p) => p.Title === data.name);
+              if (project?.id) {
+                await patchItem(lists.projects, project.id, {
+                  DefaultKwp: data.kwp ? `${data.kwp} kWp` : "",
+                  SolarKwp: data.kwp ? `${data.kwp} kWp` : "",
+                  DefaultLocation: data.location || "",
+                });
+                project.DefaultKwp = data.kwp ? `${data.kwp} kWp` : "";
+                project.SolarKwp = project.DefaultKwp;
+                project.DefaultLocation = data.location || "";
+              }
+            }
+
+            for (const edit of editedDrawings) {
+              await patchItem(lists.drawingNumbers, edit.itemId, {
+                Title: edit.no,
+                DrawingName: edit.name,
+              });
+              const target = state.masterData.drawingNumbers.find((d) => String(d.id) === String(edit.itemId));
+              if (target) { target.Title = edit.no; target.DrawingName = edit.name; }
             }
 
             for (const drawing of newDrawings) {
@@ -664,12 +724,12 @@ function openAddProjectModal(view) {
 
             close();
             pickProject(view, data.name);
-            showToast(
-              isExisting
-                ? `เพิ่ม Drawing ใหม่ ${newDrawings.length} รายการให้โครงการ "${data.name}" แล้ว`
-                : `เพิ่มโครงการ "${data.name}" เรียบร้อยแล้ว`,
-              "success"
-            );
+            const parts = [];
+            if (!isExisting) parts.push(`เพิ่มโครงการ "${data.name}" แล้ว`);
+            else parts.push(`บันทึกการแก้ไขโครงการ "${data.name}" แล้ว`);
+            if (editedDrawings.length) parts.push(`แก้ไข Drawing ${editedDrawings.length} รายการ`);
+            if (newDrawings.length) parts.push(`เพิ่ม Drawing ใหม่ ${newDrawings.length} รายการ`);
+            showToast(parts.join(" — "), "success");
           } catch (error) {
             showToast(`บันทึกไม่สำเร็จ: ${error.message}`, "error");
           }
@@ -678,11 +738,11 @@ function openAddProjectModal(view) {
     ],
   });
 
-  bindAddProjectModalEvents(drawingRows);
+  bindAddProjectModalEvents();
 }
 
-function newDrawingCategoryBlock(category) {
-  const meta = categoryMeta[category];
+function newDrawingCategoryBlock(category, categorySource = categoryMeta) {
+  const meta = categorySource[category];
   return `
     <div class="new-drawing-category" data-new-category="${escapeHtml(category)}">
       <div class="new-drawing-category-head">
@@ -691,6 +751,7 @@ function newDrawingCategoryBlock(category) {
         <button class="small-button" data-add-row="${escapeHtml(category)}" type="button">+ เพิ่มแถว</button>
       </div>
       <div class="new-drawing-rows" data-rows-for="${escapeHtml(category)}"></div>
+      ${category === "อื่นๆ (ขออนุญาต)" ? `<textarea class="permit-other-detail" data-permit-other-for="${escapeHtml(category)}" rows="2" placeholder="ระบุรายละเอียดประเภทการขออนุญาตอื่นๆ..."></textarea>` : ""}
     </div>
   `;
 }
@@ -705,6 +766,27 @@ function newDrawingRowHtml(category) {
   `;
 }
 
+function existingDrawingCategoryBlock(category, drawings) {
+  const meta = categoryMeta[category] || { label: category, short: "?", className: "ao" };
+  return `
+    <div class="existing-drawing-category">
+      <div class="existing-drawing-category-head">
+        <b class="doc-badge ${meta.className}">${escapeHtml(meta.short)}</b>
+        <span>${escapeHtml(meta.label)}</span>
+        <small>${drawings.length} รายการ</small>
+      </div>
+      <div class="existing-drawing-rows">
+        ${drawings.map((drawing) => `
+          <div class="existing-drawing-row" data-existing-drawing-row="${escapeHtml(String(drawing.id))}">
+            <input type="text" value="${escapeHtml(drawing.Title || "")}" data-existing-no placeholder="Drawing No." />
+            <input type="text" value="${escapeHtml(drawing.DrawingName || "")}" data-existing-name placeholder="Drawing Name" />
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function bindAddProjectModalEvents() {
   const nameInput = document.querySelector("#new-project-name");
   const kwpInput = document.querySelector("#new-project-kwp");
@@ -712,16 +794,19 @@ function bindAddProjectModalEvents() {
   const existingNote = document.querySelector("#existing-project-note");
   const existingBlock = document.querySelector("#existing-drawings-block");
   const existingList = document.querySelector("#existing-drawings-list");
+  const saveButton = document.querySelector(".modal footer .primary-button");
 
   nameInput?.addEventListener("input", () => {
     const project = getProjects().find((item) => item.Title === nameInput.value);
     if (!project) {
       existingNote.hidden = true;
       existingBlock.hidden = true;
+      if (saveButton) saveButton.textContent = "บันทึกโครงการ";
       return;
     }
 
     existingNote.hidden = false;
+    if (saveButton) saveButton.textContent = "บันทึกการแก้ไข";
     kwpInput.value = (project.DefaultKwp || project.SolarKwp || "").replace(/\s*kWp\s*$/i, "");
     locationInput.value = project.DefaultLocation || "";
 
@@ -730,16 +815,15 @@ function bindAddProjectModalEvents() {
     );
     if (drawings.length) {
       existingBlock.hidden = false;
-      existingList.innerHTML = drawings.map((drawing) => {
-        const meta = categoryMeta[drawing.DrawingCategory] || { short: "?", className: "ao" };
-        return `
-          <div class="existing-drawing-item">
-            <b class="doc-badge ${meta.className}">${escapeHtml(meta.short)}</b>
-            <strong>${escapeHtml(drawing.Title || "—")}</strong>
-            <span>${escapeHtml(drawing.DrawingName || "")}</span>
-          </div>
-        `;
-      }).join("");
+      const grouped = {};
+      drawings.forEach((d) => {
+        const cat = d.DrawingCategory || "อื่นๆ";
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(d);
+      });
+      existingList.innerHTML = Object.keys(grouped)
+        .map((cat) => existingDrawingCategoryBlock(cat, grouped[cat]))
+        .join("");
     } else {
       existingBlock.hidden = true;
     }
