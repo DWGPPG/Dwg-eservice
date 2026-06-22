@@ -518,18 +518,37 @@ export async function updateWorkStatus(request, status) {
 export async function submitSendwork(request, { dwgUrl, pdfUrl, reviseTag, note, files = [] }) {
   let finalDwgUrl = dwgUrl || "";
   let finalPdfUrl = pdfUrl || "";
+  let otherFileLinks = []; // ไฟล์ที่ไม่ใช่ DWG/PDF
 
   if (files.length) {
     try {
       const uploaded = await uploadSendworkFiles(request, files, reviseTag);
       uploaded.forEach((file) => {
         const ext = (file.name || "").split(".").pop()?.toLowerCase();
-        if (ext === "dwg" && !finalDwgUrl) finalDwgUrl = file.webUrl;
-        if (ext === "pdf" && !finalPdfUrl) finalPdfUrl = file.webUrl;
+        const url = file.webUrl || "";
+        if (!url) return;
+        if (ext === "dwg" && !finalDwgUrl) {
+          finalDwgUrl = url;
+        } else if (ext === "pdf" && !finalPdfUrl) {
+          finalPdfUrl = url;
+        } else {
+          // ไฟล์ประเภทอื่น (jpg, png, docx, xlsx, zip, dxf ฯลฯ) เก็บ URL+ชื่อไว้
+          otherFileLinks.push({ name: file.name, url });
+        }
       });
     } catch (error) {
       console.warn("submitSendwork upload failed:", error.message);
     }
+  }
+
+  // เก็บลิงก์ไฟล์อื่นๆ ต่อท้าย noteFromDrawing ในรูป JSON เพื่อให้แสดงผลได้
+  // รูปแบบ: <หมายเหตุปกติ>|||[{"name":"...","url":"..."}]
+  let finalNote = note || "";
+  if (otherFileLinks.length) {
+    const encoded = JSON.stringify(otherFileLinks);
+    finalNote = finalNote
+      ? `${finalNote}|||${encoded}`
+      : `|||${encoded}`;
   }
 
   await patchRequest(request, {
@@ -537,13 +556,13 @@ export async function submitSendwork(request, { dwgUrl, pdfUrl, reviseTag, note,
     dwgFileUrl: finalDwgUrl,
     pdfFileUrl: finalPdfUrl,
     currentRevise: reviseTag || request.currentRevise,
-    noteFromDrawing: note || "",
+    noteFromDrawing: finalNote,
   }, "ส่งงาน — รอผู้จัดการตรวจสอบ");
 
-  await notifyManagersForReview(request, { dwgUrl: finalDwgUrl, pdfUrl: finalPdfUrl, note });
+  await notifyManagersForReview(request, { dwgUrl: finalDwgUrl, pdfUrl: finalPdfUrl, note, otherFileLinks });
 }
 
-async function notifyManagersForReview(request, { dwgUrl, pdfUrl, note }) {
+async function notifyManagersForReview(request, { dwgUrl, pdfUrl, note, otherFileLinks = [] }) {
   const lines = [
     "🔍 <b>PPG Drawing e-Service — รองานตรวจสอบก่อนส่งมอบ</b>", "",
     `📋 <b>เลขคำขอ:</b> ${request.requestNo}`,
@@ -555,6 +574,7 @@ async function notifyManagersForReview(request, { dwgUrl, pdfUrl, note }) {
     `👤 <b>ผู้เขียนแบบ:</b> ${state.user?.name || ""}`,
     dwgUrl ? `📐 <a href="${dwgUrl}">เปิดไฟล์ DWG</a>` : "",
     pdfUrl ? `📄 <a href="${pdfUrl}">เปิดไฟล์ PDF</a>` : "",
+    ...otherFileLinks.map((f) => `📎 <a href="${f.url}">${f.name}</a>`),
     note ? `📌 <b>หมายเหตุ:</b> ${note}` : "",
     "",
     "👉 <b>กรุณาเข้าระบบ หน้า \"ติดตามสถานะ\" เพื่อ ✅ ส่งมอบ หรือ ↩️ ส่งกลับแก้ไข</b>",
