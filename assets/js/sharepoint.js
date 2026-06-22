@@ -47,11 +47,42 @@ export async function addItem(listName, fieldsPayload) {
   return { id: response.id, ...response.fields };
 }
 
+// ── cache ชื่อ field ที่ไม่มีจริงใน List แต่ละตัว เพื่อไม่ต้อง retry ซ้ำ ──
+const unknownFieldsCache = {};
+
 export async function patchItem(listName, itemId, fieldsPayload) {
   const siteId = await ensureSite();
   const listId = await ensureListId(listName);
   if (!listId) throw new Error(`ไม่พบ List "${listName}" บน SharePoint`);
-  return updateListItem(siteId, listId, itemId, fieldsPayload);
+
+  // กรอง field ที่รู้อยู่แล้วว่าไม่มีใน List ออกก่อน (จาก cache ครั้งก่อน)
+  const known = unknownFieldsCache[listName] || new Set();
+  let payload = Object.fromEntries(
+    Object.entries(fieldsPayload).filter(([k]) => !known.has(k))
+  );
+
+  // ลอง PATCH ถ้า 400 "Field 'XYZ' is not recognized" → ตัดออกแล้ว retry
+  while (Object.keys(payload).length > 0) {
+    try {
+      return await updateListItem(siteId, listId, itemId, payload);
+    } catch (err) {
+      const msg = err.message || "";
+      const m = msg.match(/Field '([^']+)' is not recognized/i)
+             || msg.match(/field '([^']+)' does not exist/i)
+             || msg.match(/"([A-Za-z0-9_]+)" is not a (valid|recognized) field/i);
+      if (m) {
+        const bad = m[1];
+        // เก็บ cache ไว้ไม่ต้อง retry field เดิมรอบหน้า
+        if (!unknownFieldsCache[listName]) unknownFieldsCache[listName] = new Set();
+        unknownFieldsCache[listName].add(bad);
+        delete payload[bad];
+        console.warn(`patchItem [${listName}]: field "${bad}" ไม่มีใน SharePoint — ข้ามและลองใหม่`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  return null;
 }
 
 export async function loadMasterData() {
