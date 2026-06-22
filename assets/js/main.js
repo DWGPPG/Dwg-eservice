@@ -20,12 +20,28 @@ function hashRequests(requests) {
   return (requests || []).map((r) => `${r.id}:${r.status}:${r.currentRevise || ""}`).join("|");
 }
 
+/** หน้าที่ห้าม re-render ระหว่าง polling เพราะผู้ใช้อาจกรอกข้อมูลอยู่ */
+const NO_POLL_RENDER_ROUTES = new Set(["/submit", "/track"]);
+
+/** ตรวจสอบว่ามี modal เปิดอยู่หรือไม่ */
+function isModalOpen() {
+  return document.querySelector("#modal-root")?.children?.length > 0;
+}
+
 /** ตรวจสอบว่า user กำลังพิมพ์อยู่ในฟอร์มหรือไม่ */
 function isUserTyping() {
   const active = document.activeElement;
   if (!active) return false;
   const tag = active.tagName.toLowerCase();
   return tag === "input" || tag === "textarea" || tag === "select" || active.isContentEditable;
+}
+
+/** ตรวจสอบว่าควร re-render หรือไม่ */
+function shouldRender() {
+  if (NO_POLL_RENDER_ROUTES.has(state.currentRoute)) return false;
+  if (isModalOpen()) return false;
+  if (isUserTyping()) return false;
+  return true;
 }
 
 if (document.readyState === "loading") {
@@ -103,10 +119,8 @@ function startPolling() {
 
       if (changed) {
         lastRequestsHash = newHash;
-        // re-render เฉพาะเมื่อข้อมูลเปลี่ยน และ user ไม่ได้พิมพ์อยู่
-        if (state.currentRoute && !isUserTyping()) navigate();
-      } else if (forceRender && !isUserTyping()) {
-        // force render เมื่อกลับมาที่แท็บ แม้ข้อมูลไม่เปลี่ยน
+        if (state.currentRoute && shouldRender()) navigate();
+      } else if (forceRender && shouldRender()) {
         if (state.currentRoute) navigate();
       }
     } catch (error) {
