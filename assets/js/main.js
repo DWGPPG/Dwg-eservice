@@ -141,8 +141,10 @@ function showAuthPanel(show) {
   if (panel) panel.hidden = !show;
   const view = qs("#app-view");
   if (view) view.hidden = show;
+  // ใช้ CSS class แทน hidden — เพื่อให้ sidebar ยังอยู่ใน grid flow ตลอดเวลา
+  // (ถ้า sidebar.hidden=true จะออกจาก DOM flow ทำให้ grid เหลือแค่ 1 column)
   const sidebar = document.querySelector(".sidebar");
-  if (sidebar) sidebar.hidden = show;
+  if (sidebar) sidebar.classList.toggle("auth-hidden", show);
   const topbar = document.querySelector(".topbar");
   if (topbar) topbar.hidden = show;
   document.body.classList.toggle("auth-mode", show);
