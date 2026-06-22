@@ -611,6 +611,9 @@ function openAssignModal(view, state, request, level) {
 // ══════════════════════════════════════════════════════════════
 
 function renderMgrReviewCard(item) {
+  const hasDrawingFile = item.dwgFileUrl || item.pdfFileUrl;
+  const hasRefLink = item.dataLink;
+
   return `
     <article class="admin-card" id="mgr-card-${escapeHtml(item.requestNo)}">
       <div class="admin-card-header">
@@ -620,17 +623,48 @@ function renderMgrReviewCard(item) {
         </div>
         <span class="badge badge-mgr_review">🔍 รอผู้จัดการตรวจ+ส่งมอบ</span>
       </div>
+
       <div class="lv1-info-block">
         <div class="lv1-info-grid">
           <div><span>ผู้เขียนแบบ:</span> <b>${escapeHtml(item.assignedToName || "—")}</b></div>
-          <div><span>Revise:</span> ${escapeHtml(item.currentRevise || item.reviseNumber || "—")}</div>
-          ${item.noteFromDrawing ? `<div class="span-full"><span>หมายเหตุ:</span> ${escapeHtml(item.noteFromDrawing)}</div>` : ""}
+          <div><span>Revise:</span> <b>${escapeHtml(item.currentRevise || item.reviseNumber || "—")}</b></div>
+          <div><span>กำหนดส่ง:</span> ${item.dueDate ? escapeHtml(new Date(item.dueDate).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })) : "—"}</div>
+          <div><span>ความเร่งด่วน:</span> ${escapeHtml(item.priority || "ปกติ")}</div>
+          ${item.description ? `<div class="span-full"><span>รายละเอียดคำขอ:</span> ${escapeHtml(item.description)}</div>` : ""}
+          ${item.noteFromDrawing ? `<div class="span-full mgr-note-from-drawing"><span>📝 หมายเหตุจากผู้เขียนแบบ:</span> <b>${escapeHtml(item.noteFromDrawing)}</b></div>` : ""}
         </div>
       </div>
+
+      <!-- ไฟล์งานที่ส่งมาให้ตรวจสอบ -->
+      <div class="mgr-file-review-block">
+        <div class="mgr-file-review-label">📎 ไฟล์งานที่ส่งมาตรวจสอบ</div>
+        <div class="mgr-file-review-links">
+          ${item.dwgFileUrl
+            ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn">
+                <span class="mgr-file-icon">📐</span>
+                <span>เปิดไฟล์ DWG</span>
+              </a>`
+            : `<span class="mgr-file-missing">— ไม่มีไฟล์ DWG</span>`}
+          ${item.pdfFileUrl
+            ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn">
+                <span class="mgr-file-icon">📄</span>
+                <span>เปิดไฟล์ PDF</span>
+              </a>`
+            : `<span class="mgr-file-missing">— ไม่มีไฟล์ PDF</span>`}
+          ${item.dataLink
+            ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn">
+                <span class="mgr-file-icon">🔗</span>
+                <span>ลิงก์ข้อมูลอ้างอิง</span>
+              </a>`
+            : ""}
+        </div>
+        ${!hasDrawingFile && !hasRefLink
+          ? `<div class="mgr-file-warning">⚠️ ผู้เขียนแบบไม่ได้แนบไฟล์หรือลิงก์มา — กรุณาตรวจสอบโดยตรงกับผู้เขียนแบบก่อนส่งมอบ</div>`
+          : ""}
+      </div>
+
       <div class="admin-card-footer">
-        ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="secondary-button small-flow-button">📐 ดู DWG</a>` : ""}
-        ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="secondary-button small-flow-button">📄 ดู PDF</a>` : ""}
-        <div class="admin-card-actions">
+        <div class="admin-card-actions" style="width:100%;justify-content:flex-end;">
           <button class="secondary-button small-flow-button" data-mgr-action="toggle-reject" data-request="${escapeHtml(item.requestNo)}">↩️ ส่งกลับแก้ไข</button>
           <button class="primary-button small-flow-button" data-mgr-action="approve" data-request="${escapeHtml(item.requestNo)}">✅ อนุมัติ + ส่งมอบ</button>
         </div>
