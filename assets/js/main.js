@@ -50,12 +50,13 @@ async function boot() {
 }
 
 async function afterSignedIn() {
-  showAuthPanel(false);
   try {
     await loadMasterData();
     refreshUserRole();
     await hydrateRequests();
-    navigate(); // router พร้อมแล้ว (initRouter ใน boot) แค่สั่ง render
+    // แสดง app shell ก่อนเสมอ — ต้อง unhide ก่อน navigate() จะได้ layout ถูกต้อง
+    showAuthPanel(false);
+    navigate();
 
     if (state.user?.role === "manager") {
       await requestNotificationPermission();
