@@ -231,3 +231,9 @@
   margin-bottom: 0;
   color: var(--muted);
 }
+
+/* ซ่อน sidebar ตอนยังไม่ login โดยไม่เอาออกจาก grid flow */
+.sidebar.auth-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
