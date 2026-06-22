@@ -6934,3 +6934,11 @@ body.auth-mode .main-panel {
   border: 1.5px solid #cbd5e1;
 }
 .mgr-file-btn.other-btn:hover { background: #f1f5f9; }
+
+.mgr-file-btn.folder-btn {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1.5px solid #86efac;
+  margin-left: auto;
+}
+.mgr-file-btn.folder-btn:hover { background: #dcfce7; }
