@@ -308,19 +308,34 @@ async function notifyNewRequest(request) {
 // SharePoint Hyperlink fields — ต้องส่งเป็น { Url, Description } ไม่ใช่ string ธรรมดา
 const HYPERLINK_LOCAL_KEYS = new Set(["dwgFileUrl", "pdfFileUrl", "dataLink"]);
 
+// SharePoint Date/Time fields — ต้องส่งเป็น ISO 8601 string เสมอ
+const DATE_LOCAL_KEYS = new Set([
+  "dueDate", "submittedAt", "approvedLv2At", "deliveredAt",
+  "mgrApprovedAt", "mgrRejectedAt", "reviewedAt", "doneAt", "reviewDeadline",
+]);
+
 export async function patchRequest(request, patch, auditAction = "") {
   const f = fields.requests;
   const spPatch = {};
   Object.entries(patch).forEach(([localKey, value]) => {
     const spField = f[localKey];
-    // ข้าม field ที่ไม่มีใน mapping (spField เป็น undefined) เพื่อหลีกเลี่ยง 400 Bad Request
     if (!spField) return;
-    if (value === undefined) return;
+    if (value === undefined || value === null) return;
 
-    // Hyperlink field: SharePoint ต้องการ { Url, Description } — string ธรรมดาทำให้ 400
+    // Hyperlink field: SharePoint ต้องการ { Url, Description }
     if (HYPERLINK_LOCAL_KEYS.has(localKey)) {
       const urlStr = typeof value === "string" ? value.trim() : (value?.Url || "");
       spPatch[spField] = urlStr ? { Url: urlStr, Description: urlStr } : null;
+      return;
+    }
+
+    // Date/Time field: ต้องเป็น ISO 8601 string เสมอ (ไม่ใช่ locale string)
+    if (DATE_LOCAL_KEYS.has(localKey) && value) {
+      try {
+        spPatch[spField] = new Date(value).toISOString();
+      } catch {
+        spPatch[spField] = value;
+      }
       return;
     }
 
