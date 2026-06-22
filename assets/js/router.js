@@ -21,10 +21,11 @@ const routes = {
 export function initRouter() {
   renderNav();
   window.addEventListener("hashchange", navigate);
-  navigate();
+  // ไม่เรียก navigate() ที่นี่ — main.js จะเรียก navigate() เองหลัง login + โหลดข้อมูลเสร็จ
 }
 
 export function navigate() {
+  if (!state.account) return; // ยังไม่ login — ไม่ render อะไรทั้งนั้น
   renderNav();
   document.body.classList.remove("nav-open");
   const requestedRoute = location.hash.replace("#", "");
