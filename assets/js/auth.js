@@ -93,20 +93,9 @@ export async function login() {
   };
 
   try {
-    if (isMobileDevice()) {
-      // หน้าจะ redirect ออกไปทันที — โค้ดหลังจุดนี้จะไม่ทำงานต่อในรอบนี้
-      await msalInstance.loginRedirect(request);
-      return null;
-    }
-
-    const response = await msalInstance.loginPopup(request);
-    if (!isAllowedAccount(response.account)) {
-      await signOutAccount(response.account);
-      throw new Error(`ใช้ได้เฉพาะบัญชี @${appConfig.azure.allowedDomain}`);
-    }
-    setActiveAccount(response.account);
-    setState({ accessToken: response.accessToken || null });
-    return response.account;
+    // ใช้ redirect เสมอ — ป้องกัน COOP block ใน Chrome และ popup ถูกบล็อกโดย browser
+    await msalInstance.loginRedirect(request);
+    return null;
   } finally {
     signingIn = false;
   }
@@ -116,12 +105,7 @@ export async function logout() {
   const account = state.account;
   setState({ account: null, user: null, accessToken: null, siteId: null, requests: [] });
   if (!account || !msalInstance) return;
-
-  if (isMobileDevice()) {
-    await msalInstance.logoutRedirect({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });
-    return;
-  }
-  await msalInstance.logoutPopup({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });
+  await msalInstance.logoutRedirect({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });
 }
 
 export async function acquireToken() {
@@ -152,17 +136,8 @@ export async function ensureInteractiveToken() {
   const silent = await acquireToken();
   if (silent) return silent;
   if (!msalInstance || !state.account) return null;
-
-  if (isMobileDevice()) {
-    await msalInstance.acquireTokenRedirect({ account: state.account, scopes: appConfig.azure.scopes });
-    return null;
-  }
-  const response = await msalInstance.acquireTokenPopup({
-    account: state.account,
-    scopes: appConfig.azure.scopes,
-  });
-  setState({ accessToken: response.accessToken });
-  return response.accessToken;
+  await msalInstance.acquireTokenRedirect({ account: state.account, scopes: appConfig.azure.scopes });
+  return null;
 }
 
 function setActiveAccount(account) {
@@ -201,9 +176,9 @@ function isAllowedAccount(account) {
 async function signOutAccount(account) {
   if (!msalInstance || !account) return;
   try {
-    await msalInstance.logoutPopup({ account });
+    await msalInstance.logoutRedirect({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });
   } catch {
-    // The local account is cleared even if the Microsoft logout window is closed.
+    // The local account is cleared even if logout redirect fails.
   }
 }
 
