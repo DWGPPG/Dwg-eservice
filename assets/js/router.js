@@ -38,7 +38,21 @@ export function navigate() {
   state.currentRoute = route;
   qs("#page-title").textContent = PAGE_TITLES[route] || "Dashboard";
   qsa(".nav-link").forEach((link) => link.classList.toggle("is-active", link.dataset.route === route));
-  renderer(view, state);
+
+  try {
+    renderer(view, state);
+  } catch (err) {
+    console.error("Page render error:", err);
+    view.innerHTML = `
+      <div style="padding:40px;text-align:center;color:#b91c1c;">
+        <div style="font-size:40px;margin-bottom:12px;">⚠️</div>
+        <h2 style="margin:0 0 8px;font-size:18px;">โหลดหน้านี้ไม่สำเร็จ</h2>
+        <p style="color:#64748b;margin:0 0 20px;font-size:14px;">${err.message || "Unknown error"}</p>
+        <button onclick="location.reload()" style="padding:8px 20px;border-radius:8px;border:none;background:#0DB14B;color:#fff;font-size:14px;cursor:pointer;">รีโหลดหน้าเว็บ</button>
+      </div>
+    `;
+  }
+
   view.focus({ preventScroll: true });
 }
 
