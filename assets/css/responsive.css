@@ -26,13 +26,14 @@
     transform: translateX(0);
   }
 
-  .sidebar-backdrop {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 14;
-  }
+/* sidebar-backdrop ต้องไม่กิน grid column — ใช้ position fixed เสมอ */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 14;
+}
 
   body.nav-open .sidebar-backdrop {
     display: block;
