@@ -1,17 +1,17 @@
 .app-shell {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
-  width: min(1600px, 100%);
-  height: calc(100vh - 32px);
+  width: 100%;
+  height: 100vh;
   min-height: 0;
-  margin: 0 auto;
+  margin: 0;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: var(--shell-radius);
+  border: none;
+  border-radius: 0;
   background: var(--surface-strong);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow);
+  box-shadow: none;
 }
 
 .sidebar {
