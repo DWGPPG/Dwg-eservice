@@ -610,8 +610,26 @@ function openAssignModal(view, state, request, level) {
 // MGR REVIEW — ตรวจสอบและส่งมอบงาน (ย้ายมาจากหน้าติดตามงาน)
 // ══════════════════════════════════════════════════════════════
 
+/**
+ * แยก noteFromDrawing ออกเป็น { note, otherFiles }
+ * รูปแบบที่เก็บ: "<หมายเหตุ>|||[{"name":"...","url":"..."}]"
+ */
+function parseNoteAndFiles(raw = "") {
+  const sep = raw.indexOf("|||");
+  if (sep === -1) return { note: raw, otherFiles: [] };
+  const notePart = raw.slice(0, sep).trim();
+  const jsonPart = raw.slice(sep + 3).trim();
+  try {
+    const otherFiles = JSON.parse(jsonPart);
+    return { note: notePart, otherFiles: Array.isArray(otherFiles) ? otherFiles : [] };
+  } catch {
+    return { note: raw, otherFiles: [] };
+  }
+}
+
 function renderMgrReviewCard(item) {
-  const hasDrawingFile = item.dwgFileUrl || item.pdfFileUrl;
+  const { note, otherFiles } = parseNoteAndFiles(item.noteFromDrawing || "");
+  const hasDrawingFile = item.dwgFileUrl || item.pdfFileUrl || otherFiles.length;
   const hasRefLink = item.dataLink;
 
   return `
@@ -631,7 +649,7 @@ function renderMgrReviewCard(item) {
           <div><span>กำหนดส่ง:</span> ${item.dueDate ? escapeHtml(new Date(item.dueDate).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })) : "—"}</div>
           <div><span>ความเร่งด่วน:</span> ${escapeHtml(item.priority || "ปกติ")}</div>
           ${item.description ? `<div class="span-full"><span>รายละเอียดคำขอ:</span> ${escapeHtml(item.description)}</div>` : ""}
-          ${item.noteFromDrawing ? `<div class="span-full mgr-note-from-drawing"><span>📝 หมายเหตุจากผู้เขียนแบบ:</span> <b>${escapeHtml(item.noteFromDrawing)}</b></div>` : ""}
+          ${note ? `<div class="span-full mgr-note-from-drawing"><span>📝 หมายเหตุจากผู้เขียนแบบ:</span> <b>${escapeHtml(note)}</b></div>` : ""}
         </div>
       </div>
 
@@ -641,20 +659,21 @@ function renderMgrReviewCard(item) {
         <div class="mgr-file-review-links">
           ${item.dwgFileUrl
             ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn">
-                <span class="mgr-file-icon">📐</span>
-                <span>เปิดไฟล์ DWG</span>
+                <span class="mgr-file-icon">📐</span><span>เปิดไฟล์ DWG</span>
               </a>`
             : `<span class="mgr-file-missing">— ไม่มีไฟล์ DWG</span>`}
           ${item.pdfFileUrl
             ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn">
-                <span class="mgr-file-icon">📄</span>
-                <span>เปิดไฟล์ PDF</span>
+                <span class="mgr-file-icon">📄</span><span>เปิดไฟล์ PDF</span>
               </a>`
             : `<span class="mgr-file-missing">— ไม่มีไฟล์ PDF</span>`}
+          ${otherFiles.map((f) => `
+            <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn">
+              <span class="mgr-file-icon">📎</span><span>${escapeHtml(f.name)}</span>
+            </a>`).join("")}
           ${item.dataLink
             ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn">
-                <span class="mgr-file-icon">🔗</span>
-                <span>ลิงก์ข้อมูลอ้างอิง</span>
+                <span class="mgr-file-icon">🔗</span><span>ลิงก์ข้อมูลอ้างอิง</span>
               </a>`
             : ""}
         </div>
