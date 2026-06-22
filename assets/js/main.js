@@ -22,10 +22,17 @@ if (document.readyState === "loading") {
 
 async function boot() {
   document.documentElement.dataset.theme = state.theme;
+
+  // ซ่อน app shell ทันทีตั้งแต่เริ่ม — แสดงเฉพาะหน้า login ก่อน
+  showAuthPanel(true);
+
   bindChrome();
   subscribe(updateShell);
   subscribe(onRequestsChanged);
   updateShell(state);
+
+  // เริ่ม router เพื่อให้ hashchange listener พร้อม แต่ยังไม่ render (guard ใน navigate())
+  initRouter();
 
   try {
     await initAuth();
@@ -38,18 +45,17 @@ async function boot() {
     showToast("เริ่มต้นระบบ Microsoft 365 ไม่สำเร็จ — ลองรีเฟรชหน้าเว็บ", "error");
   }
 
+  // ยังไม่ได้ login — แสดงหน้า login
   showAuthPanel(true);
-  initRouter();
 }
 
 async function afterSignedIn() {
   showAuthPanel(false);
-  initRouter();
   try {
     await loadMasterData();
     refreshUserRole();
     await hydrateRequests();
-    navigate();
+    navigate(); // router พร้อมแล้ว (initRouter ใน boot) แค่สั่ง render
 
     if (state.user?.role === "manager") {
       await requestNotificationPermission();
