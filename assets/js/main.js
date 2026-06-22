@@ -11,7 +11,7 @@ import { state, subscribe } from "./state.js";
 import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
 
-const POLL_INTERVAL_MS = 2 * 60 * 1000; // เช็คคำร้องใหม่ทุก 2 นาทีตอนเปิดแอปค้างไว้
+const POLL_INTERVAL_MS = 10 * 1000; // เช็คทุก 10 วินาที
 let pollTimer = null;
 
 if (document.readyState === "loading") {
@@ -81,12 +81,30 @@ function startPolling() {
   pollTimer = setInterval(async () => {
     if (!state.account || document.hidden) return;
     try {
-      await hydrateRequests(); // onRequestsChanged subscriber จะรีเฟรช badge + แจ้งเตือนให้อัตโนมัติ
+      await hydrateRequests();
       if (state.currentRoute) navigate();
     } catch (error) {
       console.warn("Polling refresh failed (non-critical):", error.message);
     }
   }, POLL_INTERVAL_MS);
+
+  // Refresh ทันทีเมื่อผู้ใช้กลับมาที่แท็บหรือ focus หน้าต่าง
+  let lastRefresh = Date.now();
+  const refreshIfStale = async () => {
+    if (!state.account) return;
+    if (Date.now() - lastRefresh < 5000) return; // ไม่ refresh ถี่กว่า 5 วินาที
+    lastRefresh = Date.now();
+    try {
+      await hydrateRequests();
+      if (state.currentRoute) navigate();
+    } catch (_) {}
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshIfStale();
+  });
+
+  window.addEventListener("focus", refreshIfStale);
 }
 
 function bindChrome() {
