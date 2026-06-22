@@ -24,9 +24,17 @@ export function renderDashboard(view, state) {
     .sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0))
     .slice(0, 20);
 
-  const workload = buildTeamWorkload(requests);
+  let workload = [];
+  try { workload = buildTeamWorkload(requests); } catch (_) {}
   const topWorkload = workload[0] || { name: "—", role: "—", count: 0, urgent: 0 };
-  const pipeline = buildPipelineTotals(requests);
+
+  let pipeline = { proposal: 0, construction: 0 };
+  try { pipeline = buildPipelineTotals(requests); } catch (_) {}
+
+  let chartSvg = "";
+  try { chartSvg = cleanLineChartSvg(buildChartSeries(requests, dashboardChartPeriod)); } catch (_) {
+    chartSvg = `<p style="color:#94a3b8;padding:20px 0">ไม่มีข้อมูลกราฟ</p>`;
+  }
 
   view.innerHTML = `
     <div class="dashboard-modern">
@@ -64,7 +72,7 @@ export function renderDashboard(view, state) {
             ${chartPeriods.map((period) => chartPeriodButton(period)).join("")}
           </div>
           <div class="chart-svg-slot">
-            ${cleanLineChartSvg(buildChartSeries(requests, dashboardChartPeriod))}
+            ${chartSvg}
           </div>
         </div>
       </section>
