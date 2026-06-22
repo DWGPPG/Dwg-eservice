@@ -11,8 +11,14 @@ import { state, subscribe } from "./state.js";
 import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
 
-const POLL_INTERVAL_MS = 10 * 1000; // เช็คทุก 10 วินาที
+const POLL_INTERVAL_MS = 10 * 1000;
 let pollTimer = null;
+let lastRequestsHash = "";
+
+/** hash ง่ายๆ จาก requests array เพื่อเช็คว่าข้อมูลเปลี่ยนหรือไม่ */
+function hashRequests(requests) {
+  return (requests || []).map((r) => `${r.id}:${r.status}:${r.currentRevise || ""}`).join("|");
+}
 
 /** ตรวจสอบว่า user กำลังพิมพ์อยู่ในฟอร์มหรือไม่ */
 function isUserTyping() {
@@ -86,33 +92,42 @@ async function afterSignedIn() {
  */
 function startPolling() {
   if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(async () => {
+
+  const refreshData = async (forceRender = false) => {
     if (!state.account || document.hidden) return;
     try {
       await hydrateRequests();
-      // ไม่ re-render ถ้า user กำลังพิมพ์อยู่ในฟอร์ม — ป้องกัน focus หลุดและหน้ากระพริบ
-      if (state.currentRoute && !isUserTyping()) navigate();
+
+      const newHash = hashRequests(state.requests);
+      const changed = newHash !== lastRequestsHash;
+
+      if (changed) {
+        lastRequestsHash = newHash;
+        // re-render เฉพาะเมื่อข้อมูลเปลี่ยน และ user ไม่ได้พิมพ์อยู่
+        if (state.currentRoute && !isUserTyping()) navigate();
+      } else if (forceRender && !isUserTyping()) {
+        // force render เมื่อกลับมาที่แท็บ แม้ข้อมูลไม่เปลี่ยน
+        if (state.currentRoute) navigate();
+      }
     } catch (error) {
       console.warn("Polling refresh failed (non-critical):", error.message);
     }
-  }, POLL_INTERVAL_MS);
+  };
 
-  // Refresh ทันทีเมื่อผู้ใช้กลับมาที่แท็บหรือ focus หน้าต่าง
+  pollTimer = setInterval(() => refreshData(false), POLL_INTERVAL_MS);
+
+  // Refresh ทันทีเมื่อกลับมาที่แท็บหรือ focus หน้าต่าง
   let lastRefresh = Date.now();
-  const refreshIfStale = async () => {
+  const refreshIfStale = () => {
     if (!state.account) return;
     if (Date.now() - lastRefresh < 5000) return;
     lastRefresh = Date.now();
-    try {
-      await hydrateRequests();
-      if (state.currentRoute && !isUserTyping()) navigate();
-    } catch (_) {}
+    refreshData(true);
   };
 
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) refreshIfStale();
   });
-
   window.addEventListener("focus", refreshIfStale);
 }
 
