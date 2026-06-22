@@ -14,6 +14,14 @@ import { showToast } from "./components/toast.js";
 const POLL_INTERVAL_MS = 10 * 1000; // เช็คทุก 10 วินาที
 let pollTimer = null;
 
+/** ตรวจสอบว่า user กำลังพิมพ์อยู่ในฟอร์มหรือไม่ */
+function isUserTyping() {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || active.isContentEditable;
+}
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", boot);
 } else {
@@ -82,7 +90,8 @@ function startPolling() {
     if (!state.account || document.hidden) return;
     try {
       await hydrateRequests();
-      if (state.currentRoute) navigate();
+      // ไม่ re-render ถ้า user กำลังพิมพ์อยู่ในฟอร์ม — ป้องกัน focus หลุดและหน้ากระพริบ
+      if (state.currentRoute && !isUserTyping()) navigate();
     } catch (error) {
       console.warn("Polling refresh failed (non-critical):", error.message);
     }
@@ -92,11 +101,11 @@ function startPolling() {
   let lastRefresh = Date.now();
   const refreshIfStale = async () => {
     if (!state.account) return;
-    if (Date.now() - lastRefresh < 5000) return; // ไม่ refresh ถี่กว่า 5 วินาที
+    if (Date.now() - lastRefresh < 5000) return;
     lastRefresh = Date.now();
     try {
       await hydrateRequests();
-      if (state.currentRoute) navigate();
+      if (state.currentRoute && !isUserTyping()) navigate();
     } catch (_) {}
   };
 
