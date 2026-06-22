@@ -124,6 +124,8 @@ function extractUrl(value) {
 
 function toSharePoint(request) {
   const f = fields.requests;
+  // helper: แปลง URL string → SharePoint Hyperlink object
+  const hyperlink = (url) => (url ? { Url: url, Description: url } : undefined);
   const payload = {
     [f.title]: request.requestNo,
     [f.requestType]: request.requestType,
@@ -136,7 +138,7 @@ function toSharePoint(request) {
     [f.location]: request.location,
     [f.requesterEmail]: request.requesterEmail,
     [f.requesterName]: request.requesterName,
-    [f.dataLink]: request.dataLink,
+    [f.dataLink]: hyperlink(request.dataLink),
     [f.reviseNumber]: request.reviseNumber,
     [f.priority]: request.priority,
     [f.description]: request.description,
@@ -303,6 +305,9 @@ async function notifyNewRequest(request) {
 // TRANSITION — ใช้ patchItem โดยตรงพร้อม audit + notify
 // ══════════════════════════════════════════════════════════════
 
+// SharePoint Hyperlink fields — ต้องส่งเป็น { Url, Description } ไม่ใช่ string ธรรมดา
+const HYPERLINK_LOCAL_KEYS = new Set(["dwgFileUrl", "pdfFileUrl", "dataLink"]);
+
 export async function patchRequest(request, patch, auditAction = "") {
   const f = fields.requests;
   const spPatch = {};
@@ -311,12 +316,15 @@ export async function patchRequest(request, patch, auditAction = "") {
     // ข้าม field ที่ไม่มีใน mapping (spField เป็น undefined) เพื่อหลีกเลี่ยง 400 Bad Request
     if (!spField) return;
     if (value === undefined) return;
-    // แปลง ISO date string ให้ถูก format ก่อนส่ง (Graph API ต้องการ ISO 8601)
-    if (typeof value === "string" && value.includes("T") && value.endsWith("Z") && !isNaN(Date.parse(value))) {
-      spPatch[spField] = value; // ISO date — ส่งตรง
-    } else {
-      spPatch[spField] = value;
+
+    // Hyperlink field: SharePoint ต้องการ { Url, Description } — string ธรรมดาทำให้ 400
+    if (HYPERLINK_LOCAL_KEYS.has(localKey)) {
+      const urlStr = typeof value === "string" ? value.trim() : (value?.Url || "");
+      spPatch[spField] = urlStr ? { Url: urlStr, Description: urlStr } : null;
+      return;
     }
+
+    spPatch[spField] = value;
   });
   if (Object.keys(spPatch).length === 0) {
     console.warn("patchRequest: no valid fields to patch for", request.requestNo, patch);
