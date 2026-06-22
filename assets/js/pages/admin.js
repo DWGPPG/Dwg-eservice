@@ -1,4 +1,5 @@
 import { STATUS, STATUS_LABELS } from "../../../config/schema.js";
+import { appConfig } from "../../../config/config.js";
 import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import {
@@ -611,6 +612,20 @@ function openAssignModal(view, state, request, level) {
 // ══════════════════════════════════════════════════════════════
 
 /**
+ * สร้าง URL ตรงไปยังโฟลเดอร์ของคำร้องบน SharePoint
+ * เช่น DWG-BEM-2569-0018 → https://primepowertl.sharepoint.com/sites/DrawingDepartment/Shared%20Documents/DrawingRequests/DWG-BEM-2569-0018
+ */
+function getRequestFolderUrl(requestNo) {
+  const sp = appConfig.sharePoint;
+  const match = String(requestNo || "").match(/^(.*)-(Rev\.\d+)$/);
+  const baseNo = match ? match[1] : requestNo;
+  const revSeg = match ? `/${match[2]}` : "";
+  const folderPath = `${sp.uploadFolder}/${baseNo}${revSeg}`;
+  // SharePoint "Shared Documents" = driveName ภาษาอังกฤษ
+  return `https://${sp.hostname}${sp.sitePath}/Shared%20Documents/${folderPath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/**
  * แยก noteFromDrawing ออกเป็น { note, otherFiles }
  * รูปแบบที่เก็บ: "<หมายเหตุ>|||[{"name":"...","url":"..."}]"
  */
@@ -676,9 +691,12 @@ function renderMgrReviewCard(item) {
                 <span class="mgr-file-icon">🔗</span><span>ลิงก์ข้อมูลอ้างอิง</span>
               </a>`
             : ""}
+          <a href="${escapeHtml(getRequestFolderUrl(item.requestNo))}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn">
+            <span class="mgr-file-icon">📁</span><span>เปิดโฟลเดอร์ทั้งหมด</span>
+          </a>
         </div>
         ${!hasDrawingFile && !hasRefLink
-          ? `<div class="mgr-file-warning">⚠️ ผู้เขียนแบบไม่ได้แนบไฟล์หรือลิงก์มา — กรุณาตรวจสอบโดยตรงกับผู้เขียนแบบก่อนส่งมอบ</div>`
+          ? `<div class="mgr-file-warning">⚠️ ไม่พบไฟล์ DWG/PDF ที่ระบุ — กรุณาตรวจสอบในโฟลเดอร์ด้านบน หรือติดต่อผู้เขียนแบบโดยตรง</div>`
           : ""}
       </div>
 
