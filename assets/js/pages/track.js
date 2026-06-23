@@ -407,12 +407,30 @@ function openSendworkModal(view, state, request) {
 // REQUESTER VIEW — คำร้องของฉัน + ตรวจรับงาน (approve/revise/reject)
 // ══════════════════════════════════════════════════════════════
 
+/**
+ * แยก noteFromDrawing ออกเป็น { note, otherFiles }
+ * รูปแบบ: "<หมายเหตุ>|||[{"name":"...","url":"..."}]"
+ */
+function parseNoteAndFiles(raw = "") {
+  const sep = raw.indexOf("|||");
+  if (sep === -1) return { note: raw, otherFiles: [] };
+  const notePart = raw.slice(0, sep).trim();
+  const jsonPart = raw.slice(sep + 3).trim();
+  try {
+    const otherFiles = JSON.parse(jsonPart);
+    return { note: notePart, otherFiles: Array.isArray(otherFiles) ? otherFiles : [] };
+  } catch {
+    return { note: raw, otherFiles: [] };
+  }
+}
+
 function renderRequesterTrack(view, state) {
   const myItems = state.requests.filter((item) =>
     String(item.requesterEmail || "").toLowerCase() === String(state.user?.email || "").toLowerCase()
   );
   const active = myItems.filter((item) => !CLOSED_STATUSES.includes(item.status));
   const awaitingReview = active.filter((item) => item.status === STATUS.DELIVERED);
+  const inProgress = active.filter((item) => item.status !== STATUS.DELIVERED);
 
   view.innerHTML = `
     <section class="content-section requester-track">
@@ -420,33 +438,77 @@ function renderRequesterTrack(view, state) {
         <h2>คำร้องของฉัน <span class="requester-result-count">งานปัจจุบัน ${active.length} รายการ</span></h2>
       </div>
 
-      ${awaitingReview.length ? `
-        <div class="section-header" style="margin-top:8px">
-          <h2 style="color:#0b5394">📦 รอท่านตรวจรับงาน</h2>
-        </div>
-        <div class="admin-list">
-          ${awaitingReview.map((item) => renderReviewCard(item)).join("")}
-        </div>
-      ` : ""}
-
-      <div class="section-header" style="margin-top:18px">
-        <h2>คำร้องทั้งหมด</h2>
+      <!-- Tab สลับ -->
+      <div class="requester-tab-row">
+        <button class="requester-tab ${awaitingReview.length ? "requester-tab-alert" : ""} ${awaitingReview.length ? "" : "requester-tab-inactive"}" data-requester-tab="awaiting" type="button">
+          📦 รอตรวจรับ
+          ${awaitingReview.length ? `<span class="requester-tab-badge">${awaitingReview.length}</span>` : ""}
+        </button>
+        <button class="requester-tab" data-requester-tab="inprogress" type="button">
+          🔄 กำลังดำเนินการ
+          ${inProgress.length ? `<span class="requester-tab-badge requester-tab-badge-gray">${inProgress.length}</span>` : ""}
+        </button>
+        <button class="requester-tab" data-requester-tab="all" type="button">
+          📋 ทั้งหมด
+        </button>
       </div>
-      <div class="track-table-wrap">
-        <table class="track-sheet requester-track-table">
-          <thead>
-            <tr><th>เลขที่คำร้อง</th><th>โครงการ</th><th>Drawing</th><th>กำหนดส่ง</th><th>สถานะ</th><th>ไฟล์งาน</th></tr>
-          </thead>
-          <tbody>${active.length ? active.map((item) => renderRequesterRow(item)).join("") : `<tr><td colspan="6" class="track-empty">ยังไม่มีคำร้องของคุณ</td></tr>`}</tbody>
-        </table>
+
+      <!-- Tab: รอตรวจรับ -->
+      <div id="requester-panel-awaiting">
+        ${awaitingReview.length ? `
+          <div class="admin-list">
+            ${awaitingReview.map((item) => renderReviewCard(item)).join("")}
+          </div>
+        ` : `<div class="track-empty" style="padding:40px;text-align:center;color:#94a3b8;">✅ ไม่มีรายการรอตรวจรับ</div>`}
+      </div>
+
+      <!-- Tab: กำลังดำเนินการ -->
+      <div id="requester-panel-inprogress" hidden>
+        <div class="track-table-wrap">
+          <table class="track-sheet requester-track-table">
+            <thead>
+              <tr><th>เลขที่คำร้อง</th><th>โครงการ</th><th>Drawing</th><th>กำหนดส่ง</th><th>สถานะ</th><th>ไฟล์งาน</th></tr>
+            </thead>
+            <tbody>${inProgress.length ? inProgress.map((item) => renderRequesterRow(item)).join("") : `<tr><td colspan="6" class="track-empty">ไม่มีงานที่กำลังดำเนินการ</td></tr>`}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab: ทั้งหมด -->
+      <div id="requester-panel-all" hidden>
+        <div class="track-table-wrap">
+          <table class="track-sheet requester-track-table">
+            <thead>
+              <tr><th>เลขที่คำร้อง</th><th>โครงการ</th><th>Drawing</th><th>กำหนดส่ง</th><th>สถานะ</th><th>ไฟล์งาน</th></tr>
+            </thead>
+            <tbody>${active.length ? active.map((item) => renderRequesterRow(item)).join("") : `<tr><td colspan="6" class="track-empty">ยังไม่มีคำร้องของคุณ</td></tr>`}</tbody>
+          </table>
+        </div>
       </div>
     </section>
   `;
+
+  // Tab switching
+  view.querySelectorAll("[data-requester-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      view.querySelectorAll("[data-requester-tab]").forEach((b) => b.classList.remove("requester-tab-active"));
+      btn.classList.add("requester-tab-active");
+      ["awaiting", "inprogress", "all"].forEach((name) => {
+        const panel = view.querySelector(`#requester-panel-${name}`);
+        if (panel) panel.hidden = btn.dataset.requesterTab !== name;
+      });
+    });
+  });
+
+  // เปิด tab รอตรวจรับก่อนถ้ามีรายการ
+  const defaultTab = awaitingReview.length ? "awaiting" : "inprogress";
+  view.querySelector(`[data-requester-tab="${defaultTab}"]`)?.click();
 
   bindRequesterReviewEvents(view, state);
 }
 
 function renderReviewCard(item) {
+  const { note, otherFiles } = parseNoteAndFiles(item.noteFromDrawing || "");
   return `
     <article class="admin-card" id="review-card-${escapeHtml(item.requestNo)}">
       <div class="admin-card-header">
@@ -454,15 +516,37 @@ function renderReviewCard(item) {
           <div class="admin-card-title">${escapeHtml(item.requestNo)}</div>
           <div class="admin-card-ref">${escapeHtml(item.projectName || "—")} · ${escapeHtml(item.drawingNo || "—")} — ${escapeHtml(item.drawingName || "—")}</div>
         </div>
-        <span class="badge badge-delivered">📦 ส่งมอบแล้ว รอตรวจรับ</span>
+        <span class="badge badge-delivered">📦 รอตรวจรับ</span>
       </div>
+
+      <div class="lv1-info-block">
+        <div class="lv1-info-grid">
+          <div><span>ผู้ร้องขอ:</span> <b>${escapeHtml(item.requesterName || item.requesterEmail || "—")}</b></div>
+          <div><span>Drawing No.:</span> <b>${escapeHtml(item.drawingNo || "—")}</b></div>
+          <div><span>Drawing Name:</span> ${escapeHtml(item.drawingName || "—")}</div>
+          <div><span>โครงการ:</span> ${escapeHtml(item.projectName || "—")}</div>
+          <div><span>Revise:</span> ${escapeHtml(item.currentRevise || item.reviseNumber || "—")}</div>
+          <div><span>กำหนดส่ง:</span> ${item.dueDate ? new Date(item.dueDate).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }) : "—"}</div>
+          ${note ? `<div class="span-full"><span>📝 หมายเหตุจากผู้เขียนแบบ:</span> ${escapeHtml(note)}</div>` : ""}
+        </div>
+      </div>
+
+      <!-- ไฟล์งาน -->
+      <div class="mgr-file-review-block">
+        <div class="mgr-file-review-label">📎 ไฟล์งานที่ส่งมา</div>
+        <div class="mgr-file-review-links">
+          ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn"><span>📐</span><span>DWG</span></a>` : ""}
+          ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn"><span>📄</span><span>PDF</span></a>` : ""}
+          ${otherFiles.map((f) => `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn"><span>📎</span><span>${escapeHtml(f.name)}</span></a>`).join("")}
+          ${!item.dwgFileUrl && !item.pdfFileUrl && !otherFiles.length ? `<span class="mgr-file-missing">— ไม่มีไฟล์แนบ</span>` : ""}
+        </div>
+      </div>
+
       <div class="admin-card-footer">
-        ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="secondary-button small-flow-button">📐 ดู DWG</a>` : ""}
-        ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="secondary-button small-flow-button">📄 ดู PDF</a>` : ""}
-        <div class="admin-card-actions">
+        <div class="admin-card-actions" style="width:100%;justify-content:flex-end;">
           <button class="secondary-button small-flow-button" data-review-action="toggle-revise" data-request="${escapeHtml(item.requestNo)}">✏️ ขอแก้ไข</button>
-          <button class="secondary-button small-flow-button danger-button" data-review-action="toggle-reject" data-request="${escapeHtml(item.requestNo)}">❌ Reject</button>
-          <button class="primary-button small-flow-button" data-review-action="approve" data-request="${escapeHtml(item.requestNo)}">✅ อนุมัติรับงาน</button>
+          <button class="danger-button small-flow-button" data-review-action="toggle-reject" data-request="${escapeHtml(item.requestNo)}">❌ Reject</button>
+          <button class="primary-button small-flow-button" data-review-action="approve" data-request="${escapeHtml(item.requestNo)}">✅ ตรวจรับงาน</button>
         </div>
       </div>
       <div id="review-box-${escapeHtml(item.requestNo)}" class="admin-action-box" hidden>
