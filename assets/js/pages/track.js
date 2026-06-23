@@ -371,6 +371,7 @@ function openSendworkModal(view, state, request) {
             });
             showToast(`ส่งงานสำเร็จ! แจ้งเตือนผู้จัดการใน Microsoft Teams แล้ว — รอตรวจสอบก่อนส่งมอบ`, "success");
             close();
+            renderWorkbookTrack(view, state); // re-render ทันทีให้เห็นสถานะใหม่
           } catch (error) {
             showToast(`ส่งงานไม่สำเร็จ: ${error.message}`, "error");
           }
