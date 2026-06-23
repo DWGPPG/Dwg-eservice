@@ -170,13 +170,13 @@ function renderWorkbookRow(item, state) {
       <td><strong>${escapeHtml(item.drawingNo || "—")}</strong><br><small>${escapeHtml(item.drawingName || "")}</small></td>
       <td>${formatDateOnly(item.dueDate)}</td>
       <td>${fileLink ? `<a class="track-file-link" href="${escapeHtml(fileLink)}" target="_blank" rel="noopener noreferrer">เปิดไฟล์</a>` : `<span class="track-no-file">—</span>`}</td>
-      <td class="track-status-cell">
+      <td style="vertical-align:middle;text-align:center;width:155px;">
         ${canEditStatus ? `
           <select class="track-status-select" data-designer-status="${escapeHtml(item.requestNo)}">
             ${item.status === STATUS.MGR_REJECTED ? `<option value="${STATUS.MGR_REJECTED}" selected disabled>↩️ ถูกส่งกลับแก้ไข</option>` : ""}
             ${WORK_STATUS_OPTIONS.map((opt) => `<option value="${opt.value}" ${item.status === opt.value ? "selected" : ""}>${opt.label}</option>`).join("")}
           </select>
-        ` : `<span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>`}
+        ` : `<span class="badge badge-${item.status}" style="white-space:nowrap;">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>`}
       </td>
     </tr>
   `;
