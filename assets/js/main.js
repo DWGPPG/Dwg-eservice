@@ -53,15 +53,14 @@ if (document.readyState === "loading") {
 async function boot() {
   document.documentElement.dataset.theme = state.theme;
 
-  // ซ่อน app shell ทันทีตั้งแต่เริ่ม — แสดงเฉพาะหน้า login ก่อน
-  showAuthPanel(true);
+  // ถ้ากำลัง redirect กลับจาก Microsoft (มี code ใน URL) ให้รอ MSAL handle ก่อน
+  const isRedirectCallback = window.location.href.includes("code=") || window.location.href.includes("error=");
 
+  showAuthPanel(true);
   bindChrome();
   subscribe(updateShell);
   subscribe(onRequestsChanged);
   updateShell(state);
-
-  // เริ่ม router เพื่อให้ hashchange listener พร้อม แต่ยังไม่ render (guard ใน navigate())
   initRouter();
 
   try {
@@ -72,10 +71,11 @@ async function boot() {
     }
   } catch (error) {
     console.error("initAuth failed:", error);
-    showToast("เริ่มต้นระบบ Microsoft 365 ไม่สำเร็จ — ลองรีเฟรชหน้าเว็บ", "error");
+    if (!isRedirectCallback) {
+      showToast("เริ่มต้นระบบ Microsoft 365 ไม่สำเร็จ — ลองรีเฟรชหน้าเว็บ", "error");
+    }
   }
 
-  // ยังไม่ได้ login — แสดงหน้า login
   showAuthPanel(true);
 }
 
