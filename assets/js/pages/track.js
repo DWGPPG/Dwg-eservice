@@ -236,22 +236,30 @@ function bindWorkbookEvents(view, state) {
     const value = select.value;
 
     if (value === "__complete__") {
-      select.value = request.status; // ไม่ใช่สถานะจริง แค่ trigger เปิด popup ส่งงาน
+      select.value = request.status;
       openSendworkModal(view, state, request);
       return;
     }
 
     if (value === "__cancel__") {
-      select.value = request.status; // คืนค่าเดิมไว้ก่อน รอผู้ใช้ยืนยันเหตุผลใน popup
+      select.value = request.status;
       openCancelOwnWorkModal(view, state, request);
       return;
     }
 
+    // Optimistic update — เปลี่ยน badge ทันทีโดยไม่รอ API
+    select.disabled = true;
+    const originalValue = request.status;
+    request.status = value; // update state ทันที
+
     try {
       await updateWorkStatus(request, value);
       showToast(`อัปเดตสถานะ ${requestNo} แล้ว`, "success");
+      renderWorkbookTrack(view, state); // re-render หลัง API สำเร็จ
     } catch (error) {
+      request.status = originalValue; // คืนค่าเดิมถ้า error
       showToast(`อัปเดตไม่สำเร็จ: ${error.message}`, "error");
+      renderWorkbookTrack(view, state);
     }
   }, opts);
 }
