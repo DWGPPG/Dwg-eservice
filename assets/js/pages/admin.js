@@ -153,15 +153,13 @@ function renderManagerAdmin(view, state) {
 function jumpButton(targetId, label, count, primary = false, buttonId = "", countId = "") {
   const hasItems = count > 0;
   const baseStyle = "display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s ease;";
-  let style;
-  if (primary) {
-    style = baseStyle + "border:none;background:#0DB14B;color:#fff;";
-  } else if (hasItems) {
-    style = baseStyle + "border:1.5px solid #ef4444;background:rgba(239,68,68,0.06);color:#111;";
-  } else {
-    style = baseStyle + "border:1.5px solid #d0d7de;background:#fff;color:#111;";
-  }
-  const countBg = primary ? "background:rgba(255,255,255,0.3);color:#fff;" : hasItems ? "background:#ef4444;color:#fff;" : "background:#f1f3f5;color:#666;";
+  // ทุกปุ่มสไตล์เดียวกัน — outline สีน้ำเงิน ถ้ามีรายการจะเข้มขึ้น
+  const style = hasItems
+    ? baseStyle + "border:1.5px solid #005DAC;background:rgba(0,93,172,0.08);color:#005DAC;"
+    : baseStyle + "border:1.5px solid #d0d7de;background:#fff;color:#888;";
+  const countBg = hasItems
+    ? "background:#005DAC;color:#fff;"
+    : "background:#f1f3f5;color:#666;";
   const countStyle = `display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;font-size:13px;font-weight:800;${countBg}`;
   const idAttr = buttonId ? ` id="${buttonId}"` : "";
   return `
