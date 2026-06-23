@@ -247,15 +247,15 @@ function bindWorkbookEvents(view, state) {
       return;
     }
 
-    // Optimistic update — เปลี่ยน badge ทันทีโดยไม่รอ API
+    // Optimistic update — เปลี่ยน state ทันทีก่อนรอ API
     select.disabled = true;
     const originalValue = request.status;
     request.status = value; // update state ทันที
+    renderWorkbookTrack(view, state); // re-render ทันที ผู้ใช้เห็นสถานะใหม่เลย
 
     try {
       await updateWorkStatus(request, value);
       showToast(`อัปเดตสถานะ ${requestNo} แล้ว`, "success");
-      renderWorkbookTrack(view, state); // re-render หลัง API สำเร็จ
     } catch (error) {
       request.status = originalValue; // คืนค่าเดิมถ้า error
       showToast(`อัปเดตไม่สำเร็จ: ${error.message}`, "error");
