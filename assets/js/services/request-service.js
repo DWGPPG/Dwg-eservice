@@ -523,7 +523,19 @@ export async function adminCancel(request, reason) {
 // ══════════════════════════════════════════════════════════════
 
 export async function updateWorkStatus(request, status) {
-  await patchRequest(request, { status }, `อัปเดตสถานะ: ${status}`);
+  // Optimistic update — เปลี่ยน state ทันทีก่อนรอ API
+  const prevStatus = request.status;
+  updateRequest(request.requestNo, () => ({ status }));
+
+  try {
+    const f = fields.requests;
+    await patchItem(lists.requests, request.id, { [f.status]: status });
+    await writeAudit({ requestNo: request.requestNo, action: `อัปเดตสถานะ: ${status}`, detail: "" });
+  } catch (error) {
+    // ถ้า API error ให้คืนสถานะเดิม
+    updateRequest(request.requestNo, () => ({ status: prevStatus }));
+    throw error;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
