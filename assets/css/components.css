@@ -3571,10 +3571,9 @@ textarea {
 
 .track-sheet {
   width: 100%;
-  min-width: 1040px;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 13px;
-  table-layout: fixed;
 }
 
 .track-sheet th,
@@ -3584,17 +3583,14 @@ textarea {
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
   text-align: left;
-  overflow: hidden;
 }
 
-/* กำหนดความกว้าง column แน่นอน ป้องกัน badge ขึ้นบรรทัดใหม่ */
-.track-sheet th:nth-child(1), .track-sheet td:nth-child(1) { width: 120px; }
-.track-sheet th:nth-child(2), .track-sheet td:nth-child(2) { width: 180px; }
-.track-sheet th:nth-child(3), .track-sheet td:nth-child(3) { width: 100px; }
-.track-sheet th:nth-child(4), .track-sheet td:nth-child(4) { width: 180px; }
-.track-sheet th:nth-child(5), .track-sheet td:nth-child(5) { width: 110px; }
-.track-sheet th:nth-child(6), .track-sheet td:nth-child(6) { width: 90px; }
-.track-sheet th:nth-child(7), .track-sheet td:nth-child(7) { width: 175px; }
+/* column สถานะ — กำหนดความกว้างให้ badge ไม่ขึ้นบรรทัดใหม่ */
+.track-sheet th:last-child,
+.track-sheet td:last-child {
+  width: 155px;
+  min-width: 155px;
+}
 
 .track-sheet th {
   position: sticky;
