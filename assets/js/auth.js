@@ -85,34 +85,13 @@ export async function login() {
   if (signingIn) return null;
   if (!msalInstance) await initAuth();
   if (!msalInstance) throw new Error("ระบบ Microsoft 365 ยังไม่พร้อมใช้งาน");
-
   signingIn = true;
-  const request = {
-    scopes: appConfig.azure.scopes,
-    prompt: "select_account",
-  };
-
   try {
-    // ลอง popup ก่อน — ถ้า browser บล็อก (COOP/popup blocker) ค่อย fallback เป็น redirect
-    try {
-      const response = await msalInstance.loginPopup(request);
-      if (!isAllowedAccount(response.account)) {
-        await signOutAccount(response.account);
-        throw new Error(`ใช้ได้เฉพาะบัญชี @${appConfig.azure.allowedDomain}`);
-      }
-      setActiveAccount(response.account);
-      setState({ accessToken: response.accessToken || null });
-      return response.account;
-    } catch (popupError) {
-      // popup ถูกบล็อกหรือ COOP error → ใช้ redirect แทน
-      const isBlocked = popupError.errorCode === "popup_window_error"
-        || popupError.errorCode === "empty_window_error"
-        || popupError.message?.includes("popup")
-        || popupError.message?.includes("window");
-      if (!isBlocked) throw popupError; // error อื่น (เช่น user cancel) throw ต่อ
-      await msalInstance.loginRedirect(request);
-      return null;
-    }
+    await msalInstance.loginRedirect({
+      scopes: appConfig.azure.scopes,
+      prompt: "select_account",
+    });
+    return null;
   } finally {
     signingIn = false;
   }
