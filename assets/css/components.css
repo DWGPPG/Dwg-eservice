@@ -6271,13 +6271,12 @@ body.auth-mode .main-panel {
 
 /* ── คอลัมน์สถานะที่แก้ไขได้ใน table ── */
 .track-status-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
+  vertical-align: middle;
+  padding: 0;
 }
 
 .track-status-select {
+  width: 100%;
   min-height: 32px;
   padding: 0 8px;
   border: 1.5px solid var(--accent, #005DAC);
@@ -6286,6 +6285,7 @@ body.auth-mode .main-panel {
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .track-no-file {
