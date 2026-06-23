@@ -62,7 +62,7 @@ export function renderSubmit(view) {
               `).join("")}
             </div>
           </div>
-          <div class="field project-select-field">
+          <div class="field project-select-field submit-project-field-hidden" id="project-select-wrapper">
             <span>ชื่อโครงการ <b class="req">*</b></span>
             <div class="project-picker">
               <div class="combo" id="project-combo">
@@ -81,13 +81,13 @@ export function renderSubmit(view) {
         </div>
       </section>
 
-      <section class="content-section submit-card submit-drawing-card">
+      <section class="content-section submit-card submit-drawing-card submit-section-hidden" id="drawing-section">
         <div class="card-header-line">รายการ Drawing - เลือกได้หลายรายการ</div>
         <div id="drawing-category-row" class="category-row request-category-row" hidden></div>
         <div id="drawing-list" class="drawing-list-empty">เลือกโครงการก่อน เพื่อดูรายการ Drawing</div>
       </section>
 
-      <section class="content-section submit-card submit-queue-card">
+      <section class="content-section submit-card submit-queue-card submit-section-hidden" id="queue-section">
         <div class="card-header-line">รายการที่จะส่ง</div>
         <div id="selected-drawing-queue" class="selected-drawing-empty">ติ๊ก Drawing อย่างน้อย 1 รายการ เพื่อกรอกรายละเอียดรายชีท</div>
         <div class="submit-area">
@@ -126,6 +126,17 @@ function bindSubmitFlow(view) {
       activeCategory = "";
       renderDrawingArea(view);
       renderSelectedDrawingQueue(view);
+
+      // โชว์ section โครงการ, Drawing, และรายการที่จะส่ง เมื่อเลือกประเภทงานแล้ว
+      const projectWrapper = view.querySelector("#project-select-wrapper");
+      const drawingSection = view.querySelector("#drawing-section");
+      const queueSection = view.querySelector("#queue-section");
+      [projectWrapper, drawingSection, queueSection].forEach((el) => {
+        if (el) {
+          el.classList.remove("submit-project-field-hidden", "submit-section-hidden");
+          el.classList.add("submit-section-visible");
+        }
+      });
     });
   });
 
