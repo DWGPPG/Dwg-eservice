@@ -6278,6 +6278,7 @@ body.auth-mode .main-panel {
 
 /* ── คอลัมน์สถานะที่แก้ไขได้ใน table ── */
 .track-status-cell {
+  display: table-cell !important;
   vertical-align: middle !important;
   width: 175px !important;
   min-width: 175px !important;
