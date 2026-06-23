@@ -66,7 +66,12 @@ export function updateListItem(siteId, listId, itemId, fields) {
 export async function uploadDriveFile(siteId, folder, file) {
   const token = await acquireToken();
   if (!token) throw new Error("Missing Microsoft Graph access token");
-  const path = `${GRAPH_ROOT}/sites/${siteId}/drive/root:/${folder}/${encodeURIComponent(file.name)}:/content`;
+
+  // encode แต่ละ segment ของ folder path แยกกัน ป้องกันชื่อภาษาไทยหรืออักขระพิเศษทำให้ 400
+  const encodedFolder = folder.split("/").map(encodeURIComponent).join("/");
+  const encodedFile = encodeURIComponent(file.name);
+  const path = `${GRAPH_ROOT}/sites/${siteId}/drive/root:/${encodedFolder}/${encodedFile}:/content`;
+
   const response = await fetch(path, {
     method: "PUT",
     headers: {
@@ -92,8 +97,9 @@ export async function ensureDriveFolder(siteId, folderPath) {
   let latest = null;
 
   for (const segment of segments) {
-    const parentEndpoint = parentPath
-      ? `${GRAPH_ROOT}/sites/${siteId}/drive/root:/${parentPath}:/children`
+    const encodedParent = parentPath.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+    const parentEndpoint = encodedParent
+      ? `${GRAPH_ROOT}/sites/${siteId}/drive/root:/${encodedParent}:/children`
       : `${GRAPH_ROOT}/sites/${siteId}/drive/root/children`;
     const response = await fetch(parentEndpoint, {
       method: "POST",
@@ -113,7 +119,7 @@ export async function ensureDriveFolder(siteId, folderPath) {
       const detail = await response.text();
       throw new Error(`Graph folder error ${response.status}: ${detail}`);
     }
-    parentPath = [...parentPath.split("/").filter(Boolean), encodeURIComponent(segment)].join("/");
+    parentPath = [...parentPath.split("/").filter(Boolean), segment].join("/");
   }
   return latest;
 }
