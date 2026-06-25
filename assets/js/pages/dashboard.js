@@ -80,7 +80,7 @@ export function renderDashboard(view, state) {
       <section class="dash-card team-list-card">
         <div class="section-header compact-header">
           <div>
-            <h2>ทีมแบบวันนี้</h2>
+            <h2>ฝ่ายเขียนแบบวันนี้</h2>
             <p>สถานะกำลังการผลิตของทีม</p>
           </div>
         </div>
@@ -93,7 +93,7 @@ export function renderDashboard(view, state) {
         <div class="section-header compact-header">
           <div>
             <h2>ภาระงานแต่ละคน</h2>
-            <p>กราฟแท่งจำนวนงานที่ถืออยู่ในทีมแบบ</p>
+            <p>กราฟแท่งจำนวนงานที่ถืออยู่ในฝ่ายเขียนแบบ</p>
           </div>
         </div>
         <div class="team-column-chart">
