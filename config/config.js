@@ -28,25 +28,22 @@ export const appConfig = {
     uploadFolder: "DrawingRequests",
   },
   teams: {
-    // Drawing Dept. group chat — ใช้ส่งแจ้งเตือนคำร้องใหม่ + sendwork
+    // Drawing Dept. group chat
     drawingTeamChatId: "19:e668fd9c854447918fdb8218e2f023bb@thread.v2",
-    // ⚠️ Incoming Webhook URL — วางURL ที่ได้จาก Teams Connector ตรงนี้
-    // วิธีสร้าง: Teams → กลุ่ม Drawing Dept. → ... → Connectors → Incoming Webhook → Add
-    // Power Automate Flow — ส่งแจ้งเตือนเข้ากลุ่ม "Drawing Dept. นะจ๊ะ"
+
+    // ── Power Automate Flow (RELAY) — Flow ตัวเดียวส่งต่อให้ทุกกลุ่ม ──
+    // นี่คือ URL ของ Flow เดิม (ตัวเดียวใน environment นี้ที่ยิงได้แบบไม่ต้อง OAuth)
+    // ต้องปรับ Flow ให้เป็น relay: รับ { groupChatId, title, message } แล้วโพสต์ message เข้ากลุ่มตาม groupChatId
+    //   1) trigger schema = { "groupChatId": string, "title": string, "message": string }
+    //   2) action "Post message in a chat" → Group chat = "Enter custom value" → ใส่ค่า groupChatId (dynamic)
+    //   3) Message = ใส่ค่า message (dynamic, เป็น HTML)  ← อย่าครอบด้วย <p>/tag ใดๆ
+    //   ⚠️ ห้ามลบ/สร้าง trigger ใหม่ (URL จะเปลี่ยนเป็นชนิดที่ต้อง OAuth) — แก้แค่ schema กับ action
     drawingTeamWebhookUrl: "https://default2ca2640f6b3545d1930b9b4ee11fb7.11.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5d6bc13578b84f3793a1bfb7fcad069b/triggers/manual/paths/invoke?api-version=1",
 
     // ── กลุ่ม "The Nexus - Project Sales X DWG" (Group Chat) ──
-    // ใช้เฉพาะงานประเภท "📋 เขียนแบบ Proposal" — แจ้งเตือนทุกขั้นตอนเข้ากลุ่มนี้แทนกลุ่ม Drawing Dept.
-    // เนื่องจากเป็น Group Chat (ผู้ร้องขอส่วนใหญ่ไม่ได้เป็นสมาชิก) จึงยิงตรงด้วย token ผู้ใช้ไม่ได้
-    // ⚠️ ต้องสร้าง Power Automate Flow ตัวใหม่แบบเดียวกับ drawingTeamWebhookUrl:
-    //    1) Trigger = "When a Teams webhook request is received" / manual (ให้ URL invoke)
-    //    2) ตั้ง Request Body JSON Schema = { "title": string, "message": string }
-    //    3) Action = "Post message in a chat or channel" → Chat → เลือกกลุ่ม Nexus
-    //       (เจ้าของ Flow / บัญชีที่ต่อ Teams connector ต้องเป็นสมาชิกกลุ่ม Nexus)
-    //    4) เนื้อความ = ใช้ค่า message (เป็น HTML)
-    //    5) คัดลอก URL ของ trigger มาวางตรงนี้
-    nexusChatId: "",            // (อ้างอิงเฉยๆ — ไม่ได้ใช้ยิงตรง)
-    nexusWebhookUrl: "https://default2ca2640f6b3545d1930b9b4ee11fb7.11.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/07/workflows/51dbc096681343e482b1d9598100e971/triggers/manual/paths/invoke?api-version=1",
+    // ใช้เฉพาะงาน "📋 เขียนแบบ Proposal" — โค้ดจะส่ง chatId นี้ให้ Flow relay ไปโพสต์เข้ากลุ่ม Nexus
+    // ⚠️ วางรหัส Group Chat ของ Nexus ตรงนี้ (รูปแบบ 19:xxxxxxxx@thread.v2)
+    nexusChatId: "19:2bffa8c03c5d4c3e898a1ae3bc0b73d3@thread.v2",
   },
   // ── อีเมลผู้อนุมัติ Lv.2 (ผู้จัดการ/แอดมินทั้งหมด) ──
   approverLv2Email: "narakorn.pa@primepower.co.th", // primary — ใช้เช็ค isMgr()
