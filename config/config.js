@@ -31,18 +31,14 @@ export const appConfig = {
     // Drawing Dept. group chat
     drawingTeamChatId: "19:e668fd9c854447918fdb8218e2f023bb@thread.v2",
 
-    // ── Power Automate Flow (RELAY) — Flow ตัวเดียวส่งต่อให้ทุกกลุ่ม ──
-    // นี่คือ URL ของ Flow เดิม (ตัวเดียวใน environment นี้ที่ยิงได้แบบไม่ต้อง OAuth)
-    // ต้องปรับ Flow ให้เป็น relay: รับ { groupChatId, title, message } แล้วโพสต์ message เข้ากลุ่มตาม groupChatId
-    //   1) trigger schema = { "groupChatId": string, "title": string, "message": string }
-    //   2) action "Post message in a chat" → Group chat = "Enter custom value" → ใส่ค่า groupChatId (dynamic)
-    //   3) Message = ใส่ค่า message (dynamic, เป็น HTML)  ← อย่าครอบด้วย <p>/tag ใดๆ
-    //   ⚠️ ห้ามลบ/สร้าง trigger ใหม่ (URL จะเปลี่ยนเป็นชนิดที่ต้อง OAuth) — แก้แค่ schema กับ action
+    // ── Power Automate Flow (fallback เท่านั้น) ──
+    // วิธีหลักตอนนี้คือยิงตรงผ่าน Graph ด้วย token ผู้ใช้ (ผู้ใช้เป็นสมาชิกกลุ่ม Nexus อยู่แล้ว)
+    // Flow นี้ใช้เป็นแผนสำรองกรณี Graph direct ไม่ผ่านเท่านั้น — ถ้ายังไม่ได้ปรับ Flow ก็ไม่เป็นไร
+    // (ถ้าจะให้ fallback ทำงานด้วย ต้องปรับ Flow ให้รับ { groupChatId, title, message } แล้วโพสต์ตาม groupChatId)
     drawingTeamWebhookUrl: "https://default2ca2640f6b3545d1930b9b4ee11fb7.11.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/5d6bc13578b84f3793a1bfb7fcad069b/triggers/manual/paths/invoke?api-version=1",
 
     // ── กลุ่ม "The Nexus - Project Sales X DWG" (Group Chat) ──
-    // ใช้เฉพาะงาน "📋 เขียนแบบ Proposal" — โค้ดจะส่ง chatId นี้ให้ Flow relay ไปโพสต์เข้ากลุ่ม Nexus
-    // ⚠️ วางรหัส Group Chat ของ Nexus ตรงนี้ (รูปแบบ 19:xxxxxxxx@thread.v2)
+    // งาน "📋 เขียนแบบ Proposal" จะยิงตรงเข้ากลุ่มนี้ผ่าน Graph (ผู้ใช้เป็นสมาชิกกลุ่ม)
     nexusChatId: "19:2bffa8c03c5d4c3e898a1ae3bc0b73d3@thread.v2",
   },
   // ── อีเมลผู้อนุมัติ Lv.2 (ผู้จัดการ/แอดมินทั้งหมด) ──
