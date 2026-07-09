@@ -282,7 +282,11 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
   // Workload per member
   const memberStats = team.map((u) => {
     const assigned = rows.filter((r) => String(r.assignedToEmail || "").toLowerCase() === u.email.toLowerCase());
+    // "ปิดแล้ว" = งานที่ทำเสร็จ/ส่งมอบแล้วทั้งหมด = Requester ตรวจรับ Approve + ส่งมอบแล้วรอตรวจรับ/auto-approve
+    //   (delivered + done) — ไม่รวม "ยกเลิก" และไม่รวมงานที่ยังทำอยู่/เกินกำหนด
     const closed   = assigned.filter((r) => [STATUS.DELIVERED, STATUS.DONE].includes(r.status)).length;
+    // "ยกเลิก" = งานที่ถูกยกเลิกของบุคคลนั้น
+    const cancelled = assigned.filter((r) => r.status === STATUS.CANCELLED).length;
     const late     = assigned.filter((r) => {
       // ฝ่ายส่งมอบแล้ว (mgr_review / delivered) ไม่ถือว่าเกินกำหนด
       if (CLOSED_STATUSES.includes(r.status)) return false;
@@ -292,7 +296,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
       const dueDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
       return dueDateStr < todayStr;
     }).length;
-    return { name: u.name, total: assigned.length, closed, late };
+    return { name: u.name, total: assigned.length, closed, cancelled, late };
   }).filter((m) => m.total > 0).sort((a, b) => b.total - a.total);
   const maxMember = Math.max(1, ...memberStats.map((m) => m.total));
 
@@ -797,6 +801,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
               <th style="padding:7px 8px;text-align:left;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;">ชื่อ</th>
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;">ทั้งหมด</th>
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#0DB14B;font-weight:600;">ปิดแล้ว</th>
+              <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#94A3B8;font-weight:600;">ยกเลิก</th>
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#EF4444;font-weight:600;">เกินกำหนด</th>
               <th style="padding:7px 8px;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;">Workload</th>
             </tr>
@@ -807,6 +812,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                 <td style="padding:7px 8px;font-weight:600;color:#1E293B;">${escapeHtml(shortPersonName(m.name))}</td>
                 <td style="padding:7px 8px;text-align:center;">${m.total}</td>
                 <td style="padding:7px 8px;text-align:center;font-weight:600;color:#0DB14B;">${m.closed}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:${m.cancelled>0?"700":"400"};color:${m.cancelled>0?"#64748B":"#CBD5E1"};">${m.cancelled>0?m.cancelled:"—"}</td>
                 <td style="padding:7px 8px;text-align:center;font-weight:${m.late>0?"700":"400"};color:${m.late>0?"#EF4444":"#94A3B8"};">${m.late>0?"⚠️ "+m.late:"—"}</td>
                 <td style="padding:7px 8px;">
                   <div style="background:#F1F5F9;border-radius:4px;height:8px;overflow:hidden;min-width:70px;">
@@ -814,7 +820,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                   </div>
                 </td>
               </tr>
-            `).join("") || `<tr><td colspan="5" style="padding:20px;text-align:center;color:#94A3B8;">ไม่มีข้อมูล</td></tr>`}
+            `).join("") || `<tr><td colspan="6" style="padding:20px;text-align:center;color:#94A3B8;">ไม่มีข้อมูล</td></tr>`}
           </tbody>
         </table>
       `)}
