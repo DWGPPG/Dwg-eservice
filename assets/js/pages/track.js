@@ -926,13 +926,22 @@ function renderReviewCard(item) {
         <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">รายละเอียด <b style="color:#EF4444;">*</b></label>
         <textarea id="review-note-${escapeHtml(item.requestNo)}" rows="3" placeholder="ระบุรายละเอียดที่ต้องแก้ไข..." style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px;resize:vertical;"></textarea>
 
-        <!-- แนบหลักฐาน: ไฟล์จริง + ลิงก์ (เหมือนตอนส่งคำร้อง) -->
-        <div id="review-evidence-wrap-${escapeHtml(item.requestNo)}" hidden style="margin-top:8px;">
-          <label style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">แนบหลักฐาน (ถ้ามี)</label>
-          <input id="review-evidence-link-${escapeHtml(item.requestNo)}" type="text" placeholder="วางลิงก์ URL รูป/เอกสาร..." style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px;margin-bottom:6px;" />
-          <input id="review-evidence-file-${escapeHtml(item.requestNo)}" data-evidence-file="${escapeHtml(item.requestNo)}" type="file" multiple hidden />
-          <button type="button" data-evidence-add="${escapeHtml(item.requestNo)}" style="display:inline-flex;align-items:center;gap:4px;background:#F0FDF4;border:1.5px dashed #4ADE80;border-radius:999px;padding:4px 14px;font-size:12px;color:#16A34A;font-weight:600;cursor:pointer;">+ เลือกไฟล์จากเครื่อง</button>
-          <div id="review-evidence-list-${escapeHtml(item.requestNo)}" style="margin-top:6px;"></div>
+        <!-- แนบหลักฐาน: ลิงก์ + ลากไฟล์มาวาง (UI ชุดเดียวกับหน้าส่งคำร้อง) -->
+        <div id="review-evidence-wrap-${escapeHtml(item.requestNo)}" hidden style="margin-top:10px;">
+          <label class="field" style="display:block;margin-bottom:6px;">
+            <span style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">แนบลิงก์ข้อมูล <small style="color:#94A3B8;">ถ้ามี</small></span>
+            <input id="review-evidence-link-${escapeHtml(item.requestNo)}" type="text" placeholder="Google Drive, OneDrive, SharePoint..." style="width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px;" />
+          </label>
+          <span class="attachment-or" style="display:block;text-align:center;font-size:11px;color:#94A3B8;margin:6px 0;">หรือ</span>
+          <label class="drawing-file-drop" data-evidence-drop="${escapeHtml(item.requestNo)}">
+            <input type="file" multiple accept=".dwg,.pdf,*/*" />
+            <span class="drawing-file-drop-icon">⇧</span>
+            <span class="drawing-file-drop-copy">
+              <strong>ลากไฟล์มาวาง หรือคลิกเลือก (แนบได้หลายไฟล์)</strong>
+              <small>รองรับทุกประเภทไฟล์ — รูปภาพ, PDF, DWG, Office, ZIP และอื่นๆ</small>
+            </span>
+          </label>
+          <div id="review-evidence-list-${escapeHtml(item.requestNo)}" class="attached-file-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
         </div>
 
         <div class="admin-action-buttons">
@@ -963,15 +972,36 @@ const _requesterAbortMap = new WeakMap();
 // เก็บไฟล์หลักฐานที่ผู้ตรวจรับเลือกไว้ (ยังไม่อัปโหลด) — requestNo -> File[]
 const reviewEvidenceFiles = new Map();
 function getReviewFiles(requestNo) { return reviewEvidenceFiles.get(requestNo) || []; }
+function fmtFileSize(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+function addReviewFiles(requestNo, fileListLike) {
+  const existing = getReviewFiles(requestNo).filter((f) => f instanceof File && f.name && typeof f.size === "number");
+  const incoming = Array.from(fileListLike || []).filter((f) => f instanceof File && f.name && typeof f.size === "number");
+  const merged = [...existing];
+  incoming.forEach((nf) => {
+    if (!merged.some((ef) => ef.name === nf.name && ef.size === nf.size)) merged.push(nf);
+  });
+  reviewEvidenceFiles.set(requestNo, merged);
+}
 function renderEvidenceList(view, requestNo) {
   const listEl = view.querySelector(`#review-evidence-list-${cssEscape(requestNo)}`);
   if (!listEl) return;
   const files = getReviewFiles(requestNo);
-  listEl.innerHTML = files.length
-    ? files.map((f, i) =>
-        `<span style="display:inline-flex;align-items:center;gap:4px;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:999px;padding:2px 8px;margin:2px;font-size:11px;color:#3730A3;">📎 ${escapeHtml(f.name)} <button type="button" data-evidence-remove="${escapeHtml(requestNo)}" data-idx="${i}" style="border:0;background:none;color:#6366F1;cursor:pointer;font-size:12px;line-height:1;">✕</button></span>`
-      ).join("")
-    : "";
+  if (!files.length) { listEl.innerHTML = ""; return; }
+  listEl.innerHTML =
+    files.map((f, i) =>
+      `<span class="file-chip" style="display:inline-flex;align-items:center;gap:6px;background:#F0F9FF;border:1px solid #BFDBFE;border-radius:999px;padding:4px 6px 4px 12px;font-size:11.5px;color:#1E3A8A;max-width:260px;">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+        <span style="color:#64748B;flex-shrink:0;">(${fmtFileSize(f.size)})</span>
+        <button type="button" data-evidence-remove="${escapeHtml(requestNo)}" data-idx="${i}" style="flex-shrink:0;width:18px;height:18px;border-radius:50%;border:none;background:#FEE2E2;color:#EF4444;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;" title="ลบไฟล์นี้">✕</button>
+      </span>`
+    ).join("") +
+    `<button type="button" data-evidence-add="${escapeHtml(requestNo)}" style="display:inline-flex;align-items:center;gap:4px;background:#F0FDF4;border:1.5px dashed #4ADE80;border-radius:999px;padding:4px 14px;font-size:12px;color:#16A34A;font-weight:600;cursor:pointer;">+ เพิ่มไฟล์</button>`;
 }
 
 // ── Detail popup handler (ใช้ฝั่ง requester) ──
@@ -997,27 +1027,56 @@ function bindReviewInteractions(view, state) {
   _reviewInteractionMap.set(view, ac);
   const signal = ac.signal;
 
-  // เลือกไฟล์แนบ
+  // เลือกไฟล์แนบ (input อยู่ในโซนลากวาง)
   view.addEventListener("change", (event) => {
     if (signal.aborted) return;
-    const fileInput = event.target.closest("[data-evidence-file]");
-    if (!fileInput) return;
-    const requestNo = fileInput.dataset.evidenceFile;
-    const incoming = Array.from(fileInput.files || []).filter((f) => f instanceof File);
-    if (incoming.length) {
-      reviewEvidenceFiles.set(requestNo, [...getReviewFiles(requestNo), ...incoming]);
-      renderEvidenceList(view, requestNo);
-    }
-    fileInput.value = "";
+    const dropZone = event.target.closest("[data-evidence-drop]");
+    if (!dropZone || event.target.type !== "file") return;
+    const requestNo = dropZone.dataset.evidenceDrop;
+    addReviewFiles(requestNo, event.target.files);
+    renderEvidenceList(view, requestNo);
+    event.target.value = "";
+  }, { signal });
+
+  // ลากไฟล์มาวาง
+  view.addEventListener("dragover", (event) => {
+    const dropZone = event.target.closest("[data-evidence-drop]");
+    if (!dropZone) return;
+    event.preventDefault();
+    dropZone.classList.add("is-dragging");
+  }, { signal });
+  view.addEventListener("dragleave", (event) => {
+    const dropZone = event.target.closest("[data-evidence-drop]");
+    if (dropZone) dropZone.classList.remove("is-dragging");
+  }, { signal });
+  view.addEventListener("drop", (event) => {
+    const dropZone = event.target.closest("[data-evidence-drop]");
+    if (!dropZone) return;
+    event.preventDefault();
+    dropZone.classList.remove("is-dragging");
+    const requestNo = dropZone.dataset.evidenceDrop;
+    addReviewFiles(requestNo, event.dataTransfer?.files);
+    renderEvidenceList(view, requestNo);
   }, { signal });
 
   view.addEventListener("click", async (event) => {
     if (signal.aborted) return;
 
-    // เปิดตัวเลือกไฟล์
+    // ปุ่ม "+ เพิ่มไฟล์" (ใช้ temporary input กัน trigger ซ้ำ)
     const addBtn = event.target.closest("[data-evidence-add]");
     if (addBtn) {
-      view.querySelector(`#review-evidence-file-${cssEscape(addBtn.dataset.evidenceAdd)}`)?.click();
+      event.preventDefault();
+      const requestNo = addBtn.dataset.evidenceAdd;
+      const tmp = document.createElement("input");
+      tmp.type = "file"; tmp.multiple = true; tmp.accept = ".dwg,.pdf,*/*"; tmp.style.display = "none";
+      document.body.appendChild(tmp);
+      tmp.addEventListener("change", () => {
+        addReviewFiles(requestNo, tmp.files);
+        renderEvidenceList(view, requestNo);
+        document.body.removeChild(tmp);
+      });
+      tmp.addEventListener("cancel", () => document.body.removeChild(tmp));
+      tmp.click();
       return;
     }
     // ลบไฟล์ที่เลือก
@@ -1025,8 +1084,7 @@ function bindReviewInteractions(view, state) {
     if (rmBtn) {
       const requestNo = rmBtn.dataset.evidenceRemove;
       const idx = parseInt(rmBtn.dataset.idx, 10);
-      const files = getReviewFiles(requestNo).filter((_, i) => i !== idx);
-      reviewEvidenceFiles.set(requestNo, files);
+      reviewEvidenceFiles.set(requestNo, getReviewFiles(requestNo).filter((_, i) => i !== idx));
       renderEvidenceList(view, requestNo);
       return;
     }
