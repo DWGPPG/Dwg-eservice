@@ -1,4 +1,4 @@
-const CACHE_NAME = "ppg-drawing-shell-v1";
+const CACHE_NAME = "ppg-drawing-shell-v2";
 
 // เฉพาะไฟล์ static ของ shell — ไม่ cache ข้อมูลจาก SharePoint/Graph API เด็ดขาด
 // (ข้อมูลคำร้องต้องสดใหม่เสมอ ไม่งั้นจะเห็นสถานะเก่าค้าง)
@@ -12,6 +12,7 @@ const SHELL_FILES = [
   "./assets/css/components.css",
   "./assets/css/responsive.css",
   "./assets/css/dark-mode.css",
+  "./assets/css/mobile-fixes.css",
   "./PPG%20logo%20for%20Web.png",
 ];
 
