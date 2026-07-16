@@ -119,36 +119,36 @@ function typePrefix(requestType, projectCode = "") {
 }
 
 let genRefLock = Promise.resolve();
-let genRefLastMax = null;
 
-/** สร้างเลขคำร้องถัดไป ป้องกันเลขซ้ำเมื่อส่งหลายรายการพร้อมกัน (sequential lock) */
+/** สร้างเลขคำร้องถัดไป — fetch เลขสูงสุดจาก SharePoint สดทุกครั้ง
+ *  ห้าม cache ข้ามการเรียก: cache เดิมทำให้เครื่องที่เปิดค้างไว้นับต่อจากค่าเก่า
+ *  แล้วออกเลขชนกับที่คนอื่นเพิ่งส่ง (เช่น DWG-PES-2569-0041 ซ้ำ 2 รายการ)
+ *  ส่วน sequential lock ยังคงไว้ กันเลขซ้ำเมื่อส่งหลาย Drawing พร้อมกันในเครื่องเดียว */
 export async function generateRequestNo(requestType, projectCode = "") {
   const result = await (genRefLock = genRefLock.then(async () => {
     const prefix = typePrefix(requestType, projectCode);
-    if (genRefLastMax === null || genRefLastMax.prefix !== prefix) {
-      try {
-        const items = await getListItems(lists.requests);
-        const titles = items
-          .map((item) => item[fields.requests.title] || "")
-          .filter((title) => title.startsWith(prefix) && !title.includes("-Rev."));
-        let maxSeq = 0;
-        titles.forEach((title) => {
-          const num = parseInt(title.replace(prefix, "").split("-")[0], 10);
-          if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
-        });
-        genRefLastMax = { prefix, seq: maxSeq };
-      } catch {
-        genRefLastMax = { prefix, seq: 0 };
-      }
+    let items;
+    try {
+      items = await getListItems(lists.requests);
+    } catch (error) {
+      // ถ้าอ่าน SharePoint ไม่ได้ ห้ามเดาเลขเอง (เสี่ยงออกเลขซ้ำ) — ให้ fail ชัดเจน
+      throw new Error(`ไม่สามารถออกเลขคำร้องได้ (อ่านข้อมูลจาก SharePoint ไม่สำเร็จ) กรุณาลองใหม่อีกครั้ง: ${error.message}`);
     }
-    genRefLastMax.seq += 1;
-    return `${prefix}${String(genRefLastMax.seq).padStart(4, "0")}`;
+    const titles = items
+      .map((item) => item[fields.requests.title] || "")
+      .filter((title) => title.startsWith(prefix) && !title.includes("-Rev."));
+    let maxSeq = 0;
+    titles.forEach((title) => {
+      const num = parseInt(title.replace(prefix, "").split("-")[0], 10);
+      if (!Number.isNaN(num) && num > maxSeq) maxSeq = num;
+    });
+    return `${prefix}${String(maxSeq + 1).padStart(4, "0")}`;
   }));
   return result;
 }
 
 export function resetRequestNoCache() {
-  genRefLastMax = null;
+  // คงไว้เพื่อ backward compatibility — ไม่มี cache ให้ reset อีกต่อไป
 }
 
 // ══════════════════════════════════════════════════════════════
