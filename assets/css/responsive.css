@@ -1,0 +1,242 @@
+@media (max-width: 1040px) {
+  body {
+    padding: 0;
+  }
+
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 100vh;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 280px;
+    height: 100vh;
+    height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 15;
+    background: var(--bg);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  }
+
+  body.nav-open .sidebar {
+    transform: translateX(0);
+  }
+
+/* sidebar-backdrop ต้องไม่กิน grid column — ใช้ position fixed เสมอ */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 14;
+}
+
+  body.nav-open .sidebar-backdrop {
+    display: block;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+  }
+
+  .topbar {
+    display: flex;
+  }
+
+  .metric-grid,
+  .guide-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-modern {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-stat,
+  .designer-spotlight,
+  .yearly-pipeline-card,
+  .flow-card,
+  .team-list-card,
+  .dashboard-modern .recent-panel {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .main-panel {
+    padding: 14px;
+  }
+
+  .topbar,
+  .notice-panel,
+  .section-header,
+  .dashboard-hero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    justify-content: space-between;
+  }
+
+  .metric-grid,
+  .guide-grid,
+  .form-grid,
+  .dashboard-modern {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-stat,
+  .designer-spotlight,
+  .yearly-pipeline-card,
+  .flow-card,
+  .team-list-card,
+  .dashboard-modern .recent-panel {
+    grid-column: span 1;
+  }
+
+  .team-column-chart {
+    grid-template-columns: repeat(4, minmax(52px, 1fr));
+  }
+
+  .chart-period-buttons {
+    top: 18px;
+    right: 18px;
+  }
+
+  .chart-period-button {
+    min-height: 28px;
+    padding: 0 9px;
+    font-size: 11px;
+  }
+
+  .year-axis {
+    grid-template-columns: repeat(6, minmax(36px, 1fr));
+  }
+
+  .project-picker,
+  .submit-project-grid,
+  .drawing-head,
+  .drawing-row,
+  .project-info div,
+  .confirm-row,
+  .doc-input-row,
+  .custom-category-form,
+  .team-bar,
+  .selected-drawing-title,
+  .selected-drawing-main-fields,
+  .selected-drawing-source-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .project-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .submit-card {
+    padding: 16px;
+  }
+
+  .team-count {
+    text-align: left;
+  }
+
+  .page-heading h1 {
+    font-size: 24px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE FIXES — KPI Dashboard + submit form overflow
+   ══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 720px) {
+
+  /* KPI cards grid — 2 columns on mobile */
+  #dash-kpi-body > div[style*="grid-template-columns"],
+  #kpi-dashboard-body > div[style*="grid-template-columns"] {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* KPI panels — stack vertically */
+  #dash-kpi-body > div[style*="grid-template-columns:1fr 1fr"],
+  #kpi-dashboard-body > div[style*="grid-template-columns:1fr 1fr"],
+  #dash-kpi-body > div[style*="grid-template-columns:1fr 1fr 1fr"],
+  #kpi-dashboard-body > div[style*="grid-template-columns:1fr 1fr 1fr"] {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Overdue section panels */
+  #dash-kpi-body > div[style*="background:#FFF1F2"] > div[style*="grid-template-columns"],
+  #kpi-dashboard-body > div[style*="background:#FFF1F2"] > div[style*="grid-template-columns"] {
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  /* Filter bar wraps on mobile */
+  .kpi-dashboard-section .section-header > div:last-child,
+  div[style*="display:flex;gap:8px;align-items:center;flex-wrap:wrap"] {
+    flex-wrap: wrap !important;
+    width: 100%;
+  }
+
+  /* Selects full width on mobile */
+  select[id^="dash-kpi"],
+  select[id^="kpi-"] {
+    width: 100%;
+  }
+
+  /* Overdue detail cards */
+  div[style*="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px"] {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Prevent content overflow */
+  .content-section,
+  .kpi-dashboard-section {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  /* table horizontal scroll */
+  .track-table-wrap,
+  div[style*="overflow-x:auto"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* revision source block */
+  .revision-source-block {
+    margin-top: 8px;
+  }
+
+  /* modal full width */
+  .modal-box,
+  .modal-inner {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: 8px !important;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 400px) {
+  #dash-kpi-body > div[style*="grid-template-columns"],
+  #kpi-dashboard-body > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+}
