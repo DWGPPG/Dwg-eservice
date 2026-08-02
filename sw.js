@@ -1,4 +1,4 @@
-const CACHE_NAME = "ppg-drawing-shell-v14";
+const CACHE_NAME = "ppg-drawing-shell-v17";
 
 // เฉพาะไฟล์ static ของ shell — ไม่ cache ข้อมูลจาก SharePoint/Graph API เด็ดขาด
 // (ข้อมูลคำร้องต้องสดใหม่เสมอ ไม่งั้นจะเห็นสถานะเก่าค้าง)
@@ -44,17 +44,22 @@ self.addEventListener("fetch", (event) => {
     url.hostname.includes("sharepoint.com");
   if (isAuthOrApi || event.request.method !== "GET") return;
 
-  // Shell files: cache-first (เร็ว, ใช้ offline ได้บางส่วน)
-  // ไฟล์อื่น (เช่น JS modules): network-first กัน cache ค้างเวอร์ชันเก่าตอน deploy ใหม่
-  const isShellFile = SHELL_FILES.some((file) => event.request.url.endsWith(file.replace("./", "")));
-
-  if (isShellFile) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request))
-    );
-  } else {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
-  }
+  // ══════════════════════════════════════════════════════════════
+  // ทุกไฟล์ (HTML/CSS/JS) ใช้ network-first เหมือนกันหมด —
+  // เดิม shell files (HTML+CSS) ใช้ cache-first ทำให้อัปเดตแล้วผู้ใช้ยังเห็นเวอร์ชันเก่าค้าง
+  // แม้จะ bump CACHE_NAME ก็ตาม เพราะ browser ต้องรอ SW ใหม่ activate ก่อนถึงจะดึงจาก cache ใหม่
+  // เปลี่ยนเป็น network-first: ถ้าออนไลน์ได้ไฟล์ล่าสุดเสมอ ไม่ต้องรอรอบ SW lifecycle เลย
+  // ส่วน cache ยังอัปเดตไว้เป็น fallback รองรับกรณีออฟไลน์/เน็ตหลุดเท่านั้น
+  // ══════════════════════════════════════════════════════════════
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        if (response && response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request))
+  );
 });
