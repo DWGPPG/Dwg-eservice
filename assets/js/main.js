@@ -1,0 +1,381 @@
+import { appConfig } from "../../config/config.js";
+import { initAuth, login, logout, refreshUserRole } from "./auth.js";
+import { initRouter, navigate, refreshNavBadges } from "./router.js";
+import {
+  VIEW_AS_OPTIONS, canSwitchView, isViewingAsOther, switchViewTo,
+} from "./services/view-as-service.js";
+import { loadMasterData } from "./sharepoint.js";
+import { hydrateRequests } from "./services/request-service.js";
+import {
+  checkAndNotifyManager,
+  requestNotificationPermission,
+  resetNotificationBaseline,
+} from "./services/notification-service.js";
+import { state, subscribe } from "./state.js";
+import { qs } from "./utils.js";
+import { showToast } from "./components/toast.js";
+
+const POLL_INTERVAL_MS = 10 * 1000;
+let pollTimer = null;
+let lastRequestsHash = "";
+
+/** hash ง่ายๆ จาก requests array เพื่อเช็คว่าข้อมูลเปลี่ยนหรือไม่ */
+function hashRequests(requests) {
+  return (requests || []).map((r) => `${r.id}:${r.status}:${r.currentRevise || ""}`).join("|");
+}
+
+/** หน้าที่ห้าม re-render ระหว่าง polling เพราะผู้ใช้อาจกรอกข้อมูลอยู่ */
+const NO_POLL_RENDER_ROUTES = new Set(["/submit"]);
+
+/** ตรวจสอบว่ามี modal เปิดอยู่หรือไม่ */
+function isModalOpen() {
+  return document.querySelector("#modal-root")?.children?.length > 0;
+}
+
+/** ตรวจสอบว่า user กำลังพิมพ์อยู่ในฟอร์มหรือไม่ */
+function isUserTyping() {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || active.isContentEditable;
+}
+
+/** ตรวจสอบว่าควร re-render หรือไม่ */
+function shouldRender() {
+  if (NO_POLL_RENDER_ROUTES.has(state.currentRoute)) return false;
+  if (isModalOpen()) return false;
+  if (isUserTyping()) return false;
+  return true;
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+
+async function boot() {
+  document.documentElement.dataset.theme = state.theme;
+
+  // แสดงเวอร์ชันระบบใต้ปุ่มออกจากระบบ — ดึงจาก config ที่เดียว ไม่ hardcode ซ้ำใน HTML
+  const versionLabel = qs("#app-version-label");
+  if (versionLabel) versionLabel.textContent = `V${appConfig.app.version}`;
+
+  // โหลด background video — ลอง path หลายแบบ
+  const video = document.getElementById("auth-bg-video");
+  if (video) {
+    const paths = [
+      "./Footage%20login.mp4",
+      "./Footage login.mp4",
+      "./footage login.mp4",
+      "./footage%20login.mp4",
+      "./Footage_login.mp4",
+      "./footage_login.mp4",
+    ];
+    const tryLoad = (index) => {
+      if (index >= paths.length) return;
+      video.src = paths[index];
+      video.load();
+      video.play().catch(() => tryLoad(index + 1));
+      video.onerror = () => tryLoad(index + 1);
+    };
+    tryLoad(0);
+  }
+
+  // ถ้ากำลัง redirect กลับจาก Microsoft ให้แสดง loading overlay แทน auth panel
+  const isRedirectCallback = window.location.href.includes("code=") || window.location.href.includes("error=");
+
+  if (isRedirectCallback) {
+    // แสดง loading screen แทน auth panel ระหว่างรอ MSAL handle token
+    document.body.insertAdjacentHTML("beforeend", `
+      <div id="redirect-loading" style="
+        position:fixed;inset:0;z-index:9999;
+        background:linear-gradient(135deg,#002952 0%,#001a38 50%,#003d20 100%);
+        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
+        <img src="./PPG%20logo%20for%20Web.png" style="height:48px;opacity:0.9;" onerror="this.style.display='none'">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#0DB14B;border-radius:50%;animation:spin 0.7s linear infinite;"></div>
+          <span style="color:#fff;font-size:14px;font-weight:500;">กำลังเข้าสู่ระบบ...</span>
+        </div>
+        <p style="color:rgba(255,255,255,0.45);font-size:12px;">กรุณารอสักครู่</p>
+      </div>
+    `);
+  } else {
+    showAuthPanel(true);
+  }
+
+  bindChrome();
+  subscribe(updateShell);
+  subscribe(onRequestsChanged);
+  updateShell(state);
+  initRouter();
+
+  try {
+    await initAuth();
+    document.getElementById("redirect-loading")?.remove();
+    if (state.account) {
+      await afterSignedIn();
+      return;
+    }
+  } catch (error) {
+    console.error("initAuth failed:", error);
+    document.getElementById("redirect-loading")?.remove();
+    if (!isRedirectCallback) {
+      showToast("เริ่มต้นระบบ Microsoft 365 ไม่สำเร็จ — ลองรีเฟรชหน้าเว็บ", "error");
+    }
+  }
+
+  document.getElementById("redirect-loading")?.remove();
+  showAuthPanel(true);
+}
+
+async function afterSignedIn() {
+  try {
+    await loadMasterData();
+    refreshUserRole();
+    await hydrateRequests();
+    // แสดง app shell ก่อนเสมอ — ต้อง unhide ก่อน navigate() จะได้ layout ถูกต้อง
+    showAuthPanel(false);
+    navigate();
+
+    if (state.user?.role === "manager") {
+      await requestNotificationPermission();
+    }
+    startPolling();
+  } catch (error) {
+    console.error("Failed to load SharePoint data:", error);
+    showToast("เซสชันหมดอายุหรือเชื่อมต่อ SharePoint ไม่สำเร็จ — กรุณาเข้าสู่ระบบใหม่", "error");
+    await logout();
+    resetNotificationBaseline();
+    showAuthPanel(true);
+  }
+}
+
+/**
+ * เช็คคำร้องใหม่เป็นระยะตอนเปิดแอปค้างไว้ — ไม่ใช่ push notification จริง (ระบบนี้ไม่มี backend
+ * server แยกต่างหาก) แต่เป็น polling ฝั่ง client เพื่อให้เห็น badge/แจ้งเตือนอัปเดตโดยไม่ต้อง
+ * รีเฟรชหน้าเอง ช่องทางแจ้งเตือนหลักของระบบยังคงเป็น Teams 1:1 chat ที่ทำงานได้แม้ปิดแอปสนิท
+ */
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+
+  const refreshData = async (forceRender = false) => {
+    if (!state.account || document.hidden) return;
+    try {
+      await hydrateRequests();
+
+      const newHash = hashRequests(state.requests);
+      const changed = newHash !== lastRequestsHash;
+
+      if (changed) {
+        lastRequestsHash = newHash;
+        if (state.currentRoute && shouldRender()) navigate();
+      } else if (forceRender && shouldRender()) {
+        if (state.currentRoute) navigate();
+      }
+    } catch (error) {
+      console.warn("Polling refresh failed (non-critical):", error.message);
+    }
+  };
+
+  pollTimer = setInterval(() => refreshData(false), POLL_INTERVAL_MS);
+
+  // Refresh ทันทีเมื่อกลับมาที่แท็บหรือ focus หน้าต่าง
+  let lastRefresh = Date.now();
+  const refreshIfStale = () => {
+    if (!state.account) return;
+    if (Date.now() - lastRefresh < 5000) return;
+    lastRefresh = Date.now();
+    refreshData(true);
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshIfStale();
+  });
+  window.addEventListener("focus", refreshIfStale);
+}
+
+function bindChrome() {
+  const loginButtons = [qs("#login-button"), qs("#login-button-panel")].filter(Boolean);
+  loginButtons.forEach((button) => {
+    button.hidden = false;
+    button.addEventListener("click", async () => {
+      // แสดง loading state ทันที ป้องกันกดซ้ำ
+      button.disabled = true;
+      const originalHTML = button.innerHTML;
+      button.innerHTML = `
+        <span style="display:inline-flex;align-items:center;gap:8px;">
+          <span style="width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;display:inline-block;"></span>
+          <span>กำลังเชื่อมต่อ Microsoft 365...</span>
+        </span>`;
+      try {
+        const account = await login();
+        if (account) await afterSignedIn();
+      } catch (error) {
+        showToast(error.message || "เข้าสู่ระบบไม่สำเร็จ", "error");
+        button.disabled = false;
+        button.innerHTML = originalHTML;
+      }
+    });
+  });
+
+  const logoutButton = qs("#logout-button");
+  if (logoutButton) {
+    logoutButton.hidden = false;
+    logoutButton.addEventListener("click", async () => {
+      await logout();
+      location.reload();
+    });
+  }
+
+  qs("#theme-toggle").addEventListener("click", toggleTheme);
+  qs("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("nav-open"));
+  qs("#sidebar-backdrop")?.addEventListener("click", () => document.body.classList.remove("nav-open"));
+}
+
+let requestsChangedDebounce = null;
+
+/**
+ * ทำงานทุกครั้งที่ state เปลี่ยน (subscribe ทั่วไป) — กรองเฉพาะตอน requests array
+ * เปลี่ยนค่าจริงๆ ด้วย debounce กันยิงถี่เกินไปตอน action เดียวเรียก setState หลายครั้งติดกัน
+ */
+let lastRequestsRef = null;
+function onRequestsChanged(nextState) {
+  if (nextState.requests === lastRequestsRef) return;
+  lastRequestsRef = nextState.requests;
+
+  if (requestsChangedDebounce) clearTimeout(requestsChangedDebounce);
+  requestsChangedDebounce = setTimeout(() => {
+    if (!nextState.account) return;
+    refreshNavBadges();
+    checkAndNotifyManager(nextState.user?.role === "manager");
+  }, 150);
+}
+
+function showAuthPanel(show) {
+  const panel = qs("#auth-panel");
+  if (panel) panel.hidden = !show;
+  const view = qs("#app-view");
+  if (view) view.hidden = show;
+  const topbar = document.querySelector(".topbar");
+  if (topbar) topbar.hidden = show;
+  document.body.classList.toggle("auth-mode", show);
+}
+
+function toggleTheme() {
+  const theme = state.theme === "light" ? "dark" : "light";
+  localStorage.setItem("ppg-theme", theme);
+  document.documentElement.dataset.theme = theme;
+  state.theme = theme;
+}
+
+function updateShell(nextState) {
+  const roleChip = qs("#user-role-chip");
+  if (roleChip) roleChip.textContent = nextState.user?.roleLabel || "";
+  const userName = qs("#sidebar-user-name");
+  if (userName) userName.textContent = nextState.user?.name || "";
+  const logoutButton = qs("#logout-button");
+  if (logoutButton) logoutButton.hidden = !nextState.account;
+  const loginButton = qs("#login-button");
+  if (loginButton) loginButton.hidden = Boolean(nextState.account);
+  const authNote = qs("#sidebar-auth-note");
+  if (authNote) authNote.hidden = Boolean(nextState.account);
+  renderViewAsSwitcher(nextState);
+}
+
+/**
+ * ปุ่มสลับมุมมอง — แสดงใต้ชื่อผู้ใช้ เฉพาะผู้ที่มีสิทธิ์จริงเป็นผู้จัดการ
+ *
+ * หมายเหตุสำคัญ: applyState() ถูกเรียกทุกครั้งที่ state เปลี่ยน ถ้าสร้าง HTML ใหม่ทั้งก้อนทุกครั้ง
+ * ปุ่มจะถูกทำลายและสร้างใหม่ตลอดเวลา ทำให้ event listener หลุดและกดปุ่มไม่ติด
+ * จึงสร้างโครงปุ่มครั้งเดียว แล้วอัปเดตเฉพาะสถานะที่เปลี่ยนจริงเท่านั้น
+ */
+function renderViewAsSwitcher(nextState) {
+  const box = qs("#view-as-switcher");
+  if (!box) return;
+
+  const user = nextState.user;
+  if (!nextState.account || !canSwitchView(user)) {
+    box.hidden = true;
+    box.innerHTML = "";
+    box.dataset.builtFor = "";
+    document.body.classList.remove("viewing-as-other");
+    return;
+  }
+
+  box.hidden = false;
+
+  // สร้างโครงครั้งเดียวต่อผู้ใช้หนึ่งคน
+  if (box.dataset.builtFor !== user.email) {
+    box.dataset.builtFor = user.email;
+    box.innerHTML = `
+      <div class="view-as-title">🔄 มุมมองที่กำลังดู</div>
+      <div class="view-as-options">
+        ${VIEW_AS_OPTIONS.map((o) => `
+          <button type="button" class="view-as-btn" data-view-as="${o.role}" title="${o.desc}">
+            <span class="view-as-icon">${o.icon}</span>
+            <span class="view-as-label">${o.label}</span>
+            ${o.role === user.actualRole ? '<span class="view-as-self">(ของคุณ)</span>' : ""}
+          </button>
+        `).join("")}
+      </div>
+      <div class="view-as-warning" hidden>⚠️ กำลังดูในมุมมองอื่น ไม่ใช่มุมมองจริงของคุณ</div>
+    `;
+
+    box.querySelectorAll("[data-view-as]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.dataset.viewAs;
+        if (target === state.user.role) return;      // กดซ้ำมุมมองเดิม ไม่ต้องทำอะไร
+        if (!switchViewTo(target)) return;
+
+        const label = VIEW_AS_OPTIONS.find((o) => o.role === target)?.label || target;
+        showToast(`🔄 เปลี่ยนเป็นมุมมอง: ${label}`, "info");
+
+        // กลับหน้าภาพรวมเสมอ เพราะหน้าที่ค้างอยู่อาจไม่มีสิทธิ์เข้าถึงในมุมมองใหม่
+        navigate("/dashboard");
+        refreshNavBadges();
+      });
+    });
+  }
+
+  // อัปเดตเฉพาะสถานะ — ไม่แตะโครง DOM เดิม ปุ่มจึงไม่หลุด listener
+  const viewingOther = isViewingAsOther(user);
+  document.body.classList.toggle("viewing-as-other", viewingOther);
+  box.querySelectorAll("[data-view-as]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.viewAs === user.role);
+  });
+  const warn = box.querySelector(".view-as-warning");
+  if (warn) warn.hidden = !viewingOther;
+}
+
+// ── PWA: ลงทะเบียน Service Worker เพื่อให้ "เพิ่มลงหน้าจอโฮม" ได้ทั้ง Android/iOS ──
+// ไม่ block boot flow หลัก — ถ้าลงทะเบียนไม่สำเร็จ แอปยังใช้งานได้ปกติทุกอย่างผ่านเครือข่าย
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").then((registration) => {
+      // เช็คอัปเดตทันทีตอนโหลดหน้า — ไม่ต้องรอ browser เช็คเองตามรอบ (อาจช้าถึง 24 ชม.)
+      registration.update().catch(() => {});
+
+      // กลับมาที่แท็บ/แอปอีกครั้ง (เช่น สลับแอปแล้วกลับมา) → เช็คอัปเดตซ้ำ
+      // สำคัญสำหรับ PWA ที่เปิดค้างไว้นานบนมือถือ ไม่ปิดแอปเอง
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") registration.update().catch(() => {});
+      });
+
+      // มี Service Worker เวอร์ชันใหม่เข้าควบคุมหน้านี้ → reload ครั้งเดียวอัตโนมัติ
+      // เพื่อให้ผู้ใช้ได้โค้ด/CSS ล่าสุดทันที ไม่ต้องกดรีเฟรชเองหลายรอบ
+      // กัน loop ด้วย sessionStorage flag (reload ได้แค่ครั้งเดียวต่อ session)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshing) return;
+        if (sessionStorage.getItem("sw-reloaded") === "1") return;
+        refreshing = true;
+        sessionStorage.setItem("sw-reloaded", "1");
+        showToast("🔄 มีอัปเดตใหม่ กำลังโหลดเวอร์ชันล่าสุด...", "info");
+        setTimeout(() => window.location.reload(), 600);
+      });
+    }).catch((error) => {
+      console.warn("Service worker registration failed (non-critical):", error.message);
+    });
+  });
+}
