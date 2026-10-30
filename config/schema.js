@@ -8,7 +8,6 @@ export const lists = {
   team: "DrawingTeam",
   auditLog: "AuditLog",
   holidays: "HolidayList",
-  teamPulse: "TeamPulsePosts",
 };
 
 // ── Field mapping: local key (ใช้ในโค้ด JS) → SharePoint internal field name จริง ──
@@ -123,23 +122,6 @@ export const fields = {
     userName: "UserName",
     detail: "Detail",
     actionAt: "ActionAt",
-  },
-
-  // ══════════════════════════════════════════════════════════════
-  // Team Pulse — เช็คอินความรู้สึก/แผนงานประจำวันของฝ่ายเขียนแบบ (หน้าภาพรวม)
-  // ตั้งใจใช้ Single line / Multiple lines of text ทั้งหมด (ไม่ใช้ Choice/Number/Yes-No)
-  // เพื่อเลี่ยงปัญหา Graph API 400 แบบที่เจอกับ ReviewResult/RevisionSource มาก่อน —
-  // ค่าที่ควรเป็น boolean/choice จะเก็บเป็น string ธรรมดา ("Yes"/"No", "good"/"fire" ฯลฯ) แทน
-  // ══════════════════════════════════════════════════════════════
-  teamPulse: {
-    title: "Title",                // เก็บข้อความโพสต์ (ตัดสั้น) ไว้ให้เห็นตอนเปิดดู List ตรงๆ
-    authorEmail: "AuthorEmail",    // Single line of text
-    authorName: "AuthorName",      // Single line of text
-    mood: "Mood",                  // Single line of text — เก็บ key: good/ok/meh/tired/fire
-    postText: "PostText",          // Multiple lines of text — ข้อความเต็ม ไม่จำกัดความยาว
-    reactions: "Reactions",        // Multiple lines of text — JSON string {emojiKey:[email,...]}
-    postedAt: "PostedAt",          // Date and Time
-    editedAt: "EditedAt",          // Date and Time (ว่างได้ถ้ายังไม่เคยแก้ไข)
   },
 };
 

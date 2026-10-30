@@ -3,7 +3,6 @@ import { renderTable } from "../components/table.js";
 import { assigneeName, getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDate } from "../utils.js";
 import { renderKpiDashboard } from "./report.js";
-import { renderTeamPulse } from "./team-pulse-widget.js";
 
 const chartPeriods = [
   { key: "weekly", label: "รายอาทิตย์" },
@@ -42,16 +41,6 @@ export function renderDashboard(view, state) {
 
   // ── Clear view ก่อนเสมอ ──
   view.innerHTML = "";
-
-  // ── Team Pulse Widget (เช็คอินความรู้สึก/แผนงานประจำวัน) — บนสุดของหน้า ──
-  const teamPulseContainer = document.createElement("div");
-  view.appendChild(teamPulseContainer);
-  renderTeamPulse(teamPulseContainer, state).catch((err) => {
-    console.warn("Team Pulse widget เกิดข้อผิดพลาดระหว่างทำงาน (ไม่กระทบส่วนอื่นของหน้า):", err.message);
-    // หมายเหตุ: ไม่เคลียร์ innerHTML ทิ้งที่นี่ — ถ้า error เกิดขึ้น "หลัง" เนื้อหาถูก render สำเร็จไปแล้ว
-    // (เช่น ขั้นตอนวัดความสูงฟีดหลัง paint) การเคลียร์ทิ้งจะทำให้เนื้อหาที่ถูกต้องหายไปโดยไม่จำเป็น
-    // ปล่อยให้เนื้อหาที่มีอยู่ ณ ตอนนั้นแสดงต่อไป — กรณีเดียวที่จะยังค้างเป็น skeleton คือ error เกิดก่อน paint() ครั้งแรก
-  });
 
   // ── KPI Section ──
   const kpiWrapper = document.createElement("div");

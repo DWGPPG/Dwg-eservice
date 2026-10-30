@@ -675,11 +675,11 @@ html[data-theme] {
 [data-theme="light"] .badge-cancelled { --tone: #64748b; }
 
 /* chip / segmented filter ทั้งหลาย — เรืองแสงเขียวตอน hover แบบ skill chip */
-[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip, .file-chip, .fmt-seg, .tp-mood-row button) {
+[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip, .file-chip, .fmt-seg) {
   transition: color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 
-[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip, .tp-mood-row button):hover {
+[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip):hover {
   border-color: var(--primary);
   color: var(--primary);
   box-shadow: 0 0 15px rgba(0, 223, 143, 0.3);
