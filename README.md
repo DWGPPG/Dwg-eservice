@@ -128,6 +128,26 @@ Logo ที่ใช้: `PPC NEW-2024 - R1.png` (ไฟล์ root ของโ
 
 ---
 
+## ธีม / ดีไซน์ (Neon Blueprint)
+
+หน้าตาระบบทั้งหมดอยู่ใน 2 ไฟล์ที่โหลดท้ายสุด โดยไม่แตะ class / id ที่ JS ใช้งาน workflow จึงเหมือนเดิมทุกอย่าง
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `assets/css/theme.css` | design tokens (สี, ฟอนต์, มุมโค้ง), ธีมมืดเป็นค่าเริ่มต้น (#0d1116 + neon green #00df8f), หน้า login แบบ hero + บัตรห้อยสายคล้อง, ปุ่ม/ตาราง/badge/modal/toast, animation ตอนเปลี่ยนหน้า |
+| `assets/css/theme-dark-auto.css` | **ไฟล์สร้างอัตโนมัติ ห้ามแก้ตรง** แปลงสีที่ CSS เดิมและ inline style ใน JS hardcode ไว้ (เช่น `background:#fff`) ให้เข้ากับธีมมืด |
+| `assets/js/ui-effects.js` | เอฟเฟกต์ตกแต่ง: ลากบัตรล็อกอินแล้วเด้งกลับ, เล่น animation เฉพาะตอนเปลี่ยนหน้า (ไม่กระพริบตอน polling) |
+
+- ปุ่ม ◐ ยังสลับธีมสว่าง/มืดได้ (จำค่าใน `localStorage` key `ppg-theme-v2`)
+- ตอนพิมพ์รายงาน / บันทึก PDF ใช้สีพื้นขาวเสมอ (ธีมมืดครอบด้วย `@media screen`)
+- **แก้ CSS เดิม หรือเพิ่มสี inline ใน JS แล้ว ให้รันสคริปต์นี้ใหม่ทุกครั้ง:**
+
+```bash
+node tools/gen-dark-css.mjs
+```
+
+---
+
 ## การตั้งค่า `config/config.js`
 
 ```js
