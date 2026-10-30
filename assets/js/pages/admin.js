@@ -319,20 +319,12 @@ function renderManagerAdmin(view, state) {
 
       <div class="admin-section-block" id="approve-section" ${sectionHidden("approve-section")}>
         <div class="admin-section-heading">✅ อนุมัติเริ่มงาน <span class="admin-section-count">${approveItems.length}</span></div>
-        <div id="admin-list" class="admin-list">
-          ${approveItems.length
-            ? approveItems.map((item) => renderApprovalCard(item, isManager)).join("")
-            : `<div class="empty-state">📭 ไม่มีรายการรออนุมัติ</div>`}
-        </div>
+        ${renderApprovalTable(approveItems, isManager, state)}
       </div>
 
       <div class="admin-section-block" id="mgr-review-section" ${sectionHidden("mgr-review-section")}>
         <div class="admin-section-heading">🔍 ตรวจสอบและส่งมอบงาน <span class="admin-section-count">${mgrReviewItems.length}</span></div>
-        <div id="mgr-review-list" class="admin-list">
-          ${mgrReviewItems.length
-            ? mgrReviewItems.map((item) => renderMgrReviewCard(item)).join("")
-            : `<div class="empty-state">✅ ไม่มีงานรอตรวจสอบ</div>`}
-        </div>
+        ${renderMgrReviewTable(mgrReviewItems, state)}
       </div>
 
       <div class="admin-section-block" id="takeover-section" ${sectionHidden("takeover-section")}>
@@ -1065,73 +1057,89 @@ async function pickupRequests(view, state, requestNos) {
 // APPROVAL CARD — Lv.2
 // ══════════════════════════════════════════════════════════════
 
-function renderApprovalCard(item, isManager = false) {
-  const urgentClass = { "เร่งด่วน": "badge-urgent", "เร่งด่วนมาก": "badge-critical" };
-  const statusBadge = `<span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>`;
-  const lv1Block = item.assignedToName ? `
-    <div class="lv1-info-block">
-      <div class="lv1-info-title">✅ รับงานแล้ว</div>
-      <div class="lv1-info-grid">
-        <div><span>ผู้รับผิดชอบ:</span> <b>${escapeHtml(item.assignedToName)}</b></div>
-        <div><span>รับงานโดย:</span> ${escapeHtml(item.reviewerLv1 || "—")}</div>
-        ${item.assignNote ? `<div class="span-full"><span>หมายเหตุ:</span> ${escapeHtml(item.assignNote)}</div>` : ""}
-      </div>
-    </div>` : "";
+// ── ตาราง "อนุมัติเริ่มงาน" — แถวละ 1 คำร้อง (เหมือนตารางรับงาน) กล่องส่งกลับ/ยกเลิกกางเป็นแถวใต้รายการ ──
+const APPROVAL_COLUMNS = 8;
 
+function renderApprovalTable(items, isManager, state) {
+  return `
+    <div class="track-table-wrap">
+      <table class="track-sheet approval-table">
+        <thead>
+          <tr>
+            <th>กำหนด</th>
+            <th>เลขที่คำร้อง</th>
+            <th>DRAWING</th>
+            <th>ประเภทงาน</th>
+            <th>ผู้รับผิดชอบ</th>
+            <th>ผู้ขอ / วันที่ส่ง</th>
+            <th>ดำเนินการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.length
+            ? items.map((item) => renderApprovalRow(item, isManager, state)).join("")
+            : `<tr><td colspan="${APPROVAL_COLUMNS}" class="track-empty">📭 ไม่มีรายการรออนุมัติ</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderApprovalRow(item, isManager, state) {
+  const urgentClass = { "เร่งด่วน": "badge-urgent", "เร่งด่วนมาก": "badge-critical" };
+  const due = pickupDueLabel(item.dueDate, getHolidaySet(state));
   const folder   = getRequestFolderUrl(item.requestNo);
   const fileLink = item.dataLink || "";
-
-  // ปุ่มมอบหมายงานใหม่ — แสดงเฉพาะ Lv.2 manager และเฉพาะงานที่มีผู้รับผิดชอบแล้ว
-  const reassignBtn = isManager && item.assignedToName
-    ? `<button class="secondary-button small-flow-button" data-admin-action="open-reassign" data-request="${escapeHtml(item.requestNo)}">🔄 มอบหมายใหม่</button>`
-    : "";
+  const requestNo = escapeHtml(item.requestNo);
 
   return `
-    <article class="admin-card" id="admin-card-${escapeHtml(item.requestNo)}">
-      <div class="admin-card-header">
-        <div>
-          <div class="admin-card-title">
-            ${escapeHtml(item.requestType || "คำร้อง")}
-            ${item.drawingNo ? `<span class="admin-card-drawing-no">${escapeHtml(item.drawingNo)}</span>` : ""}
-          </div>
-          <div class="admin-card-ref">
-            <button class="track-request-link" type="button" data-request-detail="${escapeHtml(item.requestNo)}"
-              title="คลิกเพื่อดูใบคำขอและรายละเอียดทั้งหมด"
-              style="font-weight:700;">${escapeHtml(item.requestNo)}</button>
-            ${item.drawingName ? "— " + escapeHtml(item.drawingName) : ""}
-          </div>
+    <tr id="admin-card-${requestNo}">
+      <td data-label="กำหนด"><span class="due-chip ${due.className}">${escapeHtml(due.label)}</span></td>
+      <td data-label="เลขที่คำร้อง" style="overflow-wrap:break-word;">
+        <button class="track-request-link" type="button" data-request-detail="${requestNo}"
+          title="คลิกเพื่อดูใบคำขอและรายละเอียดทั้งหมด"
+          style="font-weight:700;white-space:nowrap;text-align:left;">${requestNo}</button><br>
+        <small style="color:#005DAC;font-weight:600;overflow-wrap:break-word;">${escapeHtml(item.projectName || "—")}</small>
+        <div class="admin-row-links">
+          <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn">📁 โฟลเดอร์</a>
+          ${fileLink ? `<a href="${escapeHtml(fileLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn">🔗 ลิงก์</a>` : ""}
         </div>
-        ${statusBadge}
-        ${item.priority && item.priority !== "ปกติ" ? `<span class="badge ${urgentClass[item.priority] || ""}">${escapeHtml(item.priority)}</span>` : ""}
-      </div>
-
-      ${lv1Block}
-      ${item.description ? `<div class="admin-card-body">${escapeHtml(item.description)}</div>` : ""}
-
-      <div class="admin-card-footer">
-        <span class="admin-card-meta">👤 ${escapeHtml(item.requesterName || item.department || "—")}</span>
-        <span class="admin-card-meta">📅 ${formatDate(item.submittedAt)}</span>
-
-        <!-- โฟลเดอร์ + ลิงก์แนบ -->
-        <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer"
-          class="secondary-button small-flow-button" style="display:inline-flex;align-items:center;gap:4px;">
-          📁 โฟลเดอร์
-        </a>
-        ${fileLink ? `<a href="${escapeHtml(fileLink)}" target="_blank" rel="noopener noreferrer"
-          class="secondary-button small-flow-button" style="display:inline-flex;align-items:center;gap:4px;">
-          🔗 ลิงก์แนบ
-        </a>` : ""}
-
-        <div class="admin-card-actions">
-          <button class="secondary-button small-flow-button" data-admin-action="toggle-reject" data-request="${escapeHtml(item.requestNo)}">↩️ ส่งกลับ</button>
-          <button class="secondary-button small-flow-button danger-button" data-admin-action="toggle-cancel" data-request="${escapeHtml(item.requestNo)}">❌ ยกเลิก</button>
-          ${reassignBtn}
-          ${item.assignedToName
-            ? `<button class="primary-button small-flow-button" data-admin-action="approve-lv2" data-request="${escapeHtml(item.requestNo)}">✅ อนุมัติเริ่มงาน</button>`
-            : `<button class="primary-button small-flow-button" data-admin-action="open-assign" data-request="${escapeHtml(item.requestNo)}" data-level="lv2">✅ อนุมัติ + มอบหมาย</button>`}
+      </td>
+      <td data-label="Drawing">
+        <strong style="display:block;overflow-wrap:break-word;">${escapeHtml(item.drawingNo || "—")}</strong>
+        <small class="approval-clamp" title="${escapeHtml(item.drawingName || "")}">${escapeHtml(item.drawingName || "")}</small>
+        ${item.description ? `<small class="approval-clamp approval-desc" title="${escapeHtml(item.description)}">💬 ${escapeHtml(item.description)}</small>` : ""}
+      </td>
+      <td data-label="ประเภทงาน">
+        <span class="badge badge-pending">${escapeHtml(item.requestType || "—")}</span>
+        ${item.priority && item.priority !== "ปกติ" ? `<span class="badge ${urgentClass[item.priority] || ""}" style="margin-top:4px;">${escapeHtml(item.priority)}</span>` : ""}
+      </td>
+      <td data-label="ผู้รับผิดชอบ">
+        ${item.assignedToName
+          ? `<strong>${escapeHtml(item.assignedToName)}</strong>
+             <small style="display:block;color:#64748B;">รับโดย ${escapeHtml(item.reviewerLv1 || "—")}</small>
+             ${item.assignNote ? `<small class="approval-clamp" title="${escapeHtml(item.assignNote)}">📝 ${escapeHtml(item.assignNote)}</small>` : ""}`
+          : `<span class="badge badge-pending_manager_approval">ยังไม่มีผู้รับผิดชอบ</span>`}
+      </td>
+      <td data-label="ผู้ขอ / วันที่ส่ง" style="overflow-wrap:break-word;">
+        ${escapeHtml(item.requesterName || item.department || "—")}
+        <small style="display:block;white-space:nowrap;color:#64748B;margin-top:2px;">📅 ${formatDate(item.submittedAt)}</small>
+      </td>
+      <td data-label="ดำเนินการ" class="admin-row-actions">
+        ${item.assignedToName
+          ? `<button class="primary-button small-flow-button" data-admin-action="approve-lv2" data-request="${requestNo}">✅ อนุมัติเริ่มงาน</button>`
+          : `<button class="primary-button small-flow-button" data-admin-action="open-assign" data-request="${requestNo}" data-level="lv2">✅ อนุมัติ + มอบหมาย</button>`}
+        ${isManager && item.assignedToName
+          ? `<button class="secondary-button small-flow-button" data-admin-action="open-reassign" data-request="${requestNo}">🔄 มอบหมายใหม่</button>`
+          : ""}
+        <div class="admin-row-actions-minor">
+          <button class="small-button secondary-button" data-admin-action="toggle-reject" data-request="${requestNo}">↩️ ส่งกลับ</button>
+          <button class="small-button danger" data-admin-action="toggle-cancel" data-request="${requestNo}">❌ ยกเลิก</button>
         </div>
-      </div>
-
+      </td>
+    </tr>
+    <tr class="admin-expand-row">
+      <td colspan="${APPROVAL_COLUMNS}">
       <div id="admin-action-box-${escapeHtml(item.requestNo)}" class="admin-action-box" hidden>
         <div id="admin-action-label-${escapeHtml(item.requestNo)}" class="admin-action-label"></div>
         <div id="admin-cancel-src-wrap-${escapeHtml(item.requestNo)}" hidden>
@@ -1154,7 +1162,8 @@ function renderApprovalCard(item, isManager = false) {
           <button class="danger-button small-flow-button" id="admin-action-confirm-${escapeHtml(item.requestNo)}" data-admin-action="confirm-box" data-request="${escapeHtml(item.requestNo)}">ยืนยัน</button>
         </div>
       </div>
-    </article>
+      </td>
+    </tr>
   `;
 }
 
@@ -1427,56 +1436,84 @@ function parseNoteAndFiles(raw = "") {
   } catch { return { note: raw, otherFiles: [] }; }
 }
 
-function renderMgrReviewCard(item) {
+// ── ตาราง "ตรวจสอบและส่งมอบงาน" — แถวละ 1 งาน, ไฟล์งานเปิดได้จากแถวเลย, กล่องส่งกลับแก้ไขกางใต้รายการ ──
+const MGR_REVIEW_COLUMNS = 8;
+
+function renderMgrReviewTable(items, state) {
+  return `
+    <div class="track-table-wrap">
+      <table class="track-sheet mgr-review-table">
+        <thead>
+          <tr>
+            <th>กำหนดส่ง</th>
+            <th>เลขที่คำร้อง</th>
+            <th>DRAWING</th>
+            <th>ผู้เขียนแบบ</th>
+            <th>หมายเหตุจากผู้เขียนแบบ</th>
+            <th>ไฟล์งาน</th>
+            <th>ส่งงานเมื่อ</th>
+            <th>ตรวจสอบ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.length
+            ? items.map((item) => renderMgrReviewRow(item, state)).join("")
+            : `<tr><td colspan="${MGR_REVIEW_COLUMNS}" class="track-empty">✅ ไม่มีงานรอตรวจสอบ</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderMgrReviewRow(item, state) {
   const { note, otherFiles } = parseNoteAndFiles(item.noteFromDrawing || "");
   const folder = getRequestFolderUrl(item.requestNo);
   const hasFile = item.dwgFileUrl || item.pdfFileUrl || otherFiles.length;
+  const due = pickupDueLabel(item.dueDate, getHolidaySet(state));
+  const requestNo = escapeHtml(item.requestNo);
   return `
-    <article class="admin-card" id="mgr-card-${escapeHtml(item.requestNo)}">
-      <div class="admin-card-header">
-        <div>
-          <div class="admin-card-title">
-            <button class="track-request-link" type="button" data-request-detail="${escapeHtml(item.requestNo)}"
-              title="คลิกเพื่อดูใบคำขอและรายละเอียดทั้งหมด"
-              style="font-size:inherit;font-weight:inherit;">${escapeHtml(item.requestNo)}</button>
-          </div>
-          <div class="admin-card-ref">${escapeHtml(item.projectName || "—")} · ${escapeHtml(item.drawingNo || "—")} — ${escapeHtml(item.drawingName || "—")}</div>
-        </div>
-        <span class="badge badge-mgr_review">🔍 รอผู้จัดการตรวจ+ส่งมอบ</span>
-      </div>
-
-      <div class="lv1-info-block">
-        <div class="lv1-info-grid">
-          <div><span>ผู้เขียนแบบ:</span> <b>${escapeHtml(item.assignedToName || "—")}</b></div>
-          <div><span>Revise:</span> <b>${escapeHtml(item.currentRevise || item.reviseNumber || "—")}</b></div>
-          <div><span>กำหนดส่ง:</span> ${item.dueDate ? escapeHtml(new Date(item.dueDate).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" })) : "—"}</div>
-          <div><span>ความเร่งด่วน:</span> ${escapeHtml(item.priority || "ปกติ")}</div>
-          ${item.description ? `<div class="span-full"><span>รายละเอียด:</span> ${escapeHtml(item.description)}</div>` : ""}
-          ${note ? `<div class="span-full mgr-note-from-drawing"><span>📝 หมายเหตุจากผู้เขียนแบบ:</span> <b>${escapeHtml(note)}</b></div>` : ""}
-        </div>
-      </div>
-
-      <div class="mgr-file-review-block">
-        <div class="mgr-file-review-label">📎 ไฟล์งาน + ลิงก์</div>
-        <div class="mgr-file-review-links">
-          ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn"><span>📐</span><span>DWG</span></a>` : `<span class="mgr-file-missing">— ไม่มีไฟล์ DWG</span>`}
-          ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn"><span>📄</span><span>PDF</span></a>` : `<span class="mgr-file-missing">— ไม่มีไฟล์ PDF</span>`}
+    <tr id="mgr-card-${requestNo}">
+      <td data-label="กำหนดส่ง">
+        <span class="due-chip ${due.className}">${escapeHtml(due.label)}</span>
+        ${item.priority && item.priority !== "ปกติ" ? `<small style="display:block;margin-top:4px;color:#B45309;font-weight:600;">⚡ ${escapeHtml(item.priority)}</small>` : ""}
+      </td>
+      <td data-label="เลขที่คำร้อง" style="overflow-wrap:break-word;">
+        <button class="track-request-link" type="button" data-request-detail="${requestNo}"
+          title="คลิกเพื่อดูใบคำขอและรายละเอียดทั้งหมด"
+          style="font-weight:700;white-space:nowrap;text-align:left;">${requestNo}</button><br>
+        <small style="color:#005DAC;font-weight:600;overflow-wrap:break-word;">${escapeHtml(item.projectName || "—")}</small>
+      </td>
+      <td data-label="Drawing">
+        <strong style="display:block;overflow-wrap:break-word;">${escapeHtml(item.drawingNo || "—")}</strong>
+        <small class="approval-clamp" title="${escapeHtml(item.drawingName || "")}">${escapeHtml(item.drawingName || "")}</small>
+        <small style="display:block;color:#64748B;">Revise <b>${escapeHtml(item.currentRevise || item.reviseNumber || "—")}</b></small>
+      </td>
+      <td data-label="ผู้เขียนแบบ"><strong>${escapeHtml(item.assignedToName || "—")}</strong></td>
+      <td data-label="หมายเหตุ" class="mgr-note-cell">
+        ${note ? `<span class="approval-clamp" title="${escapeHtml(note)}">📝 ${escapeHtml(note)}</span>` : `<span style="color:#CBD5E1;font-size:11px;">—</span>`}
+        ${item.description ? `<small class="approval-clamp approval-desc" title="${escapeHtml(item.description)}">💬 ${escapeHtml(item.description)}</small>` : ""}
+      </td>
+      <td data-label="ไฟล์งาน">
+        <div class="mgr-file-review-links mgr-file-review-compact">
+          ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn"><span>📐</span><span>DWG</span></a>` : ""}
+          ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn"><span>📄</span><span>PDF</span></a>` : ""}
           ${otherFiles.map((f) => {
-            const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 22 ? fname.slice(0, 19) + "…" : fname;
-            return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn" title="${escapeHtml(fname)}"><span>📎</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;">${escapeHtml(shortName)}</span></a>`;
+            const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 18 ? fname.slice(0, 15) + "…" : fname;
+            return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn" title="${escapeHtml(fname)}"><span>📎</span><span>${escapeHtml(shortName)}</span></a>`;
           }).join("")}
-          ${item.dataLink ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn"><span>🔗</span><span>ลิงก์แนบ</span></a>` : ""}
-          <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn"><span>📁</span><span>โฟลเดอร์ทั้งหมด</span></a>
+          ${item.dataLink ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn"><span>🔗</span><span>ลิงก์</span></a>` : ""}
+          <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn"><span>📁</span><span>โฟลเดอร์</span></a>
         </div>
-        ${!hasFile && !item.dataLink ? `<div class="mgr-file-warning">⚠️ ไม่พบไฟล์ — ตรวจสอบในโฟลเดอร์หรือติดต่อผู้เขียนแบบโดยตรง</div>` : ""}
-      </div>
-
-      <div class="admin-card-footer">
-        <div class="admin-card-actions" style="width:100%;justify-content:flex-end;">
-          <button class="secondary-button small-flow-button" data-mgr-action="toggle-reject" data-request="${escapeHtml(item.requestNo)}">↩️ ส่งกลับแก้ไข</button>
-          <button class="primary-button small-flow-button" data-mgr-action="approve" data-request="${escapeHtml(item.requestNo)}">✅ อนุมัติ + ส่งมอบ</button>
-        </div>
-      </div>
+        ${!hasFile && !item.dataLink ? `<small class="mgr-file-warning" style="display:block;margin-top:4px;">⚠️ ไม่พบไฟล์ DWG/PDF</small>` : ""}
+      </td>
+      <td data-label="ส่งงานเมื่อ" style="white-space:nowrap;font-size:13px;color:#555;">${formatDate(item.deptFinishedAt)}</td>
+      <td data-label="ตรวจสอบ" class="admin-row-actions">
+        <button class="primary-button small-flow-button" data-mgr-action="approve" data-request="${requestNo}">✅ อนุมัติ + ส่งมอบ</button>
+        <button class="secondary-button small-flow-button" data-mgr-action="toggle-reject" data-request="${requestNo}">↩️ ส่งกลับแก้ไข</button>
+      </td>
+    </tr>
+    <tr class="admin-expand-row">
+      <td colspan="${MGR_REVIEW_COLUMNS}">
       <div id="mgr-reject-box-${escapeHtml(item.requestNo)}" class="admin-action-box tone-warning" hidden>
         <div class="admin-action-label">↩️ ส่งกลับแก้ไข — กรอกข้อมูลให้ครบทุกช่อง</div>
 
@@ -1520,7 +1557,8 @@ function renderMgrReviewCard(item) {
           <button class="danger-button small-flow-button" data-mgr-action="confirm-reject" data-request="${escapeHtml(item.requestNo)}">ยืนยันส่งกลับ</button>
         </div>
       </div>
-    </article>
+      </td>
+    </tr>
   `;
 }
 
