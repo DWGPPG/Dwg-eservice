@@ -1590,6 +1590,57 @@ html[data-theme] {
   }
 }
 
+/* ── popup รายละเอียดคำร้อง: แผงอัปเดตงานของผู้รับผิดชอบ ── */
+[data-theme] .detail-actions {
+  margin: 12px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--line));
+  border-radius: 14px;
+  background: var(--primary-light);
+}
+
+[data-theme] .detail-actions-title {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+}
+
+[data-theme] .detail-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+[data-theme] .detail-actions-status {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 180px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+[data-theme] .detail-actions-status select {
+  min-height: 38px;
+  padding: 6px 10px;
+}
+
+[data-theme] .detail-actions .primary-button {
+  min-height: 38px;
+}
+
+[data-theme] .detail-actions .small-button.danger {
+  min-height: 38px;
+}
+
+[data-theme] .detail-actions-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--warning);
+}
+
 /* ══════════════ หน้าจัดการข้อมูล (/manage) ══════════════ */
 [data-theme] .manage-tabs {
   display: flex;

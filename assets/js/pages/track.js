@@ -14,6 +14,8 @@ import { getAuditHistory } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, SAME_DAY_PRIORITY, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
+import { navigate } from "../router.js";
+import { state as appState } from "../state.js";
 
 const WORK_STATUS_OPTIONS = [
   { value: STATUS.APPROVED, label: "🔵 รอดำเนินการ" },
@@ -21,6 +23,15 @@ const WORK_STATUS_OPTIONS = [
   { value: "__complete__", label: "✅ เสร็จสิ้น" },
   { value: "__cancel__", label: "❌ ยกเลิก" },
 ];
+
+// สถานะที่ผู้รับผิดชอบอัปเดต/กดเสร็จสิ้นได้เอง (ใช้ทั้งตารางและ popup รายละเอียด)
+const DESIGNER_EDITABLE_STATUSES = [STATUS.APPROVED, STATUS.WORKING, STATUS.MGR_REJECTED];
+
+/** วาดหน้าที่เปิดอยู่ใหม่หลังทำรายการ — popup รายละเอียดเปิดได้จากหลายหน้า (ติดตามงาน / รับงานอนุมัติ) */
+function refreshAfterAction(view, state) {
+  if (state.currentRoute === "/track") renderWorkbookTrack(view, state);
+  else navigate();
+}
 
 // แท็บกลุ่มหลัก: งานของฉัน / งานในฝ่าย (เฉพาะ designer/manager ที่เห็นแท็บหลังได้)
 let scopeTab = "mine";
@@ -385,7 +396,7 @@ function scopeStatusTabButton(scope, status, label, count = null) {
 function renderWorkbookRow(item, state, holidaySet = new Set()) {
   const due = dueSummary(item.dueDate, item.status, holidaySet);
   const mine = isMine(item, state);
-  const canEditStatus = mine && [STATUS.APPROVED, STATUS.WORKING, STATUS.MGR_REJECTED].includes(item.status);
+  const canEditStatus = mine && DESIGNER_EDITABLE_STATUSES.includes(item.status);
   return `
     <tr>
       <td data-label="เหลือ/เกินกำหนด"><span class="due-chip ${due.className}">${escapeHtml(due.label)}</span></td>
@@ -779,7 +790,7 @@ function openCancelOwnWorkModal(view, state, request) {
             await adminCancel(request, reason, source);
             showToast(`ยกเลิกงาน ${request.requestNo} แล้ว`, "warning");
             close();
-            renderWorkbookTrack(view, state);
+            refreshAfterAction(view, state);
           } catch (error) {
             showToast(`ยกเลิกไม่สำเร็จ: ${error.message}`, "error");
           }
@@ -867,7 +878,7 @@ function openSendworkModal(view, state, request) {
             hideSendworkProgress();
             showToast(`ส่งงานสำเร็จ! แจ้งเตือนผู้จัดการใน Microsoft Teams แล้ว — รอตรวจสอบก่อนส่งมอบ`, "success");
             close();
-            renderWorkbookTrack(view, state);
+            refreshAfterAction(view, state);
           } catch (error) {
             hideSendworkProgress();
             showToast(`ส่งงานไม่สำเร็จ: ${error.message}`, "error");
@@ -1665,7 +1676,12 @@ function renderPublicTrack(view, state) {
 // ══════════════════════════════════════════════════════════════
 
 export function openRequestDetail(request) {
-  openModal({
+  const state = appState;
+  const role = state.user?.role;
+  // อัปเดตสถานะ/ส่งงานได้เฉพาะบุคลากรฝ่ายเขียนแบบที่เป็นผู้รับผิดชอบงานนี้ (เงื่อนไขเดียวกับตารางติดตามงาน)
+  const canAct = ["designer", "manager"].includes(role) && isMine(request, state) && DESIGNER_EDITABLE_STATUSES.includes(request.status);
+
+  const closeDetail = openModal({
     title: request.requestNo,
     body: `
       <div class="request-detail-layout">
@@ -1674,6 +1690,22 @@ export function openRequestDetail(request) {
             <strong>${escapeHtml(request.requestNo)}</strong>
             <span class="detail-status badge badge-${request.status}">${escapeHtml(STATUS_LABELS[request.status] || request.status)}</span>
           </div>
+          ${canAct ? `
+            <div class="detail-actions">
+              <div class="detail-actions-title">🛠️ อัปเดตงานของคุณ</div>
+              <div class="detail-actions-row">
+                <label class="detail-actions-status">
+                  <span>สถานะ</span>
+                  <select data-detail-status>
+                    ${request.status === STATUS.MGR_REJECTED ? `<option value="${STATUS.MGR_REJECTED}" selected disabled>↩️ ถูกส่งกลับแก้ไข</option>` : ""}
+                    ${WORK_STATUS_OPTIONS.filter((o) => !o.value.startsWith("__")).map((o) => `<option value="${o.value}" ${request.status === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+                  </select>
+                </label>
+                <button type="button" class="primary-button" data-detail-complete>✅ เสร็จสิ้น — ส่งงาน</button>
+                <button type="button" class="small-button danger" data-detail-cancel>❌ ยกเลิกงาน</button>
+              </div>
+              ${request.status === STATUS.MGR_REJECTED && request.mgrRejectReason ? `<p class="detail-actions-note">↩️ ผู้จัดการส่งกลับ: ${escapeHtml(request.mgrRejectReason)}</p>` : ""}
+            </div>` : ""}
           <div class="request-detail-grid">
             ${detailItem("โครงการ", request.projectName)}
             ${detailItemLink("Location โครงการ", request.location)}
@@ -1729,7 +1761,48 @@ export function openRequestDetail(request) {
 
   const modalRoot = document.querySelector("#modal-root");
   if (modalRoot) hydrateRequesterFiles(modalRoot);
+  if (canAct && modalRoot) bindDetailActions(modalRoot, request, closeDetail);
   loadAuditTimeline(request.requestNo);
+}
+
+/** ปุ่มอัปเดตสถานะ / เสร็จสิ้นส่งงาน / ยกเลิก ใน popup รายละเอียด — ใช้ขั้นตอนเดียวกับตารางติดตามงาน */
+function bindDetailActions(root, request, closeDetail) {
+  const state = appState;
+  const view = document.querySelector("#app-view");
+  const select = root.querySelector("[data-detail-status]");
+  const badge = root.querySelector(".detail-status");
+
+  select?.addEventListener("change", async () => {
+    const value = select.value;
+    const original = request.status;
+    select.disabled = true;
+    request.status = value;
+    try {
+      await updateWorkStatus(request, value);
+      if (badge) {
+        badge.className = `detail-status badge badge-${value}`;
+        badge.textContent = STATUS_LABELS[value] || value;
+      }
+      showToast(`อัปเดตสถานะ ${request.requestNo} แล้ว`, "success");
+      refreshAfterAction(view, state); // หน้าด้านหลัง popup เห็นสถานะใหม่ทันที
+    } catch (error) {
+      request.status = original;
+      select.value = original;
+      showToast(`อัปเดตไม่สำเร็จ: ${error.message}`, "error");
+    } finally {
+      select.disabled = false;
+    }
+  });
+
+  // ระบบเปิด popup ได้ทีละอัน — ปิดรายละเอียดก่อนแล้วเปิดฟอร์มส่งงาน/ยกเลิกตัวเดิม
+  root.querySelector("[data-detail-complete]")?.addEventListener("click", () => {
+    closeDetail();
+    openSendworkModal(view, state, request);
+  });
+  root.querySelector("[data-detail-cancel]")?.addEventListener("click", () => {
+    closeDetail();
+    openCancelOwnWorkModal(view, state, request);
+  });
 }
 
 async function loadAuditTimeline(requestNo) {
