@@ -56,6 +56,14 @@ export const appConfig = {
   bootstrapRoleLabels: {
     "sarit.sr@primepower.co.th": "Admin ผู้ดูแลระบบ · วิศวกรไฟฟ้าเขียนแบบอาวุโส",
   },
+  // ── อัตราที่ใช้ประเมินต้นทุน (KPI ในหน้ารายงาน + บทสรุปผู้บริหาร ใช้ชุดเดียวกัน) ──
+  // ตัวเลขประมาณการเพื่อเปรียบเทียบแนวโน้ม ไม่ใช่ต้นทุนบัญชีจริง — ปรับให้ตรงกับบริษัทได้ที่นี่
+  costRates: {
+    otRatePerHour: 94,          // ค่า OT (บาท/ชม.) ใช้คิดต้นทุนเร่งงานที่ล่าช้า
+    otHoursPerLateDay: 2,       // ชม. OT ต่อ 1 วันทำงานที่ล่าช้า
+    laborRatePerHour: 62.5,     // ค่าแรงเฉลี่ย (บาท/ชม.) ใช้คิดงานที่สูญเปล่า/งานแก้ไข
+    reworkHoursPerRevision: 4,  // ชม. เฉลี่ยที่ใช้แก้ไขงาน 1 ครั้ง (คำร้อง Revision)
+  },
   features: {
     mockWhenOffline: true,
     enableDarkMode: true,

@@ -1,5 +1,6 @@
 import { CLOSED_STATUSES, getCancelSource, STATUS } from "../../../config/schema.js";
 import { showToast } from "../components/toast.js";
+import { COST_RATES, computeCosts, stageDurations } from "../services/cost-service.js";
 import { escapeHtml, workingDaysUntil } from "../utils.js";
 
 // ══════════════════════════════════════════════════════════════
@@ -127,6 +128,52 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
     cancelBySource.set(label, (cancelBySource.get(label) || 0) + 1);
   });
 
+  // ── ต้นทุน (สูตรเดียวกับ KPI — ชุดคำร้องที่ส่งเข้ามาในช่วง) ──
+  const submittedIn = (range) => requests.filter((r) => inRange(r.submittedAt || r.dueDate, range));
+  const curRows = submittedIn(range);
+  const costs = computeCosts(curRows, holidaySet, today);
+  const prevCosts = computeCosts(submittedIn(prevRange), holidaySet, today);
+
+  // ── เวลาแต่ละขั้น (จากงานที่ส่งมอบในช่วงนี้) → คอขวด ──
+  const deliveredIn = requests.filter((r) => DELIVERED.includes(r.status) && inRange(r.deliveredAt, range));
+  const stages = stageDurations(deliveredIn, holidaySet);
+  const bottleneck = stages.filter((x) => x.avg !== null).sort((a, b) => b.avg - a.avg)[0] || null;
+
+  // ── โครงการที่ใช้กำลังคนมากสุด ──
+  const projectMap = new Map();
+  curRows.forEach((r) => {
+    const name = r.projectName || "ไม่ระบุโครงการ";
+    projectMap.set(name, (projectMap.get(name) || 0) + 1);
+  });
+  const topProjects = [...projectMap.entries()].map(([name, count]) => ({ name, count, share: pct(count, curRows.length) }))
+    .sort((a, b) => b.count - a.count).slice(0, 3);
+
+  // ── โอกาสลดต้นทุน (เรียงตามมูลค่า) ──
+  const baht = (n) => `${Math.round(n).toLocaleString("th-TH")} ฿`;
+  const externalRework = costs.rework.bySource.filter((x) => !x.internal && x.count);
+  const opportunities = [
+    costs.late.ongoingCount && {
+      value: costs.late.ongoingCost,
+      title: `งานที่ยังเกินกำหนด ${costs.late.ongoingCount} งาน — ถ้าต้อง OT เร่งให้ทัน ~${baht(costs.late.ongoingCost)}`,
+      action: "เกลี่ยงานให้คนที่ภาระน้อย และตั้งกำหนดส่งให้สมจริงตั้งแต่ตอนรับงาน",
+    },
+    costs.rework.internalCost && {
+      value: costs.rework.internalCost,
+      title: `แก้ไขจากฝ่ายเขียนแบบเอง (1.1) ${costs.rework.bySource.find((x) => x.code === "1.1").count} ครั้ง ~${baht(costs.rework.internalCost)} — ควบคุมได้เอง`,
+      action: `ใช้ checklist ตรวจแบบก่อนส่ง ลดได้ครึ่งหนึ่ง = ประหยัด ~${baht(costs.rework.internalCost / 2)}`,
+    },
+    externalRework.length && {
+      value: externalRework.reduce((sum, x) => sum + x.cost, 0),
+      title: `แก้ไขจากภายนอก ${externalRework.map((x) => `${x.label} ${x.count}`).join(", ")} ครั้ง ~${baht(externalRework.reduce((sum, x) => sum + x.cost, 0))}`,
+      action: "ขอข้อมูลให้ครบก่อนเริ่มงาน / ยืนยันแบบกับลูกค้าเร็วขึ้น / พิจารณาคิดค่าแก้ไขกับโครงการ",
+    },
+    costs.wasted.count && {
+      value: costs.wasted.cost,
+      title: `ยกเลิกหลังลงมือทำแล้ว ${costs.wasted.count} งาน (${costs.wasted.hours} ชม.) ~${baht(costs.wasted.cost)}`,
+      action: "ยืนยันแผน/ข้อมูลกับผู้ร้องขอก่อนอนุมัติเริ่มงาน",
+    },
+  ].filter(Boolean).sort((a, b) => b.value - a.value);
+
   // ── สถานะรวม (ไฟจราจร) ──
   const overdueShare = open.length ? overdue.length / open.length : 0;
   let level = "green";
@@ -143,6 +190,15 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
       title: `งานเกินกำหนด ${overdue.length} รายการ`,
       detail: `นานสุด ${top.days} วันทำงาน — ${top.r.requestNo} ${top.r.projectName || ""} (${top.r.assignedToName || "ยังไม่มีผู้รับผิดชอบ"})`,
       action: "ทบทวนกำหนดส่งกับผู้ร้องขอ และจัดคนช่วยงานที่ค้างนานที่สุด",
+    });
+  }
+  if (costs.total > 0 && opportunities.length) {
+    const costGrowth = prevCosts.total ? Math.round(((costs.total - prevCosts.total) / prevCosts.total) * 100) : null;
+    agenda.push({
+      tone: "amber",
+      title: `ต้นทุนที่ควบคุมได้ ~${baht(costs.total)}${costGrowth !== null ? ` (${costGrowth >= 0 ? "+" : ""}${costGrowth}% จาก${PERIODS[periodKey].prevLabel})` : ""}`,
+      detail: `งานล่าช้า ${baht(costs.late.cost)} · งานแก้ไข ${baht(costs.rework.cost)} · งานที่ถูกยกเลิก ${baht(costs.wasted.cost)}`,
+      action: opportunities[0].action,
     });
   }
   const overloaded = loads.filter((l) => avgLoad && l.count >= Math.max(3, avgLoad * OVERLOAD_FACTOR));
@@ -211,6 +267,7 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
     cur, prev, growth,
     open: open.length, overdue, waitingLv2, waitingReview, waitingRequester, pendingPickup,
     loads, avgLoad, level, agenda: agenda.slice(0, 5),
+    costs, prevCosts, opportunities, stages, bottleneck, topProjects, deliveredCount: deliveredIn.length,
   };
 }
 
@@ -224,12 +281,13 @@ const LEVELS = {
   red: { icon: "🔴", label: "ต้องเร่งแก้", note: "งานล่าช้าเกินเกณฑ์" },
 };
 
-function trend(cur, prev, { invert = false, unit = "" } = {}) {
+function trend(cur, prev, { invert = false, unit = "", money = false } = {}) {
   if (cur === null || prev === null || prev === undefined) return "";
   const diff = Math.round((cur - prev) * 10) / 10;
   if (!diff) return `<small class="exec-trend is-flat">เท่าเดิม</small>`;
   const good = invert ? diff < 0 : diff > 0;
-  return `<small class="exec-trend ${good ? "is-good" : "is-bad"}">${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)}${unit}</small>`;
+  const amount = money ? `${Math.round(Math.abs(diff)).toLocaleString("th-TH")} ฿` : `${Math.abs(diff)}${unit}`;
+  return `<small class="exec-trend ${good ? "is-good" : "is-bad"}">${diff > 0 ? "▲" : "▼"} ${amount}</small>`;
 }
 
 function headline(s) {
@@ -292,6 +350,8 @@ export function renderExecutiveSummary(state) {
       <div class="exec-kpi"><span>เวลาเฉลี่ย รับ→ส่งมอบ</span><strong>${s.cur.avgCycleDays ?? "—"}</strong>${trend(s.cur.avgCycleDays, s.prev.avgCycleDays, { invert: true })}<small>วัน (ปฏิทิน)</small></div>
     </div>
 
+${renderCostBlock(s)}
+
     <div class="exec-cols">
       <div class="exec-col">
         <h3>⚠️ สิ่งที่ต้องติดตามตอนนี้</h3>
@@ -322,6 +382,49 @@ export function renderExecutiveSummary(state) {
   return section;
 }
 
+const baht = (n) => `${Math.round(n || 0).toLocaleString("th-TH")} ฿`;
+
+function renderCostBlock(s) {
+  const c = s.costs;
+  const p = PERIODS[s.periodKey];
+  const maxStage = Math.max(1, ...s.stages.map((x) => x.avg || 0));
+  return `
+    <div class="exec-cost">
+      <h3>💰 ต้นทุนที่ควบคุมได้ <small>(ประมาณการ · คำร้องที่เข้ามา${p.label})</small></h3>
+      <div class="exec-cost-tiles">
+        <div class="exec-kpi exec-cost-total"><span>รวม</span><strong>${baht(c.total)}</strong>${trend(c.total, s.prevCosts.total, { invert: true, money: true })}<small>${p.prevLabel} ${baht(s.prevCosts.total)}</small></div>
+        <div class="exec-kpi"><span>⏰ งานล่าช้า (OT)</span><strong>${baht(c.late.cost)}</strong><small>${c.late.count} งาน · ช้าเฉลี่ย ${c.late.avgLateDays} วันทำงาน</small></div>
+        <div class="exec-kpi"><span>✏️ งานแก้ไข (Rework)</span><strong>${baht(c.rework.cost)}</strong><small>${c.rework.count} ครั้ง · ควบคุมได้เอง ${baht(c.rework.internalCost)}</small></div>
+        <div class="exec-kpi"><span>🗑️ งานที่ถูกยกเลิก</span><strong>${baht(c.wasted.cost)}</strong><small>${c.wasted.count} งาน · ${c.wasted.hours} ชม.</small></div>
+      </div>
+      <div class="exec-cols">
+        <div class="exec-col">
+          <h3>💡 โอกาสลดต้นทุน</h3>
+          ${s.opportunities.length
+            ? `<ul class="exec-watch">${s.opportunities.map((o) => `<li class="tone-amber"><span>💡</span><p><b>${escapeHtml(o.title)}</b><br><small>➜ ${escapeHtml(o.action)}</small></p></li>`).join("")}</ul>`
+            : `<p class="exec-empty">✅ ไม่มีต้นทุนที่ควบคุมได้ในช่วงนี้</p>`}
+        </div>
+        <div class="exec-col">
+          <h3>⏱️ เวลาแต่ละขั้นตอน <small>(วันทำงานเฉลี่ย · ${s.deliveredCount} งานที่ส่งมอบ${p.label})</small></h3>
+          <div class="exec-stages">
+            ${s.stages.map((x) => `
+              <div class="exec-stage ${s.bottleneck && x.key === s.bottleneck.key ? "is-bottleneck" : ""}">
+                <span>${escapeHtml(x.label)}${s.bottleneck && x.key === s.bottleneck.key ? " · คอขวด" : ""}</span>
+                <div class="exec-stage-bar"><i style="width:${x.avg === null ? 0 : Math.max(4, (x.avg / maxStage) * 100)}%"></i></div>
+                <b>${x.avg === null ? "—" : `${x.avg} วัน`}</b>
+              </div>`).join("")}
+          </div>
+          ${s.topProjects.length ? `
+            <h3 style="margin-top:14px;">🏗️ โครงการที่ใช้กำลังคนมากสุด</h3>
+            <ul class="exec-projects">
+              ${s.topProjects.map((x) => `<li><span>${escapeHtml(x.name)}</span><b>${x.count} คำร้อง · ${x.share}%</b></li>`).join("")}
+            </ul>` : ""}
+        </div>
+      </div>
+      <p class="exec-foot">สมมติฐาน: OT ${COST_RATES.otRatePerHour} ฿/ชม. × ${COST_RATES.otHoursPerLateDay} ชม. ต่อวันทำงานที่ล่าช้า · ค่าแรง ${COST_RATES.laborRatePerHour} ฿/ชม. · แก้ไข ${COST_RATES.reworkHoursPerRevision} ชม./ครั้ง · ยกเลิกคิดชั่วโมงตามขั้นที่ทำไปแล้ว (รหัส 2.1–2.4) — ตัวเลขประมาณการเพื่อดูแนวโน้ม ปรับอัตราได้ใน config.js</p>
+    </div>`;
+}
+
 // ── ข้อความสำหรับวาระประชุม (วางใน Teams / Email / Word ได้) ──
 function agendaText(s) {
   const lv = LEVELS[s.level];
@@ -341,6 +444,15 @@ function agendaText(s) {
     `• ผ่านครั้งแรก (FTR) ${s.cur.ftrRate ?? "—"}${s.cur.ftrRate !== null ? "%" : ""} (เป้า ${TARGET_FTR}%)`,
     `• เวลาเฉลี่ยรับ→ส่งมอบ ${s.cur.avgCycleDays ?? "—"} วัน`,
     `• งานค้าง ${s.open} รายการ · เกินกำหนด ${s.overdue.length} รายการ · รออนุมัติเริ่มงาน ${s.waitingLv2.length} · รอตรวจส่งมอบ ${s.waitingReview.length} · รอผู้ร้องขอตรวจรับ ${s.waitingRequester.length}`,
+    "",
+    "ต้นทุนที่ควบคุมได้ (ประมาณการ)",
+    `• รวม ${baht(s.costs.total)} (${p.prevLabel} ${baht(s.prevCosts.total)})`,
+    `• งานล่าช้า (OT) ${baht(s.costs.late.cost)} — ${s.costs.late.count} งาน ช้าเฉลี่ย ${s.costs.late.avgLateDays} วันทำงาน`,
+    `• งานแก้ไข ${baht(s.costs.rework.cost)} — ${s.costs.rework.count} ครั้ง (ควบคุมได้เอง ${baht(s.costs.rework.internalCost)})`,
+    `• งานที่ถูกยกเลิกหลังลงมือ ${baht(s.costs.wasted.cost)} — ${s.costs.wasted.count} งาน`,
+    ...(s.opportunities.length ? ["", "โอกาสลดต้นทุน", ...s.opportunities.map((o) => `- ${o.title}\n  ➜ ${o.action}`)] : []),
+    ...(s.bottleneck ? ["", `คอขวด: ${s.bottleneck.label} เฉลี่ย ${s.bottleneck.avg} วันทำงาน (${s.stages.map((x) => `${x.label} ${x.avg ?? "—"}`).join(" / ")})`] : []),
+    ...(s.topProjects.length ? [`โครงการหลัก: ${s.topProjects.map((x) => `${x.name} ${x.count} คำร้อง (${x.share}%)`).join(", ")}`] : []),
     "",
     "ประเด็นเสนอเข้าวาระประชุม",
   ];
