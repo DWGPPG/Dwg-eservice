@@ -1437,7 +1437,7 @@ function parseNoteAndFiles(raw = "") {
 }
 
 // ── ตาราง "ตรวจสอบและส่งมอบงาน" — แถวละ 1 งาน, ไฟล์งานเปิดได้จากแถวเลย, กล่องส่งกลับแก้ไขกางใต้รายการ ──
-const MGR_REVIEW_COLUMNS = 8;
+const MGR_REVIEW_COLUMNS = 7;
 
 function renderMgrReviewTable(items, state) {
   return `
@@ -1448,10 +1448,9 @@ function renderMgrReviewTable(items, state) {
             <th>กำหนดส่ง</th>
             <th>เลขที่คำร้อง</th>
             <th>DRAWING</th>
-            <th>ผู้เขียนแบบ</th>
+            <th>ผู้เขียนแบบ / ส่งงาน</th>
             <th>หมายเหตุจากผู้เขียนแบบ</th>
             <th>ไฟล์งาน</th>
-            <th>ส่งงานเมื่อ</th>
             <th>ตรวจสอบ</th>
           </tr>
         </thead>
@@ -1488,7 +1487,10 @@ function renderMgrReviewRow(item, state) {
         <small class="approval-clamp" title="${escapeHtml(item.drawingName || "")}">${escapeHtml(item.drawingName || "")}</small>
         <small style="display:block;color:#64748B;">Revise <b>${escapeHtml(item.currentRevise || item.reviseNumber || "—")}</b></small>
       </td>
-      <td data-label="ผู้เขียนแบบ"><strong>${escapeHtml(item.assignedToName || "—")}</strong></td>
+      <td data-label="ผู้เขียนแบบ / ส่งงาน">
+        <strong>${escapeHtml(item.assignedToName || "—")}</strong>
+        <small style="display:block;white-space:nowrap;color:#64748B;margin-top:2px;">📤 ${formatDate(item.deptFinishedAt)}</small>
+      </td>
       <td data-label="หมายเหตุ" class="mgr-note-cell">
         ${note ? `<span class="approval-clamp" title="${escapeHtml(note)}">📝 ${escapeHtml(note)}</span>` : `<span style="color:#CBD5E1;font-size:11px;">—</span>`}
         ${item.description ? `<small class="approval-clamp approval-desc" title="${escapeHtml(item.description)}">💬 ${escapeHtml(item.description)}</small>` : ""}
@@ -1506,7 +1508,6 @@ function renderMgrReviewRow(item, state) {
         </div>
         ${!hasFile && !item.dataLink ? `<small class="mgr-file-warning" style="display:block;margin-top:4px;">⚠️ ไม่พบไฟล์ DWG/PDF</small>` : ""}
       </td>
-      <td data-label="ส่งงานเมื่อ" style="white-space:nowrap;font-size:13px;color:#555;">${formatDate(item.deptFinishedAt)}</td>
       <td data-label="ตรวจสอบ" class="admin-row-actions">
         <button class="primary-button small-flow-button" data-mgr-action="approve" data-request="${requestNo}">✅ อนุมัติ + ส่งมอบ</button>
         <button class="secondary-button small-flow-button" data-mgr-action="toggle-reject" data-request="${requestNo}">↩️ ส่งกลับแก้ไข</button>

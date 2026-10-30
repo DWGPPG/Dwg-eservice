@@ -1078,8 +1078,8 @@ html[data-theme] {
   font-size: 11.5px;
 }
 
-[data-theme] :is(.approval-table, .mgr-review-table) th {
-  white-space: nowrap;
+[data-theme] .mgr-review-table td[data-label="ผู้เขียนแบบ / ส่งงาน"] {
+  min-width: 150px;
 }
 
 [data-theme] .mgr-note-cell {
@@ -1090,6 +1090,7 @@ html[data-theme] {
 [data-theme] .mgr-file-review-compact {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-start;
   gap: 4px;
   max-width: 220px;
 }
