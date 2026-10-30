@@ -1202,6 +1202,281 @@ html[data-theme] {
   padding: 5px 10px;
 }
 
+/* ══════════════ บทสรุปผู้บริหาร (exec-summary.js) ══════════════ */
+[data-theme] .exec-summary {
+  margin-bottom: 26px;
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--shell-radius);
+  background: var(--surface);
+  box-shadow: var(--soft-shadow);
+}
+
+[data-theme] .exec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+[data-theme] .exec-kicker {
+  margin: 0 0 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+
+[data-theme] .exec-head h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+[data-theme] .exec-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+[data-theme] .exec-period {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+[data-theme] .exec-period button {
+  min-height: 30px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+[data-theme] .exec-period button.is-active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+[data-theme] .exec-copy {
+  min-height: 36px;
+  font-size: 13px;
+}
+
+[data-theme] .exec-status {
+  --tone: var(--success);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--tone) 40%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--tone) 9%, transparent);
+}
+
+[data-theme] .exec-level-yellow { --tone: var(--warning); }
+[data-theme] .exec-level-red { --tone: var(--danger); }
+
+[data-theme] .exec-light {
+  font-size: 26px;
+  line-height: 1;
+}
+
+[data-theme] .exec-status strong {
+  display: block;
+  margin-bottom: 4px;
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--tone);
+}
+
+[data-theme] .exec-status p {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+[data-theme] .exec-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+
+[data-theme] .exec-kpi {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-2);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+[data-theme] .exec-kpi > span {
+  font-weight: 600;
+}
+
+[data-theme] .exec-kpi strong {
+  font-family: var(--font-display);
+  font-size: 26px;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+[data-theme] .exec-kpi.is-alert strong {
+  color: var(--danger);
+}
+
+[data-theme] .exec-trend {
+  font-weight: 700;
+}
+
+[data-theme] .exec-trend.is-good { color: var(--success); }
+[data-theme] .exec-trend.is-bad { color: var(--danger); }
+[data-theme] .exec-trend.is-flat { color: var(--muted); }
+
+[data-theme] .exec-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+[data-theme] .exec-col h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+[data-theme] .exec-watch,
+[data-theme] .exec-agenda {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-theme] .exec-watch li,
+[data-theme] .exec-agenda li {
+  --tone: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--tone) 28%, var(--line));
+  border-left: 3px solid var(--tone);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tone) 6%, transparent);
+}
+
+[data-theme] .exec-watch li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 9px 12px;
+}
+
+[data-theme] .exec-watch p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+[data-theme] .exec-agenda {
+  counter-reset: agenda;
+}
+
+[data-theme] .exec-agenda li {
+  position: relative;
+  padding: 10px 12px 10px 42px;
+  counter-increment: agenda;
+}
+
+[data-theme] .exec-agenda li::before {
+  content: counter(agenda);
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--tone);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-theme] .exec-agenda strong {
+  display: block;
+  font-size: 13.5px;
+}
+
+[data-theme] .exec-agenda p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+[data-theme] .exec-agenda .exec-action {
+  color: var(--text);
+}
+
+[data-theme] :is(.exec-watch, .exec-agenda) .tone-red { --tone: var(--danger); }
+[data-theme] :is(.exec-watch, .exec-agenda) .tone-amber { --tone: var(--warning); }
+[data-theme] :is(.exec-watch, .exec-agenda) .tone-blue { --tone: var(--accent); }
+[data-theme] :is(.exec-watch, .exec-agenda) .tone-gray { --tone: var(--muted); }
+
+[data-theme] .exec-empty {
+  margin: 0;
+  padding: 12px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+[data-theme] .exec-foot {
+  margin: 14px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@media (max-width: 1200px) {
+  [data-theme] .exec-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  [data-theme] .exec-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  [data-theme] .exec-summary {
+    padding: 16px;
+  }
+
+  [data-theme] .exec-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* ══════════════ หน้าจัดการข้อมูล (/manage) ══════════════ */
 [data-theme] .manage-tabs {
   display: flex;

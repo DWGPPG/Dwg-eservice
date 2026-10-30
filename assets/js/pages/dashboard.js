@@ -3,6 +3,7 @@ import { renderTable } from "../components/table.js";
 import { assigneeName, getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDate } from "../utils.js";
 import { renderKpiDashboard } from "./report.js";
+import { renderExecutiveSummary } from "./exec-summary.js";
 
 const chartPeriods = [
   { key: "weekly", label: "รายอาทิตย์" },
@@ -112,6 +113,13 @@ export function renderDashboard(view, state) {
 
   // ── Hero: คำทักทาย + สรุปงานด่วน (ตัวเลขนับขึ้น/การ์ดกระจก จัดการโดย ui-effects.js) ──
   view.appendChild(renderDashboardHero(state, requests, active, queued));
+
+  // ── บทสรุปผู้บริหาร: อ่านจุดเดียวเข้าใจทั้งหมด + คัดลอกเป็นวาระประชุม ──
+  try {
+    view.appendChild(renderExecutiveSummary(state));
+  } catch (err) {
+    console.warn("Executive summary error (ไม่กระทบส่วนอื่นของหน้า):", err);
+  }
 
   // ── KPI Section ──
   const kpiWrapper = document.createElement("div");
