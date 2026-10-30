@@ -17,7 +17,7 @@ export const state = {
   },
   loading: false,
   currentRoute: "/dashboard",
-  theme: localStorage.getItem("ppg-theme") || "light",
+  theme: localStorage.getItem("ppg-theme-v2") || "dark",
 };
 
 export function setState(patch) {

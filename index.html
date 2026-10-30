@@ -24,7 +24,7 @@
 
     <!-- ── PWA: manifest + theme (Android / Chrome) ── -->
     <link rel="manifest" href="./manifest.json" />
-    <meta name="theme-color" content="#005DAC" />
+    <meta name="theme-color" content="#0d1116" />
 
     <!-- ── PWA: iOS Safari ไม่อ่าน manifest.json โดยตรง ต้องใช้ meta tag เฉพาะ ── -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -39,8 +39,11 @@
     <link rel="stylesheet" href="./assets/css/responsive.css" />
     <link rel="stylesheet" href="./assets/css/dark-mode.css" />
     <link rel="stylesheet" href="./assets/css/mobile-fixes.css" />
+    <link rel="stylesheet" href="./assets/css/theme-dark-auto.css" />
+    <link rel="stylesheet" href="./assets/css/theme.css" />
     <script src="./assets/vendor/msal-browser.min.js"></script>
     <script type="module" src="./assets/js/main.js"></script>
+    <script defer src="./assets/js/ui-effects.js"></script>
   </head>
   <body>
     <div id="app-shell" class="app-shell">
@@ -90,16 +93,41 @@
         <section id="auth-panel" class="auth-screen">
           <!-- Background video — JS จะลอง path ต่างๆ อัตโนมัติ -->
           <video id="auth-bg-video" autoplay muted loop playsinline></video>
-          <div class="auth-card">
-            <img src="./PPG%20logo%20for%20Web.png" alt="PPG Logo" class="auth-card-logo" />
-            <h2>PPG Drawing e-Service</h2>
-            <p class="auth-card-sub">ระบบคำร้องฝ่ายเขียนแบบ</p>
-            <p class="auth-domain-pill">@primepower.co.th</p>
-            <button id="login-button-panel" class="ms-login-button" type="button">
-              <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-              <span>Sign in with Microsoft 365</span>
-            </button>
-            <p class="auth-domain-note">เฉพาะบัญชี @primepower.co.th เท่านั้น</p>
+          <div class="auth-bigword" aria-hidden="true">DRAWING</div>
+          <div class="auth-hero">
+            <div class="auth-copy">
+              <p class="auth-eyebrow"><i aria-hidden="true"></i>Prime Power Group · Drawing Dept.</p>
+              <h1 class="auth-title">PPG <span class="outline">Drawing</span><br />e-Service<span class="dot">.</span></h1>
+              <p class="auth-lead">ระบบคำร้องงานเขียนแบบครบวงจร ส่งคำร้อง ติดตามสถานะ รับงาน อนุมัติ และส่งมอบ Drawing ได้ในที่เดียว เชื่อมต่อ Microsoft 365 และ SharePoint</p>
+              <ul class="auth-flow" aria-label="ขั้นตอนการทำงาน">
+                <li><b>01</b>ส่งคำร้อง</li>
+                <li><b>02</b>รับงาน / อนุมัติ</li>
+                <li><b>03</b>เขียนแบบ</li>
+                <li><b>04</b>ตรวจรับ &amp; ส่งมอบ</li>
+              </ul>
+            </div>
+            <div class="auth-badge-wrap">
+              <div class="auth-badge" id="auth-badge">
+                <span class="auth-lanyard" aria-hidden="true"></span>
+                <div class="auth-card">
+                  <div class="auth-card-inner">
+                    <div class="auth-card-slot" aria-hidden="true"></div>
+                    <div class="auth-card-top">
+                      <img src="./PPG%20logo%20for%20Web.png" alt="PPG Logo" class="auth-card-logo" />
+                      <span class="auth-card-id">ACCESS · M365</span>
+                    </div>
+                    <h2>PPG Drawing<br />e-Service<span>.</span></h2>
+                    <p class="auth-card-sub">ระบบคำร้องฝ่ายเขียนแบบ</p>
+                    <p class="auth-domain-pill">@primepower.co.th</p>
+                    <button id="login-button-panel" class="ms-login-button" type="button">
+                      <span class="microsoft-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                      <span>Sign in with Microsoft 365</span>
+                    </button>
+                    <p class="auth-domain-note">เฉพาะบัญชี @primepower.co.th เท่านั้น</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

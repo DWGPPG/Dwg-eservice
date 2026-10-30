@@ -264,7 +264,7 @@ function showAuthPanel(show) {
 
 function toggleTheme() {
   const theme = state.theme === "light" ? "dark" : "light";
-  localStorage.setItem("ppg-theme", theme);
+  localStorage.setItem("ppg-theme-v2", theme);
   document.documentElement.dataset.theme = theme;
   state.theme = theme;
 }
