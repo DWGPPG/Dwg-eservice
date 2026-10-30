@@ -1,10 +1,12 @@
+import { appConfig } from "../../../config/config.js";
 import { CLOSED_STATUSES, STATUS, STATUS_LABELS, CANCEL_SOURCES, WASTED_HOURS_BY_STAGE, getCancelSource } from "../../../config/schema.js";
 import { getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDateOnly, workingDaysUntil } from "../utils.js";
 
 // ── ค่า OT rate เริ่มต้น (บาท/ชั่วโมง) สำหรับคำนวณ Overdue Cost
-const OT_RATE_PER_HOUR = 94; // ค่าแรงขั้นต่ำวิชาชีพเฉพาะ (บาท/ชม.)
-const OT_HOURS_PER_DAY = 2;    // ชม. OT ต่อวัน เพื่อเร่งงาน
+// อัตราต้นทุนอยู่ที่ config.js (costRates) — ใช้ร่วมกับบทสรุปผู้บริหาร
+const OT_RATE_PER_HOUR = appConfig.costRates.otRatePerHour;
+const OT_HOURS_PER_DAY = appConfig.costRates.otHoursPerLateDay;
 const WORK_HOURS_PER_DAY = 8;
 
 export function renderReport(view, state) {
@@ -253,7 +255,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
   // หมายเหตุ: ข้อมูลเก่าที่ยังไม่มี CancelledStage/CancelledByEmail จะ fallback
   //    ไปเดาจาก ApprovedAt (ถ้าเคยอนุมัติ Lv.2 = เริ่มงานแล้ว)
   // ══════════════════════════════════════════════════════════════
-  const CANCEL_RATE_PER_HOUR = 62.5; // ค่าแรงเฉลี่ย บาท/ชม.
+  const CANCEL_RATE_PER_HOUR = appConfig.costRates.laborRatePerHour; // ค่าแรงเฉลี่ย บาท/ชม. (config.js)
 
   // สถานะที่ถือว่า "เริ่มเขียนงานจริงแล้ว"
   const WORK_STARTED_STAGES = [
@@ -1277,7 +1279,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
       <!-- KPI Cards -->
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
         ${kpiCard("🔴","Dept-Fault Cancellation Rate",`${deptFaultRate}%`,`ฝ่ายผิดเอง ${deptFaultCount} จาก ${total} คำร้อง — ตัววัดคุณภาพงานของฝ่าย`,deptFaultRate<=2?"#0DB14B":deptFaultRate<=5?"#F59E0B":"#EF4444")}
-        ${kpiCard("💸","Wasted Cost",cancelCost>0?`~${cancelCost.toLocaleString()} ฿`:"—",`${wastedHours} ชม. × 62.5 ฿ จาก ${cancelCount} งาน — ความสูญเสีย ไม่ว่าใครผิด`,"#7C3AED")}
+        ${kpiCard("💸","Wasted Cost",cancelCost>0?`~${cancelCost.toLocaleString()} ฿`:"—",`${wastedHours} ชม. × ${CANCEL_RATE_PER_HOUR} ฿ จาก ${cancelCount} งาน — ความสูญเสีย ไม่ว่าใครผิด`,"#7C3AED")}
         ${kpiCard("⏱️","ชั่วโมงที่สูญเปล่า",wastedHours>0?`${wastedHours} ชม.`:"—","ถ่วงตามจังหวะที่ถูกยกเลิก","#EA580C")}
         ${kpiCard("🚫","ยกเลิกทั้งหมด",allCancelledRows.length,`นับเข้า Wasted Cost ${cancelCount} · ไม่นับ ${allCancelledRows.length - cancelCount}`,"#64748B")}
       </div>
@@ -1352,7 +1354,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                 <div style="background:${b.bar};height:100%;width:${b.countsAsWasted&&b.cost>0?Math.round(b.cost/maxCancelCost*100):0}%;border-radius:4px;opacity:${b.countsAsDeptFault?1:0.65};"></div>
               </div>
               <div style="font-size:9.5px;color:#94A3B8;margin-top:2px;">${b.countsAsWasted
-                ? `${b.count} งาน · ${b.hours} ชม. × 62.5 ฿${b.countsAsDeptFault ? " — กระทบ KPI คุณภาพด้วย" : ""}`
+                ? `${b.count} งาน · ${b.hours} ชม. × ${CANCEL_RATE_PER_HOUR} ฿${b.countsAsDeptFault ? " — กระทบ KPI คุณภาพด้วย" : ""}`
                 : `${b.count} งาน — ${b.code === "2.5" ? "ธุรการ ไม่ได้ลงมือเขียนจริง" : "ยังไม่ระบุต้นเหตุ"} จึงไม่คิดต้นทุน`}</div>
             </div>
           `).join("") + (wastedByStage.length ? `
