@@ -14,11 +14,21 @@ let dashboardChartPeriod = "monthly";
 
 const CLOSED_STATUSES = [STATUS.DONE, STATUS.CANCELLED, STATUS.REJECTED];
 
+// ชื่อเรียกในคำทักทาย = ชื่อแรกจาก display name ของบัญชี Microsoft 365 ที่ login อยู่
+// ข้ามคำนำหน้า (นาย/นางสาว/Mr. ฯลฯ) ไม่งั้นจะได้ "สวัสดีตอนเช้า, นาย"
+// คำนำหน้าแบบคำเต็มต้องตามด้วยเว้นวรรค (กันชื่อจริงอย่าง "นายิกา" / "นางนวล" โดนตัด), แบบย่อมีจุดอยู่แล้ว
+const NAME_PREFIX_RE = /^(?:(?:นางสาว|นาง|นาย|miss|mrs|mr|ms|dr)\s+|(?:น\.ส\.|ดร\.|ว่าที่\s*ร\.ต\.|mrs\.|mr\.|ms\.|dr\.)\s*)/i;
+
+export function greetingName(displayName) {
+  const name = String(displayName || "").trim().replace(NAME_PREFIX_RE, "").trim();
+  return name.split(/\s+/)[0] || "";
+}
+
 function renderDashboardHero(state, requests, active, queued) {
   const now = new Date();
   const hour = now.getHours();
   const greeting = hour < 12 ? "สวัสดีตอนเช้า" : hour < 17 ? "สวัสดีตอนบ่าย" : "สวัสดีตอนเย็น";
-  const firstName = String(state.user?.name || "").trim().split(/\s+/)[0] || "";
+  const firstName = greetingName(state.user?.name);
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   // เกินกำหนด = ยังอยู่ในมือฝ่ายเขียนแบบ (ไม่นับที่ส่งมอบแล้วรอตรวจรับ) และเลยวันกำหนดส่ง
