@@ -13,6 +13,7 @@ import {
 import { getAuditHistory } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, SAME_DAY_PRIORITY, workingDaysUntil } from "../utils.js";
+import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 
 const WORK_STATUS_OPTIONS = [
   { value: STATUS.APPROVED, label: "🔵 รอดำเนินการ" },
@@ -367,6 +368,7 @@ function renderWorkbookTrack(view, state) {
       `}
     </section>
   `;
+  hydrateRequesterFiles(view); // ชื่อไฟล์ที่ผู้ร้องขอแนบ — โหลดเฉพาะแถวที่มองเห็น
 
   bindWorkbookEvents(view, state);
   bindReviewInteractions(view, state);
@@ -384,10 +386,6 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
   const due = dueSummary(item.dueDate, item.status, holidaySet);
   const mine = isMine(item, state);
   const canEditStatus = mine && [STATUS.APPROVED, STATUS.WORKING, STATUS.MGR_REJECTED].includes(item.status);
-  const folder   = getRequestFolderUrl(item.requestNo);
-  const fileLink = item.dwgFileUrl || item.pdfFileUrl || "";
-  const dataLink = item.dataLink || "";
-
   return `
     <tr>
       <td data-label="เหลือ/เกินกำหนด"><span class="due-chip ${due.className}">${escapeHtml(due.label)}</span></td>
@@ -405,32 +403,7 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
       <td data-label="โครงการ"><strong>${escapeHtml(item.projectName || "—")}</strong></td>
       <td data-label="Drawing"><strong>${escapeHtml(item.drawingNo || "—")}</strong><br><small>${escapeHtml(item.drawingName || "")}</small></td>
       <td data-label="กำหนดส่ง">${formatDateOnly(item.dueDate)}</td>
-      <td data-label="โฟลเดอร์ / ลิงก์" style="white-space:nowrap;">
-        <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn folder-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;">
-          📁 โฟลเดอร์
-        </a>
-        ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn dwg-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;">
-          📐 DWG
-        </a>` : ""}
-        ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn pdf-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;">
-          📄 PDF
-        </a>` : ""}
-        ${parseNoteAndFiles(item.noteFromDrawing || "").otherFiles.map((f) => {
-          const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 18 ? fname.slice(0, 15) + "…" : fname;
-          return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer"
-            class="mgr-file-btn other-btn" title="${escapeHtml(fname)}"
-            style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;max-width:160px;">
-            📎 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(shortName)}</span>
-          </a>`;
-        }).join("")}
-        ${dataLink ? `<a href="${escapeHtml(dataLink)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn ref-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;">
-          🔗 ลิงก์
-        </a>` : ""}
-      </td>
+      <td data-label="โฟลเดอร์ / ลิงก์ / ไฟล์" class="file-groups-cell">${renderFileGroups(item)}</td>
       <td data-label="สถานะ" style="vertical-align:middle;text-align:center;width:155px;">
         ${canEditStatus ? `
           <select class="track-status-select" data-designer-status="${escapeHtml(item.requestNo)}">
@@ -1036,19 +1009,7 @@ function getRequestTypeOptions(requests) {
 
 /** เซลล์ไฟล์แนบ — เปิด/ดาวน์โหลดได้อย่างเดียว (ไม่มีปุ่มแก้ไขใดๆ) */
 function renderReadOnlyFileCell(item) {
-  const folder     = getRequestFolderUrl(item.requestNo);
-  const otherFiles = parseNoteAndFiles(item.noteFromDrawing || "").otherFiles;
-  const btn = "display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:3px 8px;margin:0 4px 4px 0;";
-  return `
-    <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn" style="${btn}">📁 โฟลเดอร์</a>
-    ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn" style="${btn}">📐 DWG</a>` : ""}
-    ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn" style="${btn}">📄 PDF</a>` : ""}
-    ${otherFiles.map((f) => {
-      const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 16 ? fname.slice(0, 13) + "…" : fname;
-      return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn" title="${escapeHtml(fname)}" style="${btn}max-width:150px;">📎 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(shortName)}</span></a>`;
-    }).join("")}
-    ${item.dataLink ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn" style="${btn}">🔗 ลิงก์</a>` : ""}
-  `;
+  return renderFileGroups(item, { maxLen: 22 });
 }
 
 /** แถวตารางในมุม "งานในฝ่าย" — อ่านอย่างเดียว */
@@ -1217,6 +1178,7 @@ function renderRequesterTrack(view, state) {
       `}
     </section>
   `;
+  hydrateRequesterFiles(view); // ชื่อไฟล์ที่ผู้ร้องขอแนบ — โหลดเฉพาะแถวที่มองเห็น
 
   // ── สลับ scope / tab ── (ใช้ re-render เพื่อให้ state คงที่ทุกครั้ง)
   view.querySelectorAll("[data-req-scope]").forEach((btn) => {
@@ -1744,44 +1706,10 @@ export function openRequestDetail(request) {
           </div>
           <div class="request-detail-note"><span>รายละเอียด</span><strong>${escapeHtml(request.description || "-")}</strong></div>
 
-          <!-- ── โฟลเดอร์ + ไฟล์ + ลิงก์ ── -->
+          <!-- ── โฟลเดอร์ + ไฟล์ + ลิงก์ (แยกผู้ส่งคำขอ / ฝ่ายเขียนแบบ) ── -->
           <div class="request-detail-files">
             <strong>📎 ไฟล์ / โฟลเดอร์ / ลิงก์</strong>
-            <div class="mgr-file-review-links" style="margin-top:8px;flex-wrap:wrap;gap:8px;display:flex;">
-              <a href="${escapeHtml(getRequestFolderUrl(request.requestNo))}"
-                target="_blank" rel="noopener noreferrer"
-                class="mgr-file-btn folder-btn"
-                style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                📁 เปิดโฟลเดอร์ SharePoint
-              </a>
-              ${request.dwgFileUrl ? `
-                <a href="${escapeHtml(request.dwgFileUrl)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn dwg-btn"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                  📐 ไฟล์ DWG
-                </a>` : ""}
-              ${request.pdfFileUrl ? `
-                <a href="${escapeHtml(request.pdfFileUrl)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn pdf-btn"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                  📄 ไฟล์ PDF
-                </a>` : ""}
-              ${parseNoteAndFiles(request.noteFromDrawing || "").otherFiles.map((f) => {
-                const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 28 ? fname.slice(0, 25) + "…" : fname;
-                return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn other-btn"
-                  title="${escapeHtml(fname)}"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;max-width:220px;overflow:hidden;">
-                  📎 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(shortName)}</span>
-                </a>`;
-              }).join("")}
-              ${request.dataLink ? `
-                <a href="${escapeHtml(request.dataLink)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn ref-btn"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                  🔗 ลิงก์แนบจากผู้ส่งคำร้อง
-                </a>` : ""}
-            </div>
+            ${renderFileGroups(request, { maxLen: 44 })}
           </div>
 
           ${request.mgrRejectReason ? `<div class="request-detail-note cancellation-detail"><span>เหตุผลที่ผู้จัดการส่งกลับ</span><strong>${escapeHtml(request.mgrRejectReason)}</strong></div>` : ""}
@@ -1799,6 +1727,8 @@ export function openRequestDetail(request) {
     actions: [],
   });
 
+  const modalRoot = document.querySelector("#modal-root");
+  if (modalRoot) hydrateRequesterFiles(modalRoot);
   loadAuditTimeline(request.requestNo);
 }
 
@@ -1871,6 +1801,8 @@ function dueSummary(dueDate, status, holidaySet = new Set()) {
   // วันนี้ตรงกับวันครบกำหนดพอดี — ไม่ต้องนับจำนวนวัน
   if (today.getTime() === due.getTime()) return { label: "ครบกำหนดวันนี้", className: "today" };
   const workDays = countWorkingDays(today, due, holidaySet);
+  // กำหนดส่งตรงวันหยุด (ข้อมูลเก่าก่อนมีการบล็อกวันหยุด) และไม่มีวันทำงานเหลือก่อนถึงวันนั้น
+  if (workDays === 0) return { label: "⚠️ ครบกำหนดวันหยุด", className: "today" };
   if (workDays < 0) return { label: `เกินกำหนด ${Math.abs(workDays)} วันทำงาน`, className: "overdue" };
   return { label: `เหลืออีก ${workDays} วันทำงาน`, className: "soon" };
 }

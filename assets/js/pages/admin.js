@@ -19,6 +19,7 @@ import { getDrawingTeamMembers, getAllManagerEmails } from "../services/team-ser
 import { sendTeams1on1 } from "../graph.js";
 import { isNotificationSupported, notificationPermission } from "../services/notification-service.js";
 import { escapeHtml, formatDate, workingDaysUntil } from "../utils.js";
+import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 import { openRequestDetail, openTransferRequesterModal } from "./track.js";
 
 let adminFilter = "all";
@@ -342,6 +343,7 @@ function renderManagerAdmin(view, state) {
     </section>
   `;
 
+  hydrateRequesterFiles(view);
   bindPickupEvents(view, state);
   bindApprovalEvents(view, state);
   bindMgrReviewEvents(view, state);
@@ -828,6 +830,8 @@ function pickupDueLabel(dueDate, holidaySet = new Set()) {
   // ไม่นับวันนี้ — เช่นวันนี้ จ. กำหนดส่ง พ. = เหลือ 2 วันทำงาน, กำหนดส่งเมื่อวาน = เกิน 1 วันทำงาน
   const workDays = workingDaysUntil(today, due, holidaySet);
   if (workDays === null || Math.abs(workDays) > MAX_SANE_WORKDAYS) return { label: "⚠️ ตรวจสอบวันที่", className: "neutral" };
+  // กำหนดส่งตรงวันหยุด (ข้อมูลเก่าก่อนมีการบล็อกวันหยุด) และไม่มีวันทำงานเหลือก่อนถึงวันนั้น
+  if (workDays === 0) return { label: "⚠️ ครบกำหนดวันหยุด", className: "today" };
   if (workDays < 0) return { label: `เกิน ${Math.abs(workDays)} วันทำงาน`, className: "overdue" };
   return { label: `เหลือ ${workDays} วันทำงาน`, className: "soon" };
 }
@@ -1471,7 +1475,6 @@ function renderMgrReviewTable(items, state) {
 
 function renderMgrReviewRow(item, state) {
   const { note, otherFiles } = parseNoteAndFiles(item.noteFromDrawing || "");
-  const folder = getRequestFolderUrl(item.requestNo);
   const hasFile = item.dwgFileUrl || item.pdfFileUrl || otherFiles.length;
   const due = pickupDueLabel(item.dueDate, getHolidaySet(state));
   const requestNo = escapeHtml(item.requestNo);
@@ -1500,18 +1503,9 @@ function renderMgrReviewRow(item, state) {
         ${note ? `<span class="approval-clamp" title="${escapeHtml(note)}">📝 ${escapeHtml(note)}</span>` : `<span style="color:#CBD5E1;font-size:11px;">—</span>`}
         ${item.description ? `<small class="approval-clamp approval-desc" title="${escapeHtml(item.description)}">💬 ${escapeHtml(item.description)}</small>` : ""}
       </td>
-      <td data-label="ไฟล์งาน">
-        <div class="mgr-file-review-links mgr-file-review-compact">
-          ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn"><span>📐</span><span>DWG</span></a>` : ""}
-          ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn"><span>📄</span><span>PDF</span></a>` : ""}
-          ${otherFiles.map((f) => {
-            const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 18 ? fname.slice(0, 15) + "…" : fname;
-            return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn" title="${escapeHtml(fname)}"><span>📎</span><span>${escapeHtml(shortName)}</span></a>`;
-          }).join("")}
-          ${item.dataLink ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn"><span>🔗</span><span>ลิงก์</span></a>` : ""}
-          <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn"><span>📁</span><span>โฟลเดอร์</span></a>
-        </div>
-        ${!hasFile && !item.dataLink ? `<small class="mgr-file-warning" style="display:block;margin-top:4px;">⚠️ ไม่พบไฟล์ DWG/PDF</small>` : ""}
+      <td data-label="ไฟล์งาน" class="file-groups-cell">
+        ${renderFileGroups(item, { maxLen: 24 })}
+        ${!hasFile && !item.dataLink ? `<small class="mgr-file-warning" style="display:block;margin-top:4px;">⚠️ ไม่พบไฟล์จากฝ่ายเขียนแบบ</small>` : ""}
       </td>
       <td data-label="ตรวจสอบ" class="admin-row-actions">
         <button class="primary-button small-flow-button" data-mgr-action="approve" data-request="${requestNo}">✅ อนุมัติ + ส่งมอบ</button>

@@ -1100,6 +1100,91 @@ html[data-theme] {
   font-size: 12px;
 }
 
+/* ══════════════ ไฟล์ / ลิงก์ / โฟลเดอร์ แยก 2 ฝั่ง (file-service.js) ══════════════ */
+[data-theme] .file-groups-cell {
+  min-width: 230px;
+  max-width: 300px;
+}
+
+[data-theme] .file-groups {
+  display: grid;
+  gap: 8px;
+}
+
+[data-theme] .mgr-review-table .file-groups-cell {
+  min-width: 200px;
+  max-width: 240px;
+}
+
+[data-theme] .mgr-review-table .mgr-note-cell {
+  min-width: 130px;
+}
+
+[data-theme] .file-group + .file-group {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+[data-theme] .file-group-title {
+  margin-bottom: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+[data-theme] .file-group-title small {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+[data-theme] .file-group-dept .file-group-title {
+  color: var(--primary);
+}
+
+[data-theme] .file-group-items,
+[data-theme] .file-group-async {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+[data-theme] .file-group-items .mgr-file-btn {
+  margin: 0;
+}
+
+[data-theme] .file-chip-named {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+[data-theme] .file-chip-named > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme] .file-group-loading {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+[data-theme] .request-detail-files .file-groups {
+  margin-top: 8px;
+}
+
+[data-theme] .request-detail-files .file-chip-named {
+  font-size: 12.5px;
+  padding: 5px 10px;
+}
+
 /* ══════════════ หน้าจัดการข้อมูล (/manage) ══════════════ */
 [data-theme] .manage-tabs {
   display: flex;
