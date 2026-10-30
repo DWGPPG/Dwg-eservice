@@ -12,7 +12,7 @@ import {
 } from "../services/request-service.js";
 import { getAuditHistory } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
-import { escapeHtml, formatDate, formatDateOnly } from "../utils.js";
+import { escapeHtml, formatDate, formatDateOnly, signedWorkingDays } from "../utils.js";
 
 const WORK_STATUS_OPTIONS = [
   { value: STATUS.APPROVED, label: "🔵 รอดำเนินการ" },
@@ -1672,12 +1672,15 @@ function renderPublicTrack(view, state) {
       </div>
     </section>
   `;
+  // ยกเลิก listener ของรอบก่อน — #app-view อยู่ตลอดทุกหน้า ถ้าไม่ยกเลิกจะซ้อนกันทุกครั้งที่หน้าวาดใหม่
+  view._publicTrackEvents?.abort();
+  view._publicTrackEvents = new AbortController();
   view.addEventListener("click", (event) => {
     const detailButton = event.target.closest("[data-request-detail]");
     if (!detailButton) return;
     const request = state.requests.find((item) => item.requestNo === detailButton.dataset.requestDetail);
     if (request) openRequestDetail(request);
-  });
+  }, { signal: view._publicTrackEvents.signal });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1839,23 +1842,9 @@ function startOfDay(date) {
   return d;
 }
 
+// วันที่ผิดรูปแบบนับเป็น 0 (เดิมลูปไม่มีวันจบ ทำให้หน้าค้าง) — ดู signedWorkingDays ใน utils.js
 function countWorkingDays(fromDate, toDate, holidaySet) {
-  let count = 0;
-  const cur = new Date(fromDate);
-  cur.setHours(0, 0, 0, 0);
-  const end = new Date(toDate);
-  end.setHours(0, 0, 0, 0);
-  // นับรวมวันนี้ด้วย (ยังมีเวลาทำงานวันนี้อยู่)
-  const step = end >= cur ? 1 : -1;
-  while (cur.getTime() !== end.getTime()) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6 && !holidaySet.has(cur.toDateString())) count += step;
-    cur.setDate(cur.getDate() + step);
-  }
-  // นับวันครบกำหนด (ยังส่งได้ในวันนั้น)
-  const endDow = end.getDay();
-  if (endDow !== 0 && endDow !== 6 && !holidaySet.has(end.toDateString())) count += step;
-  return count;
+  return signedWorkingDays(fromDate, toDate, holidaySet) ?? 0;
 }
 
 function dueSummary(dueDate, status, holidaySet = new Set()) {

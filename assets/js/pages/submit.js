@@ -175,13 +175,19 @@ function bindSubmitFlow(view) {
   const form = view.querySelector("#drawing-submit-form");
   const search = view.querySelector("#project-search");
   const menu = view.querySelector("#project-options");
+  // เมนูถูกย้ายไปไว้ที่ body (กันโดน overflow ตัด) — ลบเมนูของการเปิดหน้านี้ครั้งก่อนออก ไม่ให้ id ซ้ำ/สะสม
+  document.querySelectorAll("body > #project-options").forEach((old) => old.remove());
   document.body.appendChild(menu);
 
   search.addEventListener("focus", () => renderProjectOptions(view));
   search.addEventListener("click", () => renderProjectOptions(view));
   search.addEventListener("input", () => renderProjectOptions(view));
-  window.addEventListener("resize", () => positionProjectMenu(view));
-  window.addEventListener("scroll", () => positionProjectMenu(view), true);
+  // listener บน window/document อยู่ข้ามหน้า — ยกเลิกชุดของการเปิดหน้านี้ครั้งก่อนก่อนผูกใหม่
+  window._submitPageEvents?.abort();
+  window._submitPageEvents = new AbortController();
+  const pageSignal = window._submitPageEvents.signal;
+  window.addEventListener("resize", () => positionProjectMenu(view), { signal: pageSignal });
+  window.addEventListener("scroll", () => positionProjectMenu(view), { capture: true, signal: pageSignal });
   view.querySelector("#project-clear").addEventListener("click", () => clearProject(view));
   view.querySelector("#add-project").addEventListener("click", () => {
     const checkedType = view.querySelector("#drawing-submit-form input[name='requestType']:checked")?.value || "";
@@ -218,13 +224,9 @@ function bindSubmitFlow(view) {
     });
   });
 
-  document.addEventListener("click", function closeMenu(event) {
-    if (!view.isConnected) {
-      document.removeEventListener("click", closeMenu);
-      return;
-    }
+  document.addEventListener("click", (event) => {
     if (!view.querySelector(".project-picker")?.contains(event.target) && !menu.contains(event.target)) closeProjectMenu(view);
-  });
+  }, { signal: pageSignal });
 
   let _submitLock = false;
   form.addEventListener("submit", (event) => {

@@ -67,3 +67,42 @@ export function formatFileSize(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
+
+/**
+ * นับวันทำงาน (จ.–ศ. ไม่รวมวันหยุดใน holidaySet) ระหว่าง from → to แบบรวมทั้งสองวัน
+ * คืนค่าบวกถ้า to อยู่หลัง from, ติดลบถ้าอยู่ก่อน, คืน null ถ้าวันที่ผิดรูปแบบ
+ * holidaySet = Set ของ Date#toDateString()
+ *
+ * เดิมแต่ละหน้าเขียนลูปเดินทีละวันจนกว่า "วัน" จะตรงกัน — วันที่ผิดรูปแบบ (Invalid Date) ทำให้ลูปไม่มีวันจบ
+ * และปีที่กรอกเป็น พ.ศ. (เช่น 2569) ทำให้วนหลายแสนรอบต่อแถว → หน้าค้างจนต้องรีเฟรช
+ * ฟังก์ชันนี้คำนวณเป็นสัปดาห์ (ไม่ขึ้นกับระยะห่าง) แล้วหักวันหยุดที่อยู่ในช่วง
+ */
+export function signedWorkingDays(from, to, holidaySet = new Set()) {
+  const a = new Date(from);
+  const b = new Date(to);
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return null;
+  a.setHours(0, 0, 0, 0);
+  b.setHours(0, 0, 0, 0);
+  const sign = b >= a ? 1 : -1;
+  const start = sign > 0 ? a : b;
+  const end = sign > 0 ? b : a;
+
+  // จำนวนวันตามปฏิทิน (ใช้ Date.UTC กันเวลาออมแสงทำให้หารไม่ลงตัว)
+  const dayIndex = (d) => Math.round(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+  const totalDays = dayIndex(end) - dayIndex(start) + 1;
+  let count = Math.floor(totalDays / 7) * 5;
+  const startDow = start.getDay();
+  for (let i = 0; i < totalDays % 7; i++) {
+    const dow = (startDow + i) % 7;
+    if (dow !== 0 && dow !== 6) count += 1;
+  }
+
+  for (const key of holidaySet) {
+    const h = new Date(key);
+    if (Number.isNaN(h.getTime())) continue;
+    h.setHours(0, 0, 0, 0);
+    const dow = h.getDay();
+    if (h >= start && h <= end && dow !== 0 && dow !== 6) count -= 1;
+  }
+  return sign * count;
+}

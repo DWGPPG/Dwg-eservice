@@ -18,7 +18,7 @@ import {
 import { getDrawingTeamMembers, getAllManagerEmails } from "../services/team-service.js";
 import { sendTeams1on1 } from "../graph.js";
 import { isNotificationSupported, notificationPermission } from "../services/notification-service.js";
-import { escapeHtml, formatDate } from "../utils.js";
+import { escapeHtml, formatDate, signedWorkingDays } from "../utils.js";
 import { openRequestDetail, openTransferRequesterModal } from "./track.js";
 
 let adminFilter = "all";
@@ -31,6 +31,15 @@ let selectedPickupIds = new Set();
 let activeAdminSection = "all";
 
 // ── เรียงรายการล่าสุดอยู่บนสุด (ใช้ร่วมทุก Tab: รับงาน / อนุมัติเริ่มงาน / ตรวจสอบส่งมอบ / งานในฝ่าย) ──
+// #app-view อยู่ตลอดทุกหน้า และหน้านี้ถูกวาดใหม่บ่อย (polling 10 วิ, ตัวกรอง, หลังกดอนุมัติ)
+// listener ที่ผูกกับ view ต้องยกเลิกตัวเก่าก่อนทุกครั้ง ไม่งั้นจะซ้อนกันเพิ่มขึ้นเรื่อยๆ จนหน้าค้าง
+function freshViewSignal(view, key) {
+  view[key]?.abort();
+  const controller = new AbortController();
+  view[key] = controller;
+  return controller.signal;
+}
+
 function sortNewestFirst(items) {
   return [...items].sort((a, b) => {
     const ta = new Date(a.submittedAt || 0).getTime() || 0;
@@ -462,6 +471,7 @@ function bindRequestDetailEvents(view, state) {
 }
 
 function bindTakeoverEvents(view, state) {
+  const signal = freshViewSignal(view, "_takeoverEvents");
   view.addEventListener("click", async (event) => {
     const btn = event.target.closest("[data-takeover]");
     if (btn) {
@@ -479,7 +489,7 @@ function bindTakeoverEvents(view, state) {
       if (!request) return;
       openTransferRequesterModal(view, state, request, () => renderAdmin(view, state));
     }
-  });
+  }, { signal });
 }
 
 function openTakeoverModal(view, state, request) {
@@ -806,6 +816,9 @@ function pickupRow(item, isManager = false, state = null) {
   `;
 }
 
+// เกิน ~10 ปี = วันที่กรอกผิด (เช่นใส่ปี พ.ศ. 2569 ในช่อง ค.ศ.) — แสดงเตือนแทนตัวเลขหลักแสน
+const MAX_SANE_WORKDAYS = 2600;
+
 function pickupDueLabel(dueDate, holidaySet = new Set()) {
   if (!dueDate) return { label: "-", className: "neutral" };
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -813,16 +826,8 @@ function pickupDueLabel(dueDate, holidaySet = new Set()) {
   // วันนี้ตรงกับวันครบกำหนดพอดี — ไม่ต้องนับจำนวนวัน
   if (today.getTime() === due.getTime()) return { label: "ครบกำหนดวันนี้", className: "today" };
   // นับรวมวันนี้ + วันครบกำหนด (ยังทำได้ทั้งสองวัน)
-  let workDays = 0;
-  const cur = new Date(today);
-  const step = due >= today ? 1 : -1;
-  while (cur.toDateString() !== due.toDateString()) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6 && !holidaySet.has(cur.toDateString())) workDays += step;
-    cur.setDate(cur.getDate() + step);
-  }
-  const endDow = due.getDay();
-  if (endDow !== 0 && endDow !== 6 && !holidaySet.has(due.toDateString())) workDays += step;
+  const workDays = signedWorkingDays(today, due, holidaySet);
+  if (workDays === null || Math.abs(workDays) > MAX_SANE_WORKDAYS) return { label: "⚠️ ตรวจสอบวันที่", className: "neutral" };
   if (workDays < 0) return { label: `เกิน ${Math.abs(workDays)} วันทำงาน`, className: "overdue" };
   return { label: `เหลือ ${workDays} วันทำงาน`, className: "soon" };
 }
@@ -863,7 +868,7 @@ function bindFilterEvents(view, state, rerender) {
   view.addEventListener("click", (e) => {
     const fb = e.target.closest("[data-admin-filter]");
     if (fb) { adminFilter = fb.dataset.adminFilter; rerender(); }
-  });
+  }, { signal: freshViewSignal(view, "_filterEvents") });
 }
 
 // ══════════════════════════════════════════════════════════════
