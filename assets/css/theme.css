@@ -773,6 +773,232 @@ html[data-theme] {
   animation: none;
 }
 
+/* ══════════════ หน้าภาพรวม: Glassy dashboard ══════════════
+   ความรู้สึก "กระจก" มาจากพื้นโปร่งแสง + ขอบสะท้อนแสง + แสงนีออนด้านหลัง
+   ตั้งใจไม่ใช้ backdrop-filter: ต้องเบลอใหม่ทุกเฟรมเมื่อแสงด้านหลังเคลื่อนที่ ทำให้เครื่องสเปกต่ำ/มือถือค้าง */
+.fx-aurora {
+  display: none;
+}
+
+[data-theme] body.route-dashboard .fx-aurora {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+[data-theme] .fx-aurora i {
+  position: absolute;
+  width: 46vmax;
+  height: 46vmax;
+  border-radius: 50%;
+  opacity: 0.32;
+}
+
+[data-theme] .fx-aurora i:nth-child(1) {
+  top: -14vmax;
+  right: -6vmax;
+  background: radial-gradient(circle, rgba(0, 223, 143, 0.9), rgba(0, 223, 143, 0.25) 35%, transparent 68%);
+  animation: fx-drift-a 26s ease-in-out infinite alternate;
+}
+
+[data-theme] .fx-aurora i:nth-child(2) {
+  bottom: -18vmax;
+  left: 8vmax;
+  background: radial-gradient(circle, rgba(47, 123, 255, 0.9), rgba(47, 123, 255, 0.25) 35%, transparent 68%);
+  animation: fx-drift-b 32s ease-in-out infinite alternate;
+}
+
+[data-theme] .fx-aurora i:nth-child(3) {
+  top: 30%;
+  left: 40%;
+  width: 30vmax;
+  height: 30vmax;
+  background: radial-gradient(circle, rgba(155, 92, 255, 0.9), rgba(155, 92, 255, 0.25) 35%, transparent 68%);
+  opacity: 0.2;
+  animation: fx-drift-c 38s ease-in-out infinite alternate;
+}
+
+[data-theme="light"] .fx-aurora i {
+  opacity: 0.22;
+}
+
+@keyframes fx-drift-a {
+  to { transform: translate(-22vw, 18vh) scale(1.15); }
+}
+
+@keyframes fx-drift-b {
+  to { transform: translate(26vw, -14vh) scale(0.9); }
+}
+
+@keyframes fx-drift-c {
+  to { transform: translate(-18vw, -22vh) scale(1.25); }
+}
+
+/* hero */
+[data-theme] .dash-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+[data-theme] .dash-hero-date {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-theme] .dash-hero-title {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+[data-theme] .dash-hero-title span {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--primary);
+}
+
+[data-theme] .dash-hero-title i {
+  font-style: normal;
+  color: var(--primary);
+}
+
+[data-theme] .dash-hero-sub {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+[data-theme] .dash-hero-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+[data-theme] .dash-hero-tile {
+  --tone: var(--primary);
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+[data-theme] .dash-hero-tile::after {
+  content: "";
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 45%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+[data-theme] .dash-hero-tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--tone);
+  box-shadow: 0 16px 40px -20px var(--tone);
+}
+
+[data-theme] .dash-hero-tile strong {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+[data-theme] .dash-hero-icon {
+  font-size: 15px;
+}
+
+[data-theme] .dash-hero-tile.tone-blue { --tone: #4da3ff; }
+[data-theme] .dash-hero-tile.tone-amber { --tone: #fbbf24; }
+[data-theme] .dash-hero-tile.tone-red { --tone: #ff6b6b; }
+[data-theme] .dash-hero-tile.tone-green { --tone: var(--primary); }
+
+/* การ์ดกระจก (ใส่ class อัตโนมัติจาก ui-effects.js) — specificity สูงกว่า override inline ใน theme-dark-auto */
+@property --spot {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+[data-theme] body.route-dashboard .fx-glass {
+  --spot: 0;
+  background:
+    radial-gradient(380px circle at var(--mx, -400px) var(--my, -400px), rgba(0, 223, 143, calc(var(--spot) * 0.12)), transparent 60%),
+    color-mix(in srgb, var(--surface) 58%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 10%, transparent) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent), 0 20px 50px -30px rgba(0, 0, 0, 0.6) !important;
+  transition: --spot 0.35s ease, opacity 0.8s var(--ease-lux), filter 0.8s var(--ease-lux), transform 0.8s var(--ease-lux);
+}
+
+[data-theme] body.route-dashboard .fx-glass:hover {
+  --spot: 1;
+}
+
+[data-theme] body.route-dashboard .fx-glass-inner {
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 8%, transparent) !important;
+  box-shadow: none !important;
+}
+
+/* blur → focus ตอนเลื่อนมาเห็น */
+[data-theme] .fx-reveal {
+  opacity: 0;
+  filter: blur(14px);
+  transform: translateY(18px) scale(0.985);
+  transition: opacity 0.8s var(--ease-lux), filter 0.8s var(--ease-lux), transform 0.8s var(--ease-lux);
+}
+
+[data-theme] .fx-reveal.fx-in {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+/* หน้าภาพรวมใช้ blur-in ของการ์ดแทน fade ทั้งก้อน */
+[data-theme] body.route-dashboard #app-view > * {
+  animation: none;
+}
+
+@media (max-width: 1100px) {
+  [data-theme] .dash-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  [data-theme] .dash-hero-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-theme] .dash-hero-tile strong {
+    font-size: 28px;
+  }
+
+}
+
 /* ══════════════ หน้าจัดการข้อมูล (/manage) ══════════════ */
 [data-theme] .manage-tabs {
   display: flex;
@@ -1498,6 +1724,16 @@ html[data-theme] {
   [data-theme] #app-view > * {
     animation: none;
   }
+
+  .fx-aurora {
+    display: none !important;
+  }
+
+  [data-theme] .fx-reveal {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1506,7 +1742,15 @@ html[data-theme] {
   [data-theme] .auth-flow li,
   [data-theme] .auth-eyebrow i,
   [data-theme] .modal,
-  [data-theme] .toast {
+  [data-theme] .toast,
+  [data-theme] .fx-aurora i {
     animation: none !important;
+  }
+
+  [data-theme] .fx-reveal {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
   }
 }

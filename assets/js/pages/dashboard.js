@@ -12,6 +12,52 @@ const chartPeriods = [
 
 let dashboardChartPeriod = "monthly";
 
+const CLOSED_STATUSES = [STATUS.DONE, STATUS.CANCELLED, STATUS.REJECTED];
+
+function renderDashboardHero(state, requests, active, queued) {
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "สวัสดีตอนเช้า" : hour < 17 ? "สวัสดีตอนบ่าย" : "สวัสดีตอนเย็น";
+  const firstName = String(state.user?.name || "").trim().split(/\s+/)[0] || "";
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // เกินกำหนด = ยังอยู่ในมือฝ่ายเขียนแบบ (ไม่นับที่ส่งมอบแล้วรอตรวจรับ) และเลยวันกำหนดส่ง
+  const overdue = requests.filter((r) =>
+    r.dueDate && ![...CLOSED_STATUSES, STATUS.DELIVERED].includes(r.status) && new Date(r.dueDate) < startOfToday
+  ).length;
+  const doneThisMonth = requests.filter((r) => {
+    if (r.status !== STATUS.DONE) return false;
+    const d = new Date(r.doneAt || r.reviewedAt || r.deliveredAt || 0);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
+
+  const tiles = [
+    { label: "กำลังดำเนินการ", value: active, tone: "blue", icon: "⚙️", href: "#/track" },
+    { label: "รอฝ่ายแบบรับงาน", value: queued, tone: queued ? "amber" : "green", icon: "📥", href: "#/admin" },
+    { label: "เกินกำหนดส่ง", value: overdue, tone: overdue ? "red" : "green", icon: "⏰", href: "#/track" },
+    { label: "เสร็จเดือนนี้", value: doneThisMonth, tone: "green", icon: "✅", href: "#/report" },
+  ];
+
+  const hero = document.createElement("section");
+  hero.className = "dash-hero";
+  hero.innerHTML = `
+    <div class="dash-hero-head">
+      <p class="dash-hero-date">${escapeHtml(new Intl.DateTimeFormat("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now))}</p>
+      <h2 class="dash-hero-title">${greeting}${firstName ? `, <span>${escapeHtml(firstName)}</span>` : ""}<i>.</i></h2>
+      <p class="dash-hero-sub">ภาพรวมงานเขียนแบบทั้งหมด ${requests.length.toLocaleString("th-TH")} คำร้องในระบบ</p>
+    </div>
+    <div class="dash-hero-tiles">
+      ${tiles.map((t) => `
+        <a class="dash-hero-tile tone-${t.tone}" href="${t.href}">
+          <span class="dash-hero-icon" aria-hidden="true">${t.icon}</span>
+          <strong>${t.value}</strong>
+          <span>${escapeHtml(t.label)}</span>
+        </a>`).join("")}
+    </div>
+  `;
+  return hero;
+}
+
 export function renderDashboard(view, state) {
   const requests = state.requests || [];
   const total = requests.length;
@@ -41,6 +87,9 @@ export function renderDashboard(view, state) {
 
   // ── Clear view ก่อนเสมอ ──
   view.innerHTML = "";
+
+  // ── Hero: คำทักทาย + สรุปงานด่วน (ตัวเลขนับขึ้น/การ์ดกระจก จัดการโดย ui-effects.js) ──
+  view.appendChild(renderDashboardHero(state, requests, active, queued));
 
   // ── KPI Section ──
   const kpiWrapper = document.createElement("div");
