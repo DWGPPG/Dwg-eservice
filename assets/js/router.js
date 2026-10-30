@@ -1,4 +1,4 @@
-import { NAV_ITEMS, PAGE_TITLES } from "./constants.js";
+import { EXTERNAL_LINKS, NAV_ITEMS, PAGE_TITLES } from "./constants.js";
 import { state } from "./state.js";
 import { qs, qsa } from "./utils.js";
 import { renderDashboard } from "./pages/dashboard.js";
@@ -22,6 +22,10 @@ const routes = {
 
 export function initRouter() {
   renderNav();
+  // ปิด mobile sidebar ทุกครั้งที่กดเมนู — ผูกครั้งเดียว (renderNav ถูกเรียกซ้ำทุกครั้งที่ badge อัปเดต)
+  qs("#main-nav").addEventListener("click", (e) => {
+    if (e.target.closest(".nav-link")) document.body.classList.remove("nav-open");
+  });
   window.addEventListener("hashchange", navigate);
   // ไม่เรียก navigate() ที่นี่ — main.js จะเรียก navigate() เองหลัง login + โหลดข้อมูลเสร็จ
 }
@@ -70,7 +74,7 @@ function renderNav() {
     ? { "/admin": adminPendingCount() + mgrReviewPendingCount() }
     : {};
 
-  qs("#main-nav").innerHTML = availableNavItems().map((item) => {
+  const links = availableNavItems().map((item) => {
     const count = badgeCounts[item.route] || 0;
     const badge = count > 0 ? `<span class="nav-badge">${count > 99 ? "99+" : count}</span>` : "";
     return `
@@ -82,12 +86,16 @@ function renderNav() {
     `;
   }).join("");
 
-  // ปิด mobile sidebar ทุกครั้งที่กด nav link
-  qs("#main-nav").addEventListener("click", (e) => {
-    if (e.target.closest(".nav-link")) {
-      document.body.classList.remove("nav-open");
-    }
-  }, { once: false });
+  const external = state.account ? `
+    <div class="nav-divider" role="separator"></div>
+    ${EXTERNAL_LINKS.map((link) => `
+      <a class="nav-link nav-link-external" href="${link.url}" target="_blank" rel="noopener noreferrer" title="${link.label} (เปิดในแท็บใหม่)">
+        <span class="nav-icon" aria-hidden="true">${link.icon}</span>
+        <span>${link.label}</span>
+      </a>
+    `).join("")}` : "";
+
+  qs("#main-nav").innerHTML = links + external;
 }
 
 /** เรียกซ้ำได้จากภายนอก (เช่นหลัง state.requests อัปเดต) เพื่อรีเฟรช badge โดยไม่ต้องเปลี่ยนหน้า */

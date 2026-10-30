@@ -147,9 +147,11 @@ const TABS = {
     data: () => state.masterData.holidays,
     deletable: true,
     bulkHolidays: true,
-    sort: (a, b) => new Date(b.HolidayDate || 0) - new Date(a.HolidayDate || 0),
+    yearFilter: true,
+    sort: (a, b) => new Date(a.HolidayDate || 0) - new Date(b.HolidayDate || 0),
     columns: [
       { label: "วันที่", value: (r) => formatDateOnly(r.HolidayDate), strong: true },
+      { label: "วัน", html: (r) => weekdayCell(r.HolidayDate), value: (r) => THAI_WEEKDAYS[new Date(r.HolidayDate).getDay()] || "" },
       { label: "ชื่อวันหยุด", value: (r) => r.Title },
     ],
     form: [
@@ -168,6 +170,7 @@ const ui = {
   search: "",
   project: "",
   showHidden: false,
+  holidayYear: new Date().getFullYear(), // ปี ค.ศ. ที่เลือกในแท็บวันหยุด
   audit: null,       // cache audit log — โหลดเมื่อเปิดแท็บเท่านั้น (List ใหญ่)
   auditLoading: false,
 };
@@ -225,6 +228,7 @@ function renderTable(key) {
 
   return `
     ${key === "team" ? bootstrapCard() : ""}
+    ${tab.yearFilter ? holidayYearBar() : ""}
     <div class="manage-toolbar">
       <input class="manage-search" type="search" placeholder="ค้นหา${escapeHtml(tab.label)}..." value="${escapeHtml(ui.search)}" data-input="search" />
       ${tab.projectFilter ? `
@@ -239,10 +243,11 @@ function renderTable(key) {
         </label>` : ""}
       <span class="manage-spacer"></span>
       <button class="secondary-button" type="button" data-action="csv">⬇ CSV</button>
+      ${tab.bulkHolidays ? `<button class="secondary-button" type="button" data-action="copy-year" title="ดึงวันหยุดปีก่อนมาเป็นร่างให้ตรวจแก้ก่อนบันทึก">📑 คัดลอกจากปี ${ui.holidayYear + 542}</button>` : ""}
       ${tab.bulkHolidays ? `<button class="secondary-button" type="button" data-action="bulk">📋 เพิ่มหลายวัน</button>` : ""}
       <button class="primary-button" type="button" data-action="add">+ เพิ่ม${escapeHtml(tab.addLabel || tab.label)}</button>
     </div>
-    <p class="manage-count">${rows.length} รายการ</p>
+    <p class="manage-count">${tab.yearFilter ? holidaySummary(rows) : `${rows.length} รายการ`}</p>
     ${rows.length ? `
       <div class="track-table-wrap manage-table-wrap">
         <table class="manage-table">
@@ -551,6 +556,11 @@ function bindBody(view) {
 
   body.querySelector('[data-action="add"]')?.addEventListener("click", () => openForm(ui.tab, null, rerender));
   body.querySelector('[data-action="bulk"]')?.addEventListener("click", () => openBulkHolidays(rerender));
+  body.querySelector('[data-action="copy-year"]')?.addEventListener("click", () => openBulkHolidays(rerender, copyFromPreviousYear()));
+  body.querySelectorAll("[data-holiday-year]").forEach((chip) => chip.addEventListener("click", () => {
+    ui.holidayYear = Number(chip.dataset.holidayYear);
+    rerender();
+  }));
   body.querySelector('[data-action="migrate"]')?.addEventListener("click", (event) => migrateBootstrapAdmins(event.currentTarget, rerender));
   body.querySelector('[data-action="csv"]')?.addEventListener("click", () => exportCsv(ui.tab));
   body.querySelectorAll('[data-action="edit"]').forEach((b) => b.addEventListener("click", () => openForm(ui.tab, find(b.dataset.id), rerender)));
@@ -605,6 +615,7 @@ function openForm(key, item, rerender) {
               await addItem(tab.list, payload);
             }
             await writeAudit({ action: `จัดการข้อมูล: ${isEdit ? "แก้ไข" : "เพิ่ม"}${tab.label}`, detail: summarize(payload) });
+            if (tab.yearFilter && values.HolidayDate) ui.holidayYear = Number(values.HolidayDate.slice(0, 4)); // แสดงปีของวันที่เพิ่งบันทึก
             await reloadMasterData();
             close();
             showToast(`${isEdit ? "บันทึก" : "เพิ่ม"}${tab.label}แล้ว`, "success");
@@ -752,19 +763,21 @@ function confirmDelete(key, item, rerender) {
 }
 
 // ── เพิ่มวันหยุดหลายวันจากการวางข้อความ (1 บรรทัด = 1 วัน) ──
-function openBulkHolidays(rerender) {
+function openBulkHolidays(rerender, prefill = "") {
+  const be = ui.holidayYear + 543;
   openModal({
-    title: "เพิ่มวันหยุดหลายวัน",
+    title: prefill ? `คัดลอกวันหยุดจากปี ${be - 1} → ${be}` : `เพิ่มวันหยุดหลายวัน (ปี ${be})`,
     body: `
       <form class="manage-form">
-        <p class="manage-hint">วาง 1 บรรทัดต่อ 1 วัน รูปแบบ <code>YYYY-MM-DD ชื่อวันหยุด</code> (ปี ค.ศ.) — วันที่มีอยู่แล้วจะถูกข้าม</p>
-        <textarea name="lines" rows="10" placeholder="2027-01-01 วันขึ้นปีใหม่&#10;2027-04-13 วันสงกรานต์&#10;2027-04-14 วันสงกรานต์"></textarea>
+        <p class="manage-hint">วาง 1 บรรทัดต่อ 1 วัน: <code>วันที่ ชื่อวันหยุด</code> — วันที่ใช้ได้ทั้ง <code>${be}-04-13</code>, <code>13/04/${be}</code> (ปี พ.ศ. หรือ ค.ศ.) วางจาก Excel ได้ · วันที่มีอยู่แล้วจะถูกข้าม</p>
+        ${prefill ? `<p class="manage-hint" style="color:var(--warning);">⚠️ วันหยุดตามจันทรคติ (มาฆบูชา วิสาขบูชา อาสาฬหบูชา เข้าพรรษา) และวันหยุดชดเชย เปลี่ยนทุกปี — ตรวจแก้วันที่ก่อนกดบันทึก</p>` : ""}
+        <textarea name="lines" rows="12" placeholder="01/01/${be} วันขึ้นปีใหม่&#10;13/04/${be} วันสงกรานต์&#10;14/04/${be} วันสงกรานต์">${escapeHtml(prefill)}</textarea>
         <p class="manage-form-error" hidden></p>
       </form>`,
     actions: [
       { label: "ยกเลิก" },
       {
-        label: "เพิ่มทั้งหมด",
+        label: "บันทึกทั้งหมด",
         className: "primary-button",
         onClick: async (close) => {
           const form = document.querySelector(".manage-form");
@@ -772,10 +785,14 @@ function openBulkHolidays(rerender) {
           const existing = new Set((state.masterData.holidays || []).map((h) => toDateInput(h.HolidayDate)));
           const parsed = [];
           const bad = [];
+          const seen = new Set();
           form.lines.value.split("\n").map((l) => l.trim()).filter(Boolean).forEach((line) => {
-            const m = line.match(/^(\d{4}-\d{2}-\d{2})\s+(.+)$/);
-            if (!m || Number.isNaN(new Date(m[1]).getTime())) bad.push(line);
-            else if (!existing.has(m[1])) parsed.push({ HolidayDate: m[1], Title: m[2] });
+            const holiday = parseHolidayLine(line);
+            if (!holiday) bad.push(line);
+            else if (!existing.has(holiday.HolidayDate) && !seen.has(holiday.HolidayDate)) {
+              seen.add(holiday.HolidayDate);
+              parsed.push(holiday);
+            }
           });
           if (bad.length) {
             errorBox.textContent = `รูปแบบไม่ถูกต้อง: ${bad.slice(0, 3).join(" | ")}`;
@@ -783,7 +800,7 @@ function openBulkHolidays(rerender) {
             return;
           }
           if (!parsed.length) {
-            errorBox.textContent = "ไม่มีวันใหม่ให้เพิ่ม";
+            errorBox.textContent = "ไม่มีวันใหม่ให้เพิ่ม (ทุกวันมีอยู่แล้ว)";
             errorBox.hidden = false;
             return;
           }
@@ -802,6 +819,78 @@ function openBulkHolidays(rerender) {
       },
     ],
   });
+}
+
+// ── วันหยุด: แยกตามปี ──
+const THAI_WEEKDAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+
+function holidayYearOf(row) {
+  const d = new Date(row.HolidayDate);
+  return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+}
+
+function holidayYearBar() {
+  const counts = new Map();
+  (state.masterData.holidays || []).forEach((row) => {
+    const y = holidayYearOf(row);
+    if (y) counts.set(y, (counts.get(y) || 0) + 1);
+  });
+  const thisYear = new Date().getFullYear();
+  [thisYear, thisYear + 1, ui.holidayYear].forEach((y) => { if (!counts.has(y)) counts.set(y, 0); });
+  const years = [...counts.keys()].sort((a, b) => b - a);
+  return `
+    <div class="holiday-year-bar" role="tablist" aria-label="เลือกปี">
+      ${years.map((y) => `
+        <button type="button" class="holiday-year-chip ${y === ui.holidayYear ? "is-active" : ""} ${counts.get(y) ? "" : "is-empty"}" data-holiday-year="${y}">
+          <strong>${y + 543}</strong>
+          <span>${counts.get(y) ? `${counts.get(y)} วัน` : "ยังไม่มี"}</span>
+          ${y === thisYear ? `<em>ปีนี้</em>` : ""}
+        </button>`).join("")}
+    </div>`;
+}
+
+function holidaySummary(rows) {
+  const onWorkdays = rows.filter((r) => { const d = new Date(r.HolidayDate).getDay(); return d !== 0 && d !== 6; }).length;
+  const be = ui.holidayYear + 543;
+  if (!rows.length) return `ปี ${be} ยังไม่มีวันหยุด — กด “📑 คัดลอกจากปี ${be - 1}” หรือ “📋 เพิ่มหลายวัน”`;
+  return `ปี ${be} มีวันหยุด ${rows.length} วัน · ตรงวันทำงาน ${onWorkdays} วัน${rows.length > onWorkdays ? ` · ตรงเสาร์-อาทิตย์ ${rows.length - onWorkdays} วัน (ไม่มีผลกับการนับวันทำงาน)` : ""}`;
+}
+
+function weekdayCell(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dow = d.getDay();
+  const weekend = dow === 0 || dow === 6;
+  return weekend
+    ? `<span class="badge badge-cancelled" title="ตรงเสาร์-อาทิตย์ — ไม่มีผลกับการนับวันทำงาน ถ้ามีวันหยุดชดเชยให้เพิ่มแยก">${THAI_WEEKDAYS[dow]}</span>`
+    : THAI_WEEKDAYS[dow];
+}
+
+/** แปลง 1 บรรทัดเป็น { HolidayDate: "YYYY-MM-DD" (ค.ศ.), Title } — รองรับ YYYY-MM-DD / DD/MM/YYYY, ปี พ.ศ./ค.ศ., คั่นด้วย space หรือ tab */
+function parseHolidayLine(line) {
+  const m = line.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[\s,]+(.+)$/) || line.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})[\s,]+(.+)$/);
+  if (!m) return null;
+  let [y, mo, d] = line.match(/^\d{4}-/) ? [m[1], m[2], m[3]] : [m[3], m[2], m[1]];
+  y = Number(y); mo = Number(mo); d = Number(d);
+  if (y > 2400) y -= 543; // ปี พ.ศ.
+  const date = new Date(y, mo - 1, d);
+  if (Number.isNaN(date.getTime()) || date.getMonth() !== mo - 1 || date.getDate() !== d) return null; // เช่น 31/02
+  const title = m[4].trim();
+  return title ? { HolidayDate: toDateInput(date), Title: title } : null;
+}
+
+/** วันหยุดปีก่อน เลื่อนเป็นปีที่เลือก (วัน/เดือนเดิม) ในรูปแบบข้อความให้ตรวจแก้ */
+function copyFromPreviousYear() {
+  const target = ui.holidayYear;
+  const be = target + 543;
+  return (state.masterData.holidays || [])
+    .filter((row) => holidayYearOf(row) === target - 1)
+    .sort((a, b) => new Date(a.HolidayDate) - new Date(b.HolidayDate))
+    .map((row) => {
+      const d = new Date(row.HolidayDate);
+      return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${be} ${row.Title}`;
+    })
+    .join("\n");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -892,6 +981,7 @@ function filteredRows(tab) {
   return (tab.data() || [])
     .filter((row) => ui.showHidden || !isHidden(tab, row))
     .filter((row) => !ui.project || row.ProjectName === ui.project)
+    .filter((row) => !tab.yearFilter || holidayYearOf(row) === ui.holidayYear)
     .filter((row) => !q || norm(tab.searchText(row)).includes(q))
     .sort(tab.sort || ((a, b) => String(a.Title0 || a.Title || "").localeCompare(String(b.Title0 || b.Title || ""), "th", { numeric: true })));
 }
