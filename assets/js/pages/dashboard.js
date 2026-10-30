@@ -24,6 +24,9 @@ export function greetingName(displayName) {
   return name.split(/\s+/)[0] || "";
 }
 
+const formatThaiShortDate = (date) =>
+  new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric" }).format(date);
+
 function renderDashboardHero(state, requests, active, queued) {
   const now = new Date();
   const hour = now.getHours();
@@ -41,6 +44,13 @@ function renderDashboardHero(state, requests, active, queued) {
     return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
   }).length;
 
+  // วันที่ของคำร้องแรกในระบบ — ข้ามวันที่ผิดรูปแบบ/อยู่ในอนาคต (เช่นกรอกปี พ.ศ. ในช่อง ค.ศ.)
+  const firstSubmitted = requests.reduce((min, r) => {
+    const d = new Date(r.submittedAt);
+    if (Number.isNaN(d.getTime()) || d > now) return min;
+    return !min || d < min ? d : min;
+  }, null);
+
   const tiles = [
     { label: "กำลังดำเนินการ", value: active, tone: "blue", icon: "⚙️", href: "#/track" },
     { label: "รอฝ่ายแบบรับงาน", value: queued, tone: queued ? "amber" : "green", icon: "📥", href: "#/admin" },
@@ -54,7 +64,9 @@ function renderDashboardHero(state, requests, active, queued) {
     <div class="dash-hero-head">
       <p class="dash-hero-date">${escapeHtml(new Intl.DateTimeFormat("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now))}</p>
       <h2 class="dash-hero-title">${greeting}${firstName ? `, <span>${escapeHtml(firstName)}</span>` : ""}<i>.</i></h2>
-      <p class="dash-hero-sub">ภาพรวมงานเขียนแบบทั้งหมด ${requests.length.toLocaleString("th-TH")} คำร้องในระบบ</p>
+      <p class="dash-hero-sub">ภาพรวมงานเขียนแบบทั้งหมด ${requests.length.toLocaleString("th-TH")} คำร้องในระบบ${firstSubmitted
+        ? ` ตั้งแต่วันที่ <b>${escapeHtml(formatThaiShortDate(firstSubmitted))}</b> จนถึงปัจจุบัน`
+        : ""}</p>
     </div>
     <div class="dash-hero-tiles">
       ${tiles.map((t) => `
