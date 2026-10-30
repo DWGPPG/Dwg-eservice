@@ -3,7 +3,6 @@ import { renderTable } from "../components/table.js";
 import { assigneeName, getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDate } from "../utils.js";
 import { renderKpiDashboard } from "./report.js";
-import { renderTeamPulse } from "./team-pulse-widget.js";
 
 const chartPeriods = [
   { key: "weekly", label: "รายอาทิตย์" },
@@ -12,6 +11,62 @@ const chartPeriods = [
 ];
 
 let dashboardChartPeriod = "monthly";
+
+const CLOSED_STATUSES = [STATUS.DONE, STATUS.CANCELLED, STATUS.REJECTED];
+
+// ชื่อเรียกในคำทักทาย = ชื่อแรกจาก display name ของบัญชี Microsoft 365 ที่ login อยู่
+// ข้ามคำนำหน้า (นาย/นางสาว/Mr. ฯลฯ) ไม่งั้นจะได้ "สวัสดีตอนเช้า, นาย"
+// คำนำหน้าแบบคำเต็มต้องตามด้วยเว้นวรรค (กันชื่อจริงอย่าง "นายิกา" / "นางนวล" โดนตัด), แบบย่อมีจุดอยู่แล้ว
+const NAME_PREFIX_RE = /^(?:(?:นางสาว|นาง|นาย|miss|mrs|mr|ms|dr)\s+|(?:น\.ส\.|ดร\.|ว่าที่\s*ร\.ต\.|mrs\.|mr\.|ms\.|dr\.)\s*)/i;
+
+export function greetingName(displayName) {
+  const name = String(displayName || "").trim().replace(NAME_PREFIX_RE, "").trim();
+  return name.split(/\s+/)[0] || "";
+}
+
+function renderDashboardHero(state, requests, active, queued) {
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting = hour < 12 ? "สวัสดีตอนเช้า" : hour < 17 ? "สวัสดีตอนบ่าย" : "สวัสดีตอนเย็น";
+  const firstName = greetingName(state.user?.name);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  // เกินกำหนด = ยังอยู่ในมือฝ่ายเขียนแบบ (ไม่นับที่ส่งมอบแล้วรอตรวจรับ) และเลยวันกำหนดส่ง
+  const overdue = requests.filter((r) =>
+    r.dueDate && ![...CLOSED_STATUSES, STATUS.DELIVERED].includes(r.status) && new Date(r.dueDate) < startOfToday
+  ).length;
+  const doneThisMonth = requests.filter((r) => {
+    if (r.status !== STATUS.DONE) return false;
+    const d = new Date(r.doneAt || r.reviewedAt || r.deliveredAt || 0);
+    return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+  }).length;
+
+  const tiles = [
+    { label: "กำลังดำเนินการ", value: active, tone: "blue", icon: "⚙️", href: "#/track" },
+    { label: "รอฝ่ายแบบรับงาน", value: queued, tone: queued ? "amber" : "green", icon: "📥", href: "#/admin" },
+    { label: "เกินกำหนดส่ง", value: overdue, tone: overdue ? "red" : "green", icon: "⏰", href: "#/track" },
+    { label: "เสร็จเดือนนี้", value: doneThisMonth, tone: "green", icon: "✅", href: "#/report" },
+  ];
+
+  const hero = document.createElement("section");
+  hero.className = "dash-hero";
+  hero.innerHTML = `
+    <div class="dash-hero-head">
+      <p class="dash-hero-date">${escapeHtml(new Intl.DateTimeFormat("th-TH", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now))}</p>
+      <h2 class="dash-hero-title">${greeting}${firstName ? `, <span>${escapeHtml(firstName)}</span>` : ""}<i>.</i></h2>
+      <p class="dash-hero-sub">ภาพรวมงานเขียนแบบทั้งหมด ${requests.length.toLocaleString("th-TH")} คำร้องในระบบ</p>
+    </div>
+    <div class="dash-hero-tiles">
+      ${tiles.map((t) => `
+        <a class="dash-hero-tile tone-${t.tone}" href="${t.href}">
+          <span class="dash-hero-icon" aria-hidden="true">${t.icon}</span>
+          <strong>${t.value}</strong>
+          <span>${escapeHtml(t.label)}</span>
+        </a>`).join("")}
+    </div>
+  `;
+  return hero;
+}
 
 export function renderDashboard(view, state) {
   const requests = state.requests || [];
@@ -43,15 +98,8 @@ export function renderDashboard(view, state) {
   // ── Clear view ก่อนเสมอ ──
   view.innerHTML = "";
 
-  // ── Team Pulse Widget (เช็คอินความรู้สึก/แผนงานประจำวัน) — บนสุดของหน้า ──
-  const teamPulseContainer = document.createElement("div");
-  view.appendChild(teamPulseContainer);
-  renderTeamPulse(teamPulseContainer, state).catch((err) => {
-    console.warn("Team Pulse widget เกิดข้อผิดพลาดระหว่างทำงาน (ไม่กระทบส่วนอื่นของหน้า):", err.message);
-    // หมายเหตุ: ไม่เคลียร์ innerHTML ทิ้งที่นี่ — ถ้า error เกิดขึ้น "หลัง" เนื้อหาถูก render สำเร็จไปแล้ว
-    // (เช่น ขั้นตอนวัดความสูงฟีดหลัง paint) การเคลียร์ทิ้งจะทำให้เนื้อหาที่ถูกต้องหายไปโดยไม่จำเป็น
-    // ปล่อยให้เนื้อหาที่มีอยู่ ณ ตอนนั้นแสดงต่อไป — กรณีเดียวที่จะยังค้างเป็น skeleton คือ error เกิดก่อน paint() ครั้งแรก
-  });
+  // ── Hero: คำทักทาย + สรุปงานด่วน (ตัวเลขนับขึ้น/การ์ดกระจก จัดการโดย ui-effects.js) ──
+  view.appendChild(renderDashboardHero(state, requests, active, queued));
 
   // ── KPI Section ──
   const kpiWrapper = document.createElement("div");

@@ -1016,7 +1016,7 @@ async function notifyManagersForReview(request, { dwgUrl, pdfUrl, note, otherFil
     `<a href="${appConfig.azure.redirectUri}">${appConfig.azure.redirectUri}</a>`,
   ].filter(Boolean);
 
-  const allManagerEmails = getAllManagerEmails(appConfig.approverLv2Emails || []);
+  const allManagerEmails = getAllManagerEmails(appConfig.bootstrapAdminEmails || []);
   for (const mgrEmail of allManagerEmails) {
     await sendTeams1on1(mgrEmail, lines.join("<br>"));
   }

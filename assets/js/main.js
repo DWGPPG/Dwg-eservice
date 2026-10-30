@@ -25,7 +25,7 @@ function hashRequests(requests) {
 }
 
 /** หน้าที่ห้าม re-render ระหว่าง polling เพราะผู้ใช้อาจกรอกข้อมูลอยู่ */
-const NO_POLL_RENDER_ROUTES = new Set(["/submit"]);
+const NO_POLL_RENDER_ROUTES = new Set(["/submit", "/manage"]);
 
 /** ตรวจสอบว่ามี modal เปิดอยู่หรือไม่ */
 function isModalOpen() {

@@ -55,7 +55,7 @@ function splitRequestNo(requestNo) {
  * คำร้องแรก → DrawingRequests/DWG-XXX-0001
  * Revision  → DrawingRequests/DWG-XXX-0001/Rev.01  (ซ้อนใต้คำขอเดิมเสมอ)
  */
-function requestFolderPath(requestNo) {
+export function requestFolderPath(requestNo) {
   const { baseRequestNo, revisionSegment } = splitRequestNo(requestNo);
   const base = `${appConfig.sharePoint.uploadFolder}/${baseRequestNo}`;
   return revisionSegment ? `${base}/${revisionSegment}` : base;

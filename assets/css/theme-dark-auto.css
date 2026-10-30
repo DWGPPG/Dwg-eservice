@@ -1062,39 +1062,6 @@
 [data-theme="dark"] .track-tab-group-dept .requester-tab {
   background: var(--surface-solid);
 }
-[data-theme="dark"] .tp-checked-in {
-  border: 1px solid hsla(144, 55%, 60%, 0.28);
-  color: hsl(143, 86%, 70%);
-}
-[data-theme="dark"] .tp-wl-box {
-  background: hsla(211, 72%, 55%, 0.12);
-  border: 1px solid hsla(213, 97%, 60%, 0.28);
-  color: hsl(224, 68%, 70%);
-}
-[data-theme="dark"] .tp-wl-box .tp-warn {
-  color: hsl(0, 76%, 70%);
-}
-[data-theme="dark"] .tp-post {
-  border-bottom: 1px solid var(--line);
-}
-[data-theme="dark"] .tp-post.tp-older {
-  background: var(--surface-solid);
-}
-[data-theme="dark"] .tp-badge-mgr {
-  color: hsl(273, 70%, 70%);
-  background: hsla(269, 100%, 55%, 0.12);
-}
-[data-theme="dark"] .tp-post-text .tp-ref-link {
-  background: hsla(211, 72%, 55%, 0.12);
-}
-[data-theme="dark"] .tp-reaction-pill.mine {
-  background: hsla(211, 72%, 55%, 0.12);
-}
-[data-theme="dark"] .tp-confirm-del {
-  background: hsla(0, 86%, 55%, 0.12);
-  border: 1px solid hsla(0, 96%, 60%, 0.28);
-  color: hsl(0, 73%, 70%);
-}
 [data-theme="dark"] .view-as-warning {
   background: hsla(44, 100%, 55%, 0.12);
   color: hsl(39, 100%, 70%);

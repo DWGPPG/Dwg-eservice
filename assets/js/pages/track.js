@@ -12,7 +12,8 @@ import {
 } from "../services/request-service.js";
 import { getAuditHistory } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
-import { escapeHtml, formatDate, formatDateOnly } from "../utils.js";
+import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, SAME_DAY_PRIORITY, workingDaysUntil } from "../utils.js";
+import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 
 const WORK_STATUS_OPTIONS = [
   { value: STATUS.APPROVED, label: "🔵 รอดำเนินการ" },
@@ -285,7 +286,7 @@ function renderWorkbookTrack(view, state) {
                 return Math.min(min, wd);
               }, Infinity);
               const urgentBadge = awaitingCount > 0 && minDays <= 1
-                ? `<span style="background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;margin-left:4px;">${minDays <= 0 ? "หมดเวลา" : minDays+" วันทำงาน"}</span>`
+                ? `<span style="background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;margin-left:4px;">${minDays < 0 ? "หมดเวลา" : minDays === 0 ? "วันนี้วันสุดท้าย" : minDays+" วันทำงาน"}</span>`
                 : awaitingCount > 0 && minDays <= 2
                 ? `<span style="background:#F59E0B;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;margin-left:4px;">${minDays} วันทำงาน</span>`
                 : "";
@@ -316,7 +317,7 @@ function renderWorkbookTrack(view, state) {
                 const wdLeft = reviewDeadline ? countWorkingDays(new Date(), reviewDeadline, holidaySet) : null;
                 const dayBadge = wdLeft !== null
                   ? `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;background:${wdLeft <= 0 ? "#FEE2E2" : wdLeft <= 1 ? "#FFEDD5" : "#DCFCE7"};color:${wdLeft <= 0 ? "#991B1B" : wdLeft <= 1 ? "#C2410C" : "#065F46"};">
-                      ${wdLeft <= 0 ? "⚠️ หมดเวลาแล้ว" : `⏰ เหลือ ${wdLeft} วันทำงาน`}
+                      ${wdLeft < 0 ? "⚠️ หมดเวลาแล้ว" : wdLeft === 0 ? "⏰ วันนี้วันสุดท้าย" : `⏰ เหลือ ${wdLeft} วันทำงาน`}
                     </span>`
                   : "";
                 // inject badge เข้าใน review card
@@ -367,6 +368,7 @@ function renderWorkbookTrack(view, state) {
       `}
     </section>
   `;
+  hydrateRequesterFiles(view); // ชื่อไฟล์ที่ผู้ร้องขอแนบ — โหลดเฉพาะแถวที่มองเห็น
 
   bindWorkbookEvents(view, state);
   bindReviewInteractions(view, state);
@@ -384,10 +386,6 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
   const due = dueSummary(item.dueDate, item.status, holidaySet);
   const mine = isMine(item, state);
   const canEditStatus = mine && [STATUS.APPROVED, STATUS.WORKING, STATUS.MGR_REJECTED].includes(item.status);
-  const folder   = getRequestFolderUrl(item.requestNo);
-  const fileLink = item.dwgFileUrl || item.pdfFileUrl || "";
-  const dataLink = item.dataLink || "";
-
   return `
     <tr>
       <td data-label="เหลือ/เกินกำหนด"><span class="due-chip ${due.className}">${escapeHtml(due.label)}</span></td>
@@ -405,32 +403,7 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
       <td data-label="โครงการ"><strong>${escapeHtml(item.projectName || "—")}</strong></td>
       <td data-label="Drawing"><strong>${escapeHtml(item.drawingNo || "—")}</strong><br><small>${escapeHtml(item.drawingName || "")}</small></td>
       <td data-label="กำหนดส่ง">${formatDateOnly(item.dueDate)}</td>
-      <td data-label="โฟลเดอร์ / ลิงก์" style="white-space:nowrap;">
-        <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn folder-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;">
-          📁 โฟลเดอร์
-        </a>
-        ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn dwg-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;">
-          📐 DWG
-        </a>` : ""}
-        ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn pdf-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;">
-          📄 PDF
-        </a>` : ""}
-        ${parseNoteAndFiles(item.noteFromDrawing || "").otherFiles.map((f) => {
-          const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 18 ? fname.slice(0, 15) + "…" : fname;
-          return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer"
-            class="mgr-file-btn other-btn" title="${escapeHtml(fname)}"
-            style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;max-width:160px;">
-            📎 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(shortName)}</span>
-          </a>`;
-        }).join("")}
-        ${dataLink ? `<a href="${escapeHtml(dataLink)}" target="_blank" rel="noopener noreferrer"
-          class="mgr-file-btn ref-btn" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 8px;margin-top:4px;">
-          🔗 ลิงก์
-        </a>` : ""}
-      </td>
+      <td data-label="โฟลเดอร์ / ลิงก์ / ไฟล์" class="file-groups-cell">${renderFileGroups(item)}</td>
       <td data-label="สถานะ" style="vertical-align:middle;text-align:center;width:155px;">
         ${canEditStatus ? `
           <select class="track-status-select" data-designer-status="${escapeHtml(item.requestNo)}">
@@ -1036,19 +1009,7 @@ function getRequestTypeOptions(requests) {
 
 /** เซลล์ไฟล์แนบ — เปิด/ดาวน์โหลดได้อย่างเดียว (ไม่มีปุ่มแก้ไขใดๆ) */
 function renderReadOnlyFileCell(item) {
-  const folder     = getRequestFolderUrl(item.requestNo);
-  const otherFiles = parseNoteAndFiles(item.noteFromDrawing || "").otherFiles;
-  const btn = "display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:3px 8px;margin:0 4px 4px 0;";
-  return `
-    <a href="${escapeHtml(folder)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn" style="${btn}">📁 โฟลเดอร์</a>
-    ${item.dwgFileUrl ? `<a href="${escapeHtml(item.dwgFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn dwg-btn" style="${btn}">📐 DWG</a>` : ""}
-    ${item.pdfFileUrl ? `<a href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn pdf-btn" style="${btn}">📄 PDF</a>` : ""}
-    ${otherFiles.map((f) => {
-      const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 16 ? fname.slice(0, 13) + "…" : fname;
-      return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn other-btn" title="${escapeHtml(fname)}" style="${btn}max-width:150px;">📎 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(shortName)}</span></a>`;
-    }).join("")}
-    ${item.dataLink ? `<a href="${escapeHtml(item.dataLink)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn" style="${btn}">🔗 ลิงก์</a>` : ""}
-  `;
+  return renderFileGroups(item, { maxLen: 22 });
 }
 
 /** แถวตารางในมุม "งานในฝ่าย" — อ่านอย่างเดียว */
@@ -1217,6 +1178,7 @@ function renderRequesterTrack(view, state) {
       `}
     </section>
   `;
+  hydrateRequesterFiles(view); // ชื่อไฟล์ที่ผู้ร้องขอแนบ — โหลดเฉพาะแถวที่มองเห็น
 
   // ── สลับ scope / tab ── (ใช้ re-render เพื่อให้ state คงที่ทุกครั้ง)
   view.querySelectorAll("[data-req-scope]").forEach((btn) => {
@@ -1337,8 +1299,11 @@ function renderReviewCard(item) {
           <span style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">
             📅 กำหนดส่งใหม่ <b style="color:#EF4444;">*</b>
           </span>
-          <input id="review-due-${escapeHtml(item.requestNo)}" type="date"
+          <input id="review-due-${escapeHtml(item.requestNo)}" type="date" data-priority="${escapeHtml(item.priority || "ปกติ")}"
             style="width:100%;border:1.5px solid #FCD34D;background:#FFFBEB;border-radius:8px;padding:8px;font-size:13px;" />
+          <small style="display:block;margin-top:4px;color:#64748B;font-size:11px;">${item.priority === SAME_DAY_PRIORITY
+            ? "คำร้องนี้ “เร่งด่วนมาก” — กำหนดส่งเป็นวันนี้ได้"
+            : `ส่งภายในวันได้เฉพาะ “${SAME_DAY_PRIORITY}” — เลือกได้ตั้งแต่วันถัดไป`}</small>
           <div id="review-due-warn-${escapeHtml(item.requestNo)}" style="display:none;"></div>
         </div>
 
@@ -1534,6 +1499,12 @@ function bindReviewInteractions(view, state) {
         if (!note)          { showToast("กรุณาระบุรายละเอียดที่ต้องแก้ไข", "warning"); return; }
         if (!files.length)  { showToast("กรุณาแนบไฟล์ประกอบอย่างน้อย 1 ไฟล์", "warning"); return; }
         if (!newDue)        { showToast("กรุณากรอกกำหนดส่งใหม่", "warning"); return; }
+        if (newDue < minDueDateKey(request.priority)) {
+          showToast(request.priority === SAME_DAY_PRIORITY
+            ? "กำหนดส่งใหม่เป็นวันที่ผ่านมาแล้ว — กรุณาเลือกใหม่"
+            : `ส่งภายในวันได้เฉพาะคำร้อง “${SAME_DAY_PRIORITY}” — กรุณาเลือกกำหนดส่งตั้งแต่วันถัดไป`, "warning");
+          return;
+        }
 
         // ── เตือนถ้ากำหนดส่งใหม่เป็นวันเดียวกัน (เตือนเฉยๆ ยังไปต่อได้) ──
         const now = new Date();
@@ -1610,9 +1581,15 @@ function toggleReviewBox(view, requestNo, mode) {
     if (dueInput && dueWarn) {
       const now = new Date();
       const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
-      dueInput.min = todayKey;
+      const minKey = minDueDateKey(dueInput.dataset.priority);
+      dueInput.min = minKey;
       dueInput.onchange = () => {
-        if (dueInput.value === todayKey) {
+        if (dueInput.value && dueInput.value < minKey) {
+          dueWarn.style.display = "block";
+          dueWarn.innerHTML = `<div style="margin-top:7px;padding:9px 12px;background:#FEF2F2;border:1.5px solid #DC2626;border-radius:8px;font-size:11.5px;color:#B91C1C;font-weight:600;line-height:1.6;">
+            ⛔ ${dueInput.value === todayKey ? `ส่งภายในวันได้เฉพาะคำร้อง “${SAME_DAY_PRIORITY}”` : "วันที่นี้ผ่านมาแล้ว"} — กรุณาเลือกวันถัดไปเป็นต้นไป
+          </div>`;
+        } else if (dueInput.value === todayKey) {
           dueWarn.style.display = "block";
           dueWarn.innerHTML = `<div style="margin-top:7px;padding:9px 12px;background:#FEF2F2;border:1.5px solid #DC2626;border-radius:8px;font-size:11.5px;color:#B91C1C;font-weight:600;line-height:1.6;">
             🚨 กำหนดส่งใหม่เป็น<b>วันนี้</b> — กรุณาเผื่อเวลาให้ฝ่ายเขียนแบบได้แก้ไขงาน<br>
@@ -1672,12 +1649,15 @@ function renderPublicTrack(view, state) {
       </div>
     </section>
   `;
+  // ยกเลิก listener ของรอบก่อน — #app-view อยู่ตลอดทุกหน้า ถ้าไม่ยกเลิกจะซ้อนกันทุกครั้งที่หน้าวาดใหม่
+  view._publicTrackEvents?.abort();
+  view._publicTrackEvents = new AbortController();
   view.addEventListener("click", (event) => {
     const detailButton = event.target.closest("[data-request-detail]");
     if (!detailButton) return;
     const request = state.requests.find((item) => item.requestNo === detailButton.dataset.requestDetail);
     if (request) openRequestDetail(request);
-  });
+  }, { signal: view._publicTrackEvents.signal });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1726,44 +1706,10 @@ export function openRequestDetail(request) {
           </div>
           <div class="request-detail-note"><span>รายละเอียด</span><strong>${escapeHtml(request.description || "-")}</strong></div>
 
-          <!-- ── โฟลเดอร์ + ไฟล์ + ลิงก์ ── -->
+          <!-- ── โฟลเดอร์ + ไฟล์ + ลิงก์ (แยกผู้ส่งคำขอ / ฝ่ายเขียนแบบ) ── -->
           <div class="request-detail-files">
             <strong>📎 ไฟล์ / โฟลเดอร์ / ลิงก์</strong>
-            <div class="mgr-file-review-links" style="margin-top:8px;flex-wrap:wrap;gap:8px;display:flex;">
-              <a href="${escapeHtml(getRequestFolderUrl(request.requestNo))}"
-                target="_blank" rel="noopener noreferrer"
-                class="mgr-file-btn folder-btn"
-                style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                📁 เปิดโฟลเดอร์ SharePoint
-              </a>
-              ${request.dwgFileUrl ? `
-                <a href="${escapeHtml(request.dwgFileUrl)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn dwg-btn"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                  📐 ไฟล์ DWG
-                </a>` : ""}
-              ${request.pdfFileUrl ? `
-                <a href="${escapeHtml(request.pdfFileUrl)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn pdf-btn"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                  📄 ไฟล์ PDF
-                </a>` : ""}
-              ${parseNoteAndFiles(request.noteFromDrawing || "").otherFiles.map((f) => {
-                const fname = f.name || "ไฟล์แนบ"; const shortName = fname.length > 28 ? fname.slice(0, 25) + "…" : fname;
-                return `<a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn other-btn"
-                  title="${escapeHtml(fname)}"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;max-width:220px;overflow:hidden;">
-                  📎 <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(shortName)}</span>
-                </a>`;
-              }).join("")}
-              ${request.dataLink ? `
-                <a href="${escapeHtml(request.dataLink)}" target="_blank" rel="noopener noreferrer"
-                  class="mgr-file-btn ref-btn"
-                  style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:13px;">
-                  🔗 ลิงก์แนบจากผู้ส่งคำร้อง
-                </a>` : ""}
-            </div>
+            ${renderFileGroups(request, { maxLen: 44 })}
           </div>
 
           ${request.mgrRejectReason ? `<div class="request-detail-note cancellation-detail"><span>เหตุผลที่ผู้จัดการส่งกลับ</span><strong>${escapeHtml(request.mgrRejectReason)}</strong></div>` : ""}
@@ -1781,6 +1727,8 @@ export function openRequestDetail(request) {
     actions: [],
   });
 
+  const modalRoot = document.querySelector("#modal-root");
+  if (modalRoot) hydrateRequesterFiles(modalRoot);
   loadAuditTimeline(request.requestNo);
 }
 
@@ -1839,23 +1787,9 @@ function startOfDay(date) {
   return d;
 }
 
+// วันทำงานคงเหลือแบบไม่นับวันนี้ (ดู workingDaysUntil ใน utils.js) — วันที่ผิดรูปแบบนับเป็น 0
 function countWorkingDays(fromDate, toDate, holidaySet) {
-  let count = 0;
-  const cur = new Date(fromDate);
-  cur.setHours(0, 0, 0, 0);
-  const end = new Date(toDate);
-  end.setHours(0, 0, 0, 0);
-  // นับรวมวันนี้ด้วย (ยังมีเวลาทำงานวันนี้อยู่)
-  const step = end >= cur ? 1 : -1;
-  while (cur.getTime() !== end.getTime()) {
-    const dow = cur.getDay();
-    if (dow !== 0 && dow !== 6 && !holidaySet.has(cur.toDateString())) count += step;
-    cur.setDate(cur.getDate() + step);
-  }
-  // นับวันครบกำหนด (ยังส่งได้ในวันนั้น)
-  const endDow = end.getDay();
-  if (endDow !== 0 && endDow !== 6 && !holidaySet.has(end.toDateString())) count += step;
-  return count;
+  return workingDaysUntil(fromDate, toDate, holidaySet) ?? 0;
 }
 
 function dueSummary(dueDate, status, holidaySet = new Set()) {
@@ -1867,6 +1801,8 @@ function dueSummary(dueDate, status, holidaySet = new Set()) {
   // วันนี้ตรงกับวันครบกำหนดพอดี — ไม่ต้องนับจำนวนวัน
   if (today.getTime() === due.getTime()) return { label: "ครบกำหนดวันนี้", className: "today" };
   const workDays = countWorkingDays(today, due, holidaySet);
+  // กำหนดส่งตรงวันหยุด (ข้อมูลเก่าก่อนมีการบล็อกวันหยุด) และไม่มีวันทำงานเหลือก่อนถึงวันนั้น
+  if (workDays === 0) return { label: "⚠️ ครบกำหนดวันหยุด", className: "today" };
   if (workDays < 0) return { label: `เกินกำหนด ${Math.abs(workDays)} วันทำงาน`, className: "overdue" };
   return { label: `เหลืออีก ${workDays} วันทำงาน`, className: "soon" };
 }

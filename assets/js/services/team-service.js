@@ -1,11 +1,26 @@
 import { state } from "../state.js";
 
-const FALLBACK_DRAWING_TEAM = [
-  { id: "fallback-1", name: "นาย ภานุวัฒน์ พันโน (ยอร์ช)", email: "phanuwat.p@primepower.co.th", role: "Electrical", isAdmin: false, displayLabel: "" },
-  { id: "fallback-2", name: "นาย สฤษดิ์ ศรีบางไทร (ปอนด์)", email: "sarit.s@primepower.co.th", role: "Electrical", isAdmin: false, displayLabel: "" },
-  { id: "fallback-3", name: "นางสาว จันทร์จิรา ผองพุทธ (แตงโม)", email: "janjira.p@primepower.co.th", role: "Electrical", isAdmin: false, displayLabel: "" },
-  { id: "fallback-4", name: "นางสาว กชกร กุมลา (จ๋า)", email: "kotchakorn.k@primepower.co.th", role: "Civil", isAdmin: false, displayLabel: "" },
-];
+// ── สำรองรายชื่อทีม: เก็บผลโหลด DrawingTeam ครั้งล่าสุดที่สำเร็จไว้ในเครื่อง ──
+// ใช้แทนรายชื่อที่เคย hardcode ในโค้ด — ถ้าครั้งหน้าโหลด SharePoint ไม่ได้ จะใช้รายชื่อชุดล่าสุดที่แอดมิน
+// ดูแลผ่านหน้า "จัดการข้อมูล" แทน (ไม่มีรายชื่อในโค้ดให้ต้องตามแก้อีก)
+const TEAM_CACHE_KEY = "ppg-team-cache-v1";
+
+export function saveTeamCache(team) {
+  try {
+    localStorage.setItem(TEAM_CACHE_KEY, JSON.stringify({ savedAt: new Date().toISOString(), team }));
+  } catch {
+    // storage เต็ม/ถูกปิด — ไม่ critical
+  }
+}
+
+export function readTeamCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(TEAM_CACHE_KEY) || "null");
+    return Array.isArray(cached?.team) ? cached : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * โหลดสมาชิกทีมจาก SharePoint List "DrawingTeam"
@@ -29,7 +44,7 @@ export function getDrawingTeamMembers() {
     }))
     .filter((member) => member.email);
 
-  return members.length ? members : FALLBACK_DRAWING_TEAM;
+  return members;
 }
 
 export function assigneeName(request) {
@@ -48,7 +63,7 @@ export function isDrawingTeamMember(email) {
 
 /**
  * ตรวจสิทธิ์ผู้จัดการ Lv.2 จาก column "IsAdmin" ใน SharePoint List "DrawingTeam" โดยตรง
- * ใช้แทน config.js approverLv2Emails — เปลี่ยนรายชื่อแอดมินได้จาก SharePoint โดยไม่ต้องแก้โค้ด
+ * ใช้แทน config.js bootstrapAdminEmails — เปลี่ยนรายชื่อแอดมินได้จาก SharePoint โดยไม่ต้องแก้โค้ด
  */
 export function isAdminFromSharePoint(email) {
   if (!email) return false;
@@ -67,17 +82,14 @@ export function getCustomDisplayLabel(email) {
 }
 
 /**
- * รวมรายชื่ออีเมลผู้จัดการ Lv.2 ทั้งหมด — จาก SharePoint (IsAdmin=true) รวมกับ config.js fallback
- * ใช้ตอนต้องแจ้งเตือนผู้จัดการ "ทุกคน" (เช่น Teams ตอน mgr_review) เพื่อให้ครอบคลุมทั้งคนที่เพิ่ม
- * ผ่าน SharePoint และคนที่ตั้งค่าไว้ใน config.js โดยไม่ซ้ำกัน
+ * รายชื่ออีเมลผู้จัดการ Lv.2 ทั้งหมด (ใช้แจ้งเตือนผู้จัดการ "ทุกคน" เช่น Teams ตอน mgr_review)
+ * = DrawingTeam ที่ IsAdmin = Yes รวมกับ bootstrapAdminEmails ใน config.js (ถ้ายังไม่ได้ลบออก)
  */
 export function getAllManagerEmails(configFallbackEmails = []) {
   const fromSharePoint = getDrawingTeamMembers()
     .filter((member) => member.isAdmin)
     .map((member) => member.email.toLowerCase());
-
-  const combined = new Set([...fromSharePoint, ...configFallbackEmails.map((e) => e.toLowerCase())]);
-  return [...combined];
+  return [...new Set([...fromSharePoint, ...configFallbackEmails.map((e) => e.toLowerCase())])];
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   listItems,
   updateListItem,
 } from "./graph.js";
+import { readTeamCache, saveTeamCache } from "./services/team-service.js";
 import { setState, state } from "./state.js";
 
 // ── เก็บ List ID แยกตามชื่อ List กัน fetch ซ้ำ ──
@@ -156,7 +157,7 @@ export async function patchItem(listName, itemId, fieldsPayload) {
 }
 
 export async function loadMasterData() {
-  const [projects, drawingNumbers, drawingNames, kwp, team, holidays] = await Promise.all([
+  let [projects, drawingNumbers, drawingNames, kwp, team, holidays] = await Promise.all([
     getListItems(lists.projects).catch(() => []),
     getListItems(lists.drawingNumbers).catch(() => []),
     getListItems(lists.drawingNames).catch(() => []),
@@ -165,7 +166,18 @@ export async function loadMasterData() {
     getListItems(lists.holidays).catch(() => []),
   ]);
 
-  const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays };
+  // ทีมโหลดไม่ได้ (เน็ต/สิทธิ์ SharePoint มีปัญหาชั่วคราว) → ใช้รายชื่อชุดล่าสุดที่เคยโหลดสำเร็จแทน
+  // teamSource บอกหน้าจัดการข้อมูลว่ากำลังใช้ข้อมูลจริงหรือสำรอง
+  let teamSource = "sharepoint";
+  if (team.length) {
+    saveTeamCache(team);
+  } else {
+    const cached = readTeamCache();
+    team = cached?.team || [];
+    teamSource = cached ? "cache" : "none";
+  }
+
+  const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays, teamSource };
   setState({ masterData });
   return masterData;
 }

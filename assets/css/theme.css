@@ -336,6 +336,25 @@ html[data-theme] {
   padding: 22px 26px 40px;
 }
 
+/* grid track ของ .view เดิมเป็น auto → ตารางกว้างดันทั้งหน้าล้นขอบขวา (เช่นหน้ารับงาน)
+   จำกัดเป็น minmax(0,1fr) แล้วให้ตาราง/แถวฟิลเตอร์เลื่อนแนวนอนในกล่องของตัวเองแทน */
+[data-theme] .view {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-theme] .view > *,
+[data-theme] .admin-page > * {
+  min-width: 0;
+}
+
+[data-theme] :is(.admin-section-block, .pickup-section, .track-table-wrap):has(> table, > div > table) {
+  overflow-x: auto;
+}
+
+[data-theme] .filter-row {
+  flex-wrap: wrap;
+}
+
 [data-theme] .main-panel::-webkit-scrollbar-thumb {
   background: var(--line-strong);
 }
@@ -656,11 +675,11 @@ html[data-theme] {
 [data-theme="light"] .badge-cancelled { --tone: #64748b; }
 
 /* chip / segmented filter ทั้งหลาย — เรืองแสงเขียวตอน hover แบบ skill chip */
-[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip, .file-chip, .fmt-seg, .tp-mood-row button) {
+[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip, .file-chip, .fmt-seg) {
   transition: color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
 }
 
-[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip, .tp-mood-row button):hover {
+[data-theme] :is(.filter-button, .requester-tab, .guide-category-chip):hover {
   border-color: var(--primary);
   color: var(--primary);
   box-shadow: 0 0 15px rgba(0, 223, 143, 0.3);
@@ -752,6 +771,728 @@ html[data-theme] {
 
 [data-theme] #app-view.is-refresh > * {
   animation: none;
+}
+
+/* ══════════════ หน้าภาพรวม: Glassy dashboard ══════════════
+   ความรู้สึก "กระจก" มาจากพื้นโปร่งแสง + ขอบสะท้อนแสง + แสงนีออนด้านหลัง
+   ตั้งใจไม่ใช้ backdrop-filter: ต้องเบลอใหม่ทุกเฟรมเมื่อแสงด้านหลังเคลื่อนที่ ทำให้เครื่องสเปกต่ำ/มือถือค้าง */
+.fx-aurora {
+  display: none;
+}
+
+[data-theme] body.route-dashboard .fx-aurora {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+[data-theme] .fx-aurora i {
+  position: absolute;
+  width: 46vmax;
+  height: 46vmax;
+  border-radius: 50%;
+  opacity: 0.32;
+}
+
+[data-theme] .fx-aurora i:nth-child(1) {
+  top: -14vmax;
+  right: -6vmax;
+  background: radial-gradient(circle, rgba(0, 223, 143, 0.9), rgba(0, 223, 143, 0.25) 35%, transparent 68%);
+  animation: fx-drift-a 26s ease-in-out infinite alternate;
+}
+
+[data-theme] .fx-aurora i:nth-child(2) {
+  bottom: -18vmax;
+  left: 8vmax;
+  background: radial-gradient(circle, rgba(47, 123, 255, 0.9), rgba(47, 123, 255, 0.25) 35%, transparent 68%);
+  animation: fx-drift-b 32s ease-in-out infinite alternate;
+}
+
+[data-theme] .fx-aurora i:nth-child(3) {
+  top: 30%;
+  left: 40%;
+  width: 30vmax;
+  height: 30vmax;
+  background: radial-gradient(circle, rgba(155, 92, 255, 0.9), rgba(155, 92, 255, 0.25) 35%, transparent 68%);
+  opacity: 0.2;
+  animation: fx-drift-c 38s ease-in-out infinite alternate;
+}
+
+[data-theme="light"] .fx-aurora i {
+  opacity: 0.22;
+}
+
+@keyframes fx-drift-a {
+  to { transform: translate(-22vw, 18vh) scale(1.15); }
+}
+
+@keyframes fx-drift-b {
+  to { transform: translate(26vw, -14vh) scale(0.9); }
+}
+
+@keyframes fx-drift-c {
+  to { transform: translate(-18vw, -22vh) scale(1.25); }
+}
+
+/* hero */
+[data-theme] .dash-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  margin-bottom: 22px;
+}
+
+[data-theme] .dash-hero-date {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-theme] .dash-hero-title {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 48px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.045em;
+}
+
+[data-theme] .dash-hero-title span {
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--primary);
+}
+
+[data-theme] .dash-hero-title i {
+  font-style: normal;
+  color: var(--primary);
+}
+
+[data-theme] .dash-hero-sub {
+  margin: 10px 0 0;
+  color: var(--muted);
+}
+
+[data-theme] .dash-hero-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(118px, 1fr));
+  gap: 10px;
+}
+
+[data-theme] .dash-hero-tile {
+  --tone: var(--primary);
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--line));
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform var(--transition-smooth), border-color var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+[data-theme] .dash-hero-tile::after {
+  content: "";
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 45%, transparent), transparent 70%);
+  pointer-events: none;
+}
+
+[data-theme] .dash-hero-tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--tone);
+  box-shadow: 0 16px 40px -20px var(--tone);
+}
+
+[data-theme] .dash-hero-tile strong {
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+[data-theme] .dash-hero-icon {
+  font-size: 15px;
+}
+
+[data-theme] .dash-hero-tile.tone-blue { --tone: #4da3ff; }
+[data-theme] .dash-hero-tile.tone-amber { --tone: #fbbf24; }
+[data-theme] .dash-hero-tile.tone-red { --tone: #ff6b6b; }
+[data-theme] .dash-hero-tile.tone-green { --tone: var(--primary); }
+
+/* การ์ดกระจก (ใส่ class อัตโนมัติจาก ui-effects.js) — specificity สูงกว่า override inline ใน theme-dark-auto */
+@property --spot {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+
+[data-theme] body.route-dashboard .fx-glass {
+  --spot: 0;
+  background:
+    radial-gradient(380px circle at var(--mx, -400px) var(--my, -400px), rgba(0, 223, 143, calc(var(--spot) * 0.12)), transparent 60%),
+    color-mix(in srgb, var(--surface) 58%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 10%, transparent) !important;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent), 0 20px 50px -30px rgba(0, 0, 0, 0.6) !important;
+  transition: --spot 0.35s ease, opacity 0.8s var(--ease-lux), filter 0.8s var(--ease-lux), transform 0.8s var(--ease-lux);
+}
+
+[data-theme] body.route-dashboard .fx-glass:hover {
+  --spot: 1;
+}
+
+[data-theme] body.route-dashboard .fx-glass-inner {
+  background: color-mix(in srgb, var(--text) 4%, transparent) !important;
+  border-color: color-mix(in srgb, var(--text) 8%, transparent) !important;
+  box-shadow: none !important;
+}
+
+/* blur → focus ตอนเลื่อนมาเห็น */
+[data-theme] .fx-reveal {
+  opacity: 0;
+  filter: blur(14px);
+  transform: translateY(18px) scale(0.985);
+  transition: opacity 0.8s var(--ease-lux), filter 0.8s var(--ease-lux), transform 0.8s var(--ease-lux);
+}
+
+[data-theme] .fx-reveal.fx-in {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+/* หน้าภาพรวมใช้ blur-in ของการ์ดแทน fade ทั้งก้อน */
+[data-theme] body.route-dashboard #app-view > * {
+  animation: none;
+}
+
+@media (max-width: 1100px) {
+  [data-theme] .dash-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+}
+
+@media (max-width: 720px) {
+  [data-theme] .dash-hero-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-theme] .dash-hero-tile strong {
+    font-size: 28px;
+  }
+
+}
+
+/* ══════════════ หน้ารับงาน/อนุมัติ: ตารางอนุมัติเริ่มงาน + ตรวจสอบส่งมอบ ══════════════ */
+/* แถวกางออก (กล่องส่งกลับ/ยกเลิก) ซ่อนทั้งแถวเมื่อกล่องข้างในถูกซ่อน */
+.admin-expand-row:has(> td > [hidden]) {
+  display: none;
+}
+
+[data-theme] .admin-expand-row > td {
+  padding: 0 16px 16px !important;
+  background: color-mix(in srgb, var(--warning) 6%, transparent);
+}
+
+[data-theme] .admin-expand-row .admin-action-box {
+  max-width: 720px;
+  margin: 12px 0 0;
+}
+
+[data-theme] tbody tr:has(+ .admin-expand-row:not(:has(> td > [hidden]))) > td {
+  background: color-mix(in srgb, var(--warning) 6%, transparent);
+  border-bottom-color: transparent;
+}
+
+[data-theme] .admin-expand-row > td {
+  text-align: left;
+}
+
+[data-theme] .admin-row-actions {
+  min-width: 168px;
+}
+
+[data-theme] .admin-row-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+[data-theme] .admin-row-links .mgr-file-btn {
+  padding: 2px 8px;
+  font-size: 11.5px;
+}
+
+[data-theme] .admin-row-actions > button {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+
+[data-theme] .admin-row-actions-minor {
+  display: flex;
+  gap: 6px;
+}
+
+[data-theme] .admin-row-actions-minor > button {
+  flex: 1;
+  justify-content: center;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+[data-theme] :is(.approval-table, .mgr-review-table) .track-request-link {
+  font-size: 13px;
+}
+
+[data-theme] .approval-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  max-width: 240px;
+  margin-top: 2px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+[data-theme] .approval-desc {
+  font-size: 11.5px;
+}
+
+[data-theme] .mgr-review-table td[data-label="ผู้เขียนแบบ / ส่งงาน"] {
+  min-width: 150px;
+}
+
+[data-theme] .mgr-note-cell {
+  min-width: 160px;
+  max-width: 260px;
+}
+
+[data-theme] .mgr-file-review-compact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px;
+  max-width: 220px;
+}
+
+[data-theme] .mgr-file-review-compact .mgr-file-btn {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+
+/* ══════════════ ไฟล์ / ลิงก์ / โฟลเดอร์ แยก 2 ฝั่ง (file-service.js) ══════════════ */
+[data-theme] .file-groups-cell {
+  min-width: 230px;
+  max-width: 300px;
+}
+
+[data-theme] .file-groups {
+  display: grid;
+  gap: 8px;
+}
+
+[data-theme] .mgr-review-table .file-groups-cell {
+  min-width: 200px;
+  max-width: 240px;
+}
+
+[data-theme] .mgr-review-table .mgr-note-cell {
+  min-width: 130px;
+}
+
+[data-theme] .file-group + .file-group {
+  padding-top: 8px;
+  border-top: 1px dashed var(--line-strong);
+}
+
+[data-theme] .file-group-title {
+  margin-bottom: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+[data-theme] .file-group-title small {
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+[data-theme] .file-group-dept .file-group-title {
+  color: var(--primary);
+}
+
+[data-theme] .file-group-items,
+[data-theme] .file-group-async {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+[data-theme] .file-group-items .mgr-file-btn {
+  margin: 0;
+}
+
+[data-theme] .file-chip-named {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+[data-theme] .file-chip-named > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme] .file-group-loading {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+[data-theme] .request-detail-files .file-groups {
+  margin-top: 8px;
+}
+
+[data-theme] .request-detail-files .file-chip-named {
+  font-size: 12.5px;
+  padding: 5px 10px;
+}
+
+/* ══════════════ หน้าจัดการข้อมูล (/manage) ══════════════ */
+[data-theme] .manage-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+[data-theme] .manage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+[data-theme] .manage-tab b {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+[data-theme] .manage-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 223, 143, 0.25);
+}
+
+[data-theme] .manage-tab.is-active {
+  background: var(--primary-light);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  color: var(--text);
+}
+
+[data-theme] .manage-tab.is-active b {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+[data-theme] .manage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-theme] .manage-toolbar .manage-search {
+  flex: 1 1 260px;
+  max-width: 380px;
+}
+
+[data-theme] .manage-toolbar select {
+  width: auto;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+[data-theme] .manage-spacer {
+  flex: 1;
+}
+
+[data-theme] .manage-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+[data-theme] .manage-check input {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme] .manage-field-check {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+[data-theme] .manage-count {
+  margin: 14px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+[data-theme] .manage-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow-x: auto;
+}
+
+[data-theme] .manage-table td,
+[data-theme] .manage-table th {
+  padding: 11px 14px;
+  vertical-align: middle;
+}
+
+[data-theme] .manage-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+[data-theme] .manage-table .is-num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme] .manage-table .is-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme] .manage-table .is-nowrap {
+  white-space: nowrap;
+}
+
+[data-theme] .manage-table .is-actions {
+  width: 1%;
+  text-align: right;
+}
+
+[data-theme] .manage-detail {
+  max-width: 420px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+[data-theme] .manage-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+[data-theme] .manage-table .is-hidden-row td {
+  opacity: 0.5;
+}
+
+[data-theme] .manage-table .is-hidden-row td.is-actions {
+  opacity: 1;
+}
+
+[data-theme] .manage-empty {
+  padding: 40px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+[data-theme] .manage-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+[data-theme] .manage-stat {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: left;
+  transition: border-color var(--transition-smooth), transform var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+[data-theme] .manage-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 0 20px -6px rgba(0, 223, 143, 0.45);
+}
+
+[data-theme] .manage-stat strong {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+[data-theme] .manage-stat-icon {
+  font-size: 18px;
+}
+
+[data-theme] .manage-subhead {
+  margin: 28px 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-theme] .manage-issues {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-theme] .manage-issue {
+  --tone: var(--accent);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--tone) 7%, transparent);
+}
+
+[data-theme] .manage-issue.is-warn { --tone: var(--warning); }
+
+[data-theme] .manage-migrate {
+  margin-bottom: 16px;
+}
+[data-theme] .manage-issue.is-error { --tone: var(--danger); }
+
+[data-theme] .manage-issue-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 10px var(--tone);
+}
+
+[data-theme] .manage-issue p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+[data-theme] .manage-ok {
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+
+[data-theme] .manage-form {
+  display: grid;
+  gap: 14px;
+}
+
+[data-theme] .manage-form textarea {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme] .manage-form-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+[data-theme] .manage-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  [data-theme] .manage-toolbar .manage-search,
+  [data-theme] .manage-toolbar select {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  [data-theme] .manage-spacer {
+    display: none;
+  }
+
+  [data-theme] .manage-issue {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  [data-theme] .manage-issue > button {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 /* ══════════════ Login — hero + ID badge ══════════════ */
@@ -1169,6 +1910,16 @@ html[data-theme] {
   [data-theme] #app-view > * {
     animation: none;
   }
+
+  .fx-aurora {
+    display: none !important;
+  }
+
+  [data-theme] .fx-reveal {
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1177,7 +1928,15 @@ html[data-theme] {
   [data-theme] .auth-flow li,
   [data-theme] .auth-eyebrow i,
   [data-theme] .modal,
-  [data-theme] .toast {
+  [data-theme] .toast,
+  [data-theme] .fx-aurora i {
     animation: none !important;
+  }
+
+  [data-theme] .fx-reveal {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    transition: none;
   }
 }

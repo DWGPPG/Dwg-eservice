@@ -1,6 +1,6 @@
 import { CLOSED_STATUSES, STATUS, STATUS_LABELS, CANCEL_SOURCES, WASTED_HOURS_BY_STAGE, getCancelSource } from "../../../config/schema.js";
 import { getDrawingTeamMembers } from "../services/team-service.js";
-import { escapeHtml, formatDateOnly } from "../utils.js";
+import { escapeHtml, formatDateOnly, workingDaysUntil } from "../utils.js";
 
 // ── ค่า OT rate เริ่มต้น (บาท/ชั่วโมง) สำหรับคำนวณ Overdue Cost
 const OT_RATE_PER_HOUR = 94; // ค่าแรงขั้นต่ำวิชาชีพเฉพาะ (บาท/ชม.)
@@ -157,19 +157,8 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
     holidays.map((h) => h.holidayDate || h.HolidayDate || "").filter(Boolean).map((d) => new Date(d).toDateString())
   );
 
-  const countWD = (from, to) => {
-    let c = 0; const cur = new Date(from); cur.setHours(0,0,0,0);
-    const end = new Date(to); end.setHours(0,0,0,0);
-    const s = end >= cur ? 1 : -1;
-    while (cur.toDateString() !== end.toDateString()) {
-      const dow = cur.getDay();
-      if (dow !== 0 && dow !== 6 && !holidaySet.has(cur.toDateString())) c += s;
-      cur.setDate(cur.getDate() + s);
-    }
-    const edow = end.getDay();
-    if (edow !== 0 && edow !== 6 && !holidaySet.has(end.toDateString())) c += s;
-    return c;
-  };
+  // วันทำงานที่ล่าช้า แบบไม่นับวันกำหนดส่งเอง (ส่งช้า 1 วัน = 1) — วันที่ผิดรูปแบบนับเป็น 0
+  const countWD = (from, to) => workingDaysUntil(from, to, holidaySet) ?? 0;
   const rows      = filterByKpiPeriod(allRequests, period, person, customRange);
   const total     = rows.length;
   const done      = rows.filter((r) => r.status === STATUS.DONE).length;

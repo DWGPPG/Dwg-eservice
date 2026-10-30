@@ -19,7 +19,8 @@ export const NAV_ITEMS = [
   { route: "/track", label: "ติดตามงาน", icon: "03", roles: ["manager", "requester", "designer", "viewer"] },
   { route: "/admin", label: "รับงาน / อนุมัติ", icon: "04", roles: ["manager", "designer"] },
   { route: "/report", label: "รายงาน", icon: "05", roles: ["manager"] },
-  { route: "/guide", label: "คู่มือ", icon: "06", roles: ["manager", "requester", "designer"] },
+  { route: "/manage", label: "จัดการข้อมูล", icon: "06", roles: ["manager"] },
+  { route: "/guide", label: "คู่มือ", icon: "07", roles: ["manager", "requester", "designer"] },
 ];
 
 export const PAGE_TITLES = {
@@ -28,5 +29,6 @@ export const PAGE_TITLES = {
   "/track": "ติดตามคำร้อง",
   "/admin": "รับงานและอนุมัติ",
   "/report": "รายงาน",
+  "/manage": "จัดการข้อมูลระบบ",
   "/guide": "คู่มือการใช้งาน",
 };

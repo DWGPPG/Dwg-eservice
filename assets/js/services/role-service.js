@@ -3,20 +3,20 @@ import { getCustomDisplayLabel, isAdminFromSharePoint, isDrawingTeamMember } fro
 
 /**
  * เช็คว่าเป็นผู้จัดการ Lv.2 (แอดมิน) หรือไม่
- * แหล่งข้อมูลหลัก: column "IsAdmin" ใน SharePoint List "DrawingTeam" — เปลี่ยนรายชื่อได้จาก
- * SharePoint โดยตรงไม่ต้องแก้โค้ด
- * แหล่งสำรอง (fallback): config.js approverLv2Emails — ใช้เฉพาะตอน SharePoint ยังโหลดไม่เสร็จ
- * (เช่นจังหวะแรกตอน login ก่อน loadMasterData() จะเสร็จ) หรือเข้าถึงไม่ได้ ป้องกันระบบล็อกผู้จัดการ
- * ออกไปทั้งหมดถ้า SharePoint มีปัญหาชั่วคราว
+ * แหล่งหลัก: column "IsAdmin" ใน SharePoint List "DrawingTeam" — ตั้ง/ถอดได้จากหน้า "จัดการข้อมูล"
+ * config.js bootstrapAdminEmails: รายชื่อเดิมที่ยังมีผลอยู่ (กันคนเสียสิทธิ์ตอนเปลี่ยนระบบ)
+ *   ขั้นตอน: กด "ย้ายเข้า SharePoint" ในหน้าจัดการข้อมูล → ลบรายชื่อออกจาก config → ดูแลจากหน้าเว็บอย่างเดียว
  */
 export function isMgr(email) {
   if (!email) return false;
-  const lower = email.toLowerCase();
-
   if (isAdminFromSharePoint(email)) return true;
+  return isBootstrapAdmin(email);
+}
 
-  const fallbackMgrs = appConfig.approverLv2Emails || [appConfig.approverLv2Email];
-  return fallbackMgrs.some((e) => e.toLowerCase() === lower);
+/** ได้สิทธิ์ผู้จัดการจากรายชื่อใน config.js (ถอดจากหน้าเว็บไม่ได้จนกว่าจะลบออกจาก config) */
+export function isBootstrapAdmin(email) {
+  const lower = String(email || "").toLowerCase();
+  return Boolean(lower) && (appConfig.bootstrapAdminEmails || []).some((e) => e.toLowerCase() === lower);
 }
 
 /**
@@ -41,7 +41,7 @@ export function computeRole(email) {
 /**
  * ป้ายชื่อ role สำหรับแสดงผล — ลำดับการตรวจสอบ:
  * 1) column "DisplayLabel" ใน SharePoint List "DrawingTeam" (แก้ได้จาก SharePoint โดยตรง)
- * 2) customRoleLabels ใน config.js (fallback สำหรับตอน SharePoint ยังโหลดไม่เสร็จ)
+ * 2) bootstrapRoleLabels ใน config.js (ใช้จนกว่าจะกด "ย้ายเข้า SharePoint" ในหน้าจัดการข้อมูล)
  * 3) label มาตรฐานตาม role
  * (เฉพาะข้อความที่แสดงผลเท่านั้น ไม่กระทบสิทธิ์การใช้งานจริงซึ่งยังคำนวณจาก role ปกติเสมอ)
  */
@@ -49,7 +49,7 @@ export function roleLabel(role, email = "") {
   const fromSharePoint = getCustomDisplayLabel(email);
   if (fromSharePoint) return fromSharePoint;
 
-  const fromConfig = appConfig.customRoleLabels?.[String(email).toLowerCase()];
+  const fromConfig = appConfig.bootstrapRoleLabels?.[String(email).toLowerCase()];
   if (fromConfig) return fromConfig;
 
   return {
