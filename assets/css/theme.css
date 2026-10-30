@@ -270,6 +270,23 @@ html[data-theme] {
   opacity: 1;
 }
 
+[data-theme] .nav-divider {
+  height: 1px;
+  margin: 8px 6px;
+  background: var(--line);
+}
+
+[data-theme] .nav-link-external {
+  font-size: 13px;
+}
+
+[data-theme] .nav-link-external .nav-icon {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--primary);
+  opacity: 1;
+}
+
 [data-theme] .sidebar-auth {
   border-top: 1px solid var(--line);
   padding-top: 16px;

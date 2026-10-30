@@ -23,6 +23,11 @@ export const NAV_ITEMS = [
   { route: "/guide", label: "คู่มือ", icon: "07", roles: ["manager", "requester", "designer"] },
 ];
 
+// ลิงก์ไประบบอื่นของบริษัท — แสดงใต้เมนูหลักในแถบซ้าย เปิดในแท็บใหม่ (ทุกคนที่ login เห็น)
+export const EXTERNAL_LINKS = [
+  { label: "Intranet Prime Power Group", url: "https://ppg2014.github.io/prime-power-intranet/", icon: "↗" },
+];
+
 export const PAGE_TITLES = {
   "/dashboard": "ภาพรวมงาน Drawing",
   "/submit": "ส่งคำร้อง Drawing",
