@@ -106,3 +106,32 @@ export function signedWorkingDays(from, to, holidaySet = new Set()) {
   }
   return sign * count;
 }
+
+// ── กติกากำหนดส่งของคำร้อง ──
+// ส่งภายในวัน (กำหนดส่ง = วันนี้) ได้เฉพาะความเร่งด่วน "เร่งด่วนมาก" — ระดับอื่นต้องเป็นวันถัดไปเป็นต้นไป
+export const SAME_DAY_PRIORITY = "เร่งด่วนมาก";
+
+/** วันแรกที่เลือกเป็นกำหนดส่งได้ ("YYYY-MM-DD" ตามเวลาเครื่อง) ตามระดับความเร่งด่วน */
+export function minDueDateKey(priority) {
+  const d = new Date();
+  if (priority !== SAME_DAY_PRIORITY) d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * วันทำงานคงเหลือ/ที่เลยมาแล้ว แบบ "ไม่นับวันเริ่มต้น" — นับวันทำงานที่อยู่หลังวันที่เก่ากว่า จนถึงวันที่ใหม่กว่า (รวมวันนั้น)
+ *   วันนี้ จ. กำหนดส่ง พ.  → +2 (อ., พ.)        กำหนดส่งเมื่อวาน (จ.) วันนี้ อ. → -1
+ *   กำหนดส่ง = วันนี้       → 0
+ * คืน null ถ้าวันที่ผิดรูปแบบ
+ */
+export function workingDaysUntil(from, to, holidaySet = new Set()) {
+  const inclusive = signedWorkingDays(from, to, holidaySet);
+  if (inclusive === null) return null;
+  const a = new Date(from); a.setHours(0, 0, 0, 0);
+  const b = new Date(to); b.setHours(0, 0, 0, 0);
+  const earlier = a <= b ? a : b;
+  const dow = earlier.getDay();
+  const earlierIsWorkday = dow !== 0 && dow !== 6 && !holidaySet.has(earlier.toDateString());
+  if (!earlierIsWorkday) return inclusive;
+  return inclusive - (b >= a ? 1 : -1);
+}

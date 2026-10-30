@@ -18,7 +18,7 @@ import {
 import { getDrawingTeamMembers, getAllManagerEmails } from "../services/team-service.js";
 import { sendTeams1on1 } from "../graph.js";
 import { isNotificationSupported, notificationPermission } from "../services/notification-service.js";
-import { escapeHtml, formatDate, signedWorkingDays } from "../utils.js";
+import { escapeHtml, formatDate, workingDaysUntil } from "../utils.js";
 import { openRequestDetail, openTransferRequesterModal } from "./track.js";
 
 let adminFilter = "all";
@@ -825,8 +825,8 @@ function pickupDueLabel(dueDate, holidaySet = new Set()) {
   const due   = new Date(dueDate); due.setHours(0, 0, 0, 0);
   // วันนี้ตรงกับวันครบกำหนดพอดี — ไม่ต้องนับจำนวนวัน
   if (today.getTime() === due.getTime()) return { label: "ครบกำหนดวันนี้", className: "today" };
-  // นับรวมวันนี้ + วันครบกำหนด (ยังทำได้ทั้งสองวัน)
-  const workDays = signedWorkingDays(today, due, holidaySet);
+  // ไม่นับวันนี้ — เช่นวันนี้ จ. กำหนดส่ง พ. = เหลือ 2 วันทำงาน, กำหนดส่งเมื่อวาน = เกิน 1 วันทำงาน
+  const workDays = workingDaysUntil(today, due, holidaySet);
   if (workDays === null || Math.abs(workDays) > MAX_SANE_WORKDAYS) return { label: "⚠️ ตรวจสอบวันที่", className: "neutral" };
   if (workDays < 0) return { label: `เกิน ${Math.abs(workDays)} วันทำงาน`, className: "overdue" };
   return { label: `เหลือ ${workDays} วันทำงาน`, className: "soon" };

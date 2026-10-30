@@ -12,7 +12,7 @@ import {
 } from "../services/request-service.js";
 import { getAuditHistory } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
-import { escapeHtml, formatDate, formatDateOnly, signedWorkingDays } from "../utils.js";
+import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, SAME_DAY_PRIORITY, workingDaysUntil } from "../utils.js";
 
 const WORK_STATUS_OPTIONS = [
   { value: STATUS.APPROVED, label: "🔵 รอดำเนินการ" },
@@ -285,7 +285,7 @@ function renderWorkbookTrack(view, state) {
                 return Math.min(min, wd);
               }, Infinity);
               const urgentBadge = awaitingCount > 0 && minDays <= 1
-                ? `<span style="background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;margin-left:4px;">${minDays <= 0 ? "หมดเวลา" : minDays+" วันทำงาน"}</span>`
+                ? `<span style="background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;margin-left:4px;">${minDays < 0 ? "หมดเวลา" : minDays === 0 ? "วันนี้วันสุดท้าย" : minDays+" วันทำงาน"}</span>`
                 : awaitingCount > 0 && minDays <= 2
                 ? `<span style="background:#F59E0B;color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:999px;margin-left:4px;">${minDays} วันทำงาน</span>`
                 : "";
@@ -316,7 +316,7 @@ function renderWorkbookTrack(view, state) {
                 const wdLeft = reviewDeadline ? countWorkingDays(new Date(), reviewDeadline, holidaySet) : null;
                 const dayBadge = wdLeft !== null
                   ? `<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700;background:${wdLeft <= 0 ? "#FEE2E2" : wdLeft <= 1 ? "#FFEDD5" : "#DCFCE7"};color:${wdLeft <= 0 ? "#991B1B" : wdLeft <= 1 ? "#C2410C" : "#065F46"};">
-                      ${wdLeft <= 0 ? "⚠️ หมดเวลาแล้ว" : `⏰ เหลือ ${wdLeft} วันทำงาน`}
+                      ${wdLeft < 0 ? "⚠️ หมดเวลาแล้ว" : wdLeft === 0 ? "⏰ วันนี้วันสุดท้าย" : `⏰ เหลือ ${wdLeft} วันทำงาน`}
                     </span>`
                   : "";
                 // inject badge เข้าใน review card
@@ -1337,8 +1337,11 @@ function renderReviewCard(item) {
           <span style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">
             📅 กำหนดส่งใหม่ <b style="color:#EF4444;">*</b>
           </span>
-          <input id="review-due-${escapeHtml(item.requestNo)}" type="date"
+          <input id="review-due-${escapeHtml(item.requestNo)}" type="date" data-priority="${escapeHtml(item.priority || "ปกติ")}"
             style="width:100%;border:1.5px solid #FCD34D;background:#FFFBEB;border-radius:8px;padding:8px;font-size:13px;" />
+          <small style="display:block;margin-top:4px;color:#64748B;font-size:11px;">${item.priority === SAME_DAY_PRIORITY
+            ? "คำร้องนี้ “เร่งด่วนมาก” — กำหนดส่งเป็นวันนี้ได้"
+            : `ส่งภายในวันได้เฉพาะ “${SAME_DAY_PRIORITY}” — เลือกได้ตั้งแต่วันถัดไป`}</small>
           <div id="review-due-warn-${escapeHtml(item.requestNo)}" style="display:none;"></div>
         </div>
 
@@ -1534,6 +1537,12 @@ function bindReviewInteractions(view, state) {
         if (!note)          { showToast("กรุณาระบุรายละเอียดที่ต้องแก้ไข", "warning"); return; }
         if (!files.length)  { showToast("กรุณาแนบไฟล์ประกอบอย่างน้อย 1 ไฟล์", "warning"); return; }
         if (!newDue)        { showToast("กรุณากรอกกำหนดส่งใหม่", "warning"); return; }
+        if (newDue < minDueDateKey(request.priority)) {
+          showToast(request.priority === SAME_DAY_PRIORITY
+            ? "กำหนดส่งใหม่เป็นวันที่ผ่านมาแล้ว — กรุณาเลือกใหม่"
+            : `ส่งภายในวันได้เฉพาะคำร้อง “${SAME_DAY_PRIORITY}” — กรุณาเลือกกำหนดส่งตั้งแต่วันถัดไป`, "warning");
+          return;
+        }
 
         // ── เตือนถ้ากำหนดส่งใหม่เป็นวันเดียวกัน (เตือนเฉยๆ ยังไปต่อได้) ──
         const now = new Date();
@@ -1610,9 +1619,15 @@ function toggleReviewBox(view, requestNo, mode) {
     if (dueInput && dueWarn) {
       const now = new Date();
       const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
-      dueInput.min = todayKey;
+      const minKey = minDueDateKey(dueInput.dataset.priority);
+      dueInput.min = minKey;
       dueInput.onchange = () => {
-        if (dueInput.value === todayKey) {
+        if (dueInput.value && dueInput.value < minKey) {
+          dueWarn.style.display = "block";
+          dueWarn.innerHTML = `<div style="margin-top:7px;padding:9px 12px;background:#FEF2F2;border:1.5px solid #DC2626;border-radius:8px;font-size:11.5px;color:#B91C1C;font-weight:600;line-height:1.6;">
+            ⛔ ${dueInput.value === todayKey ? `ส่งภายในวันได้เฉพาะคำร้อง “${SAME_DAY_PRIORITY}”` : "วันที่นี้ผ่านมาแล้ว"} — กรุณาเลือกวันถัดไปเป็นต้นไป
+          </div>`;
+        } else if (dueInput.value === todayKey) {
           dueWarn.style.display = "block";
           dueWarn.innerHTML = `<div style="margin-top:7px;padding:9px 12px;background:#FEF2F2;border:1.5px solid #DC2626;border-radius:8px;font-size:11.5px;color:#B91C1C;font-weight:600;line-height:1.6;">
             🚨 กำหนดส่งใหม่เป็น<b>วันนี้</b> — กรุณาเผื่อเวลาให้ฝ่ายเขียนแบบได้แก้ไขงาน<br>
@@ -1842,9 +1857,9 @@ function startOfDay(date) {
   return d;
 }
 
-// วันที่ผิดรูปแบบนับเป็น 0 (เดิมลูปไม่มีวันจบ ทำให้หน้าค้าง) — ดู signedWorkingDays ใน utils.js
+// วันทำงานคงเหลือแบบไม่นับวันนี้ (ดู workingDaysUntil ใน utils.js) — วันที่ผิดรูปแบบนับเป็น 0
 function countWorkingDays(fromDate, toDate, holidaySet) {
-  return signedWorkingDays(fromDate, toDate, holidaySet) ?? 0;
+  return workingDaysUntil(fromDate, toDate, holidaySet) ?? 0;
 }
 
 function dueSummary(dueDate, status, holidaySet = new Set()) {

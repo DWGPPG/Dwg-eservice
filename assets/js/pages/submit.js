@@ -4,7 +4,7 @@ import { showToast } from "../components/toast.js";
 import { createRequest } from "../services/request-service.js";
 import { addItem, patchItem } from "../sharepoint.js";
 import { state } from "../state.js";
-import { escapeHtml, formatFileSize, serializeForm } from "../utils.js";
+import { escapeHtml, formatFileSize, minDueDateKey, SAME_DAY_PRIORITY, serializeForm } from "../utils.js";
 
 const REQUEST_TYPES = [
   "📋 เขียนแบบ Proposal",
@@ -60,18 +60,43 @@ function getHolidayMap() {
  * ตรวจว่าวันที่ (string "YYYY-MM-DD" จาก input type=date) เป็นวันหยุดหรือไม่
  * คืน null ถ้าใช้ได้, คืน { label } ถ้าห้ามใช้
  */
-function checkDueDateBlocked(dateStr) {
+/**
+ * ตรวจว่ากำหนดส่งใช้ได้หรือไม่ — คืน null ถ้าใช้ได้ หรือ { label, reason } ถ้าใช้ไม่ได้
+ * reason: "past" วันที่ผ่านมาแล้ว | "same-day" วันนี้แต่ไม่ใช่เร่งด่วนมาก | "off" เสาร์-อาทิตย์/วันหยุด
+ */
+function checkDueDateBlocked(dateStr, priority = "ปกติ") {
   if (!dateStr) return null;
   const [y, m, d] = String(dateStr).split("-").map(Number);
   if (!y || !m || !d) return null;
   const date = new Date(y, m - 1, d);
   if (Number.isNaN(date.getTime())) return null;
+  const todayKey = toDateKey(new Date());
+  if (dateStr < todayKey) return { label: "วันที่ผ่านมาแล้ว", reason: "past" };
+  if (dateStr === todayKey && priority !== SAME_DAY_PRIORITY) return { label: "วันนี้", reason: "same-day" };
   const dow = date.getDay();
-  if (dow === 0) return { label: "วันอาทิตย์" };
-  if (dow === 6) return { label: "วันเสาร์" };
+  if (dow === 0) return { label: "วันอาทิตย์", reason: "off" };
+  if (dow === 6) return { label: "วันเสาร์", reason: "off" };
   const name = getHolidayMap().get(dateStr);
-  if (name) return { label: `วันหยุดนักขัตฤกษ์ — ${name}` };
+  if (name) return { label: `วันหยุดนักขัตฤกษ์ — ${name}`, reason: "off" };
   return null;
+}
+
+/** วันที่ใช้ได้วันแรกที่ไม่ก่อน dateStr — ใช้แนะนำผู้ใช้เมื่อเลือกวันที่ใช้ไม่ได้ */
+function suggestValidDueDate(dateStr, priority) {
+  const minKey = minDueDateKey(priority);
+  const start = dateStr && dateStr > minKey ? dateStr : minKey;
+  return checkDueDateBlocked(start, priority) ? suggestNextWorkingDay(start) : start;
+}
+
+/** ข้อความเตือน (HTML) สำหรับกำหนดส่งที่ใช้ไม่ได้ */
+function dueBlockedHtml(blocked, dateStr, priority) {
+  const next = suggestValidDueDate(dateStr, priority);
+  const hint = next ? `<br>💡 เลือกได้ตั้งแต่: <b>${escapeHtml(formatThaiDate(next))}</b>` : "";
+  if (blocked.reason === "same-day") {
+    return `⛔ <b>กำหนดส่งภายในวันนี้ได้เฉพาะความเร่งด่วน “${SAME_DAY_PRIORITY}”</b> — กรุณาเลือกวันถัดไป หรือเปลี่ยนระดับความเร่งด่วน${hint}`;
+  }
+  if (blocked.reason === "past") return `⛔ <b>วันที่นี้ผ่านมาแล้ว</b> — กรุณาเลือกวันใหม่${hint}`;
+  return `⛔ <b>วันที่นี้เป็น${escapeHtml(blocked.label)}</b> — ฝ่ายเขียนแบบไม่ทำงาน กรุณากำหนดวันใหม่${hint}`;
 }
 
 /** หาวันทำการถัดไปที่ใช้ได้จริง เพื่อแนะนำผู้ใช้ */
@@ -175,8 +200,6 @@ function bindSubmitFlow(view) {
   const form = view.querySelector("#drawing-submit-form");
   const search = view.querySelector("#project-search");
   const menu = view.querySelector("#project-options");
-  // เมนูถูกย้ายไปไว้ที่ body (กันโดน overflow ตัด) — ลบเมนูของการเปิดหน้านี้ครั้งก่อนออก ไม่ให้ id ซ้ำ/สะสม
-  document.querySelectorAll("body > #project-options").forEach((old) => old.remove());
   document.body.appendChild(menu);
 
   search.addEventListener("focus", () => renderProjectOptions(view));
@@ -589,12 +612,15 @@ function validateSelectedDrawingDetails() {
     const detail = getDetail(item.key);
     if (!detail.dueDate) return { ok: false, msg: `กรุณาระบุวันที่ต้องการรับงานสำหรับ ${item.no || item.name}` };
     // ── กำหนดส่งห้ามตรงวันเสาร์-อาทิตย์ / วันหยุดนักขัตฤกษ์ ──
-    const blocked = checkDueDateBlocked(detail.dueDate);
+    const blocked = checkDueDateBlocked(detail.dueDate, detail.priority);
     if (blocked) {
-      const next = suggestNextWorkingDay(detail.dueDate);
+      const next = suggestValidDueDate(detail.dueDate, detail.priority);
+      const why = blocked.reason === "same-day"
+        ? `กำหนดส่งภายในวันนี้ได้เฉพาะความเร่งด่วน “${SAME_DAY_PRIORITY}”`
+        : blocked.reason === "past" ? "เป็นวันที่ผ่านมาแล้ว" : `ตรงกับ${blocked.label}`;
       return {
         ok: false,
-        msg: `⛔ ${item.no || item.name}: วันที่ต้องการรับงาน (${formatThaiDate(detail.dueDate)}) ตรงกับ${blocked.label} — กรุณากำหนดวันใหม่${next ? ` (แนะนำ ${formatThaiDate(next)})` : ""}`,
+        msg: `⛔ ${item.no || item.name}: วันที่ต้องการรับงาน (${formatThaiDate(detail.dueDate)}) ${why} — กรุณากำหนดวันใหม่${next ? ` (เลือกได้ตั้งแต่ ${formatThaiDate(next)})` : ""}`,
       };
     }
     // ── บังคับกรอกรายละเอียดเพิ่มเติม ──
@@ -653,16 +679,15 @@ function renderSelectedDrawingQueue(view) {
         <div class="selected-drawing-main-fields">
           <label class="field">
             <span>วันที่ต้องการรับงาน <b class="req">*</b></span>
-            <input data-detail="dueDate" type="date" value="${escapeHtml(detail.dueDate)}"
-              style="${checkDueDateBlocked(detail.dueDate) ? "border:1.5px solid #EF4444;background:#FEF2F2;" : ""}" />
-            <div data-due-warning="${escapeHtml(item.key)}" style="${checkDueDateBlocked(detail.dueDate) ? "" : "display:none;"}margin-top:6px;padding:7px 10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;font-size:11.5px;color:#991B1B;line-height:1.5;">
+            <input data-detail="dueDate" type="date" value="${escapeHtml(detail.dueDate)}" min="${minDueDateKey(detail.priority)}"
+              style="${checkDueDateBlocked(detail.dueDate, detail.priority) ? "border:1.5px solid #EF4444;background:#FEF2F2;" : ""}" />
+            <div data-due-warning="${escapeHtml(item.key)}" style="${checkDueDateBlocked(detail.dueDate, detail.priority) ? "" : "display:none;"}margin-top:6px;padding:7px 10px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:8px;font-size:11.5px;color:#991B1B;line-height:1.5;">
               ${(() => {
-                const b = checkDueDateBlocked(detail.dueDate);
-                if (!b) return "";
-                const next = suggestNextWorkingDay(detail.dueDate);
-                return `⛔ <b>วันที่นี้เป็น${escapeHtml(b.label)}</b> — ฝ่ายเขียนแบบไม่ทำงาน กรุณากำหนดวันใหม่${next ? `<br>💡 วันทำการถัดไป: <b>${escapeHtml(formatThaiDate(next))}</b>` : ""}`;
+                const b = checkDueDateBlocked(detail.dueDate, detail.priority);
+                return b ? dueBlockedHtml(b, detail.dueDate, detail.priority) : "";
               })()}
             </div>
+            <small class="due-rule-hint" style="display:block;margin-top:4px;color:#64748B;font-size:11px;">ส่งภายในวันได้เฉพาะ “${SAME_DAY_PRIORITY}” — ระดับอื่นเลือกได้ตั้งแต่วันถัดไป</small>
           </label>
           <label class="field">
             <span>ระดับความเร่งด่วน</span>
@@ -758,28 +783,34 @@ function renderSelectedDrawingQueue(view) {
   // ── เตือนทันทีเมื่อเลือกกำหนดส่งตรงวันเสาร์-อาทิตย์ / วันหยุดนักขัตฤกษ์ ──
   target.querySelectorAll('[data-detail="dueDate"]').forEach((input) => {
     const card = input.closest("[data-selected-drawing]");
-    const key  = card?.dataset.selectedDrawing;
-    const warn = () => {
+    const prioritySelect = card?.querySelector('[data-detail="priority"]');
+    const warn = (notify) => {
       const box = card?.querySelector(`[data-due-warning]`);
-      const blocked = checkDueDateBlocked(input.value);
+      const priority = prioritySelect?.value || "ปกติ";
+      input.min = minDueDateKey(priority);
+      const blocked = checkDueDateBlocked(input.value, priority);
       if (blocked) {
-        const next = suggestNextWorkingDay(input.value);
         input.style.border = "1.5px solid #EF4444";
         input.style.background = "#FEF2F2";
         if (box) {
           box.style.display = "";
-          box.innerHTML = `⛔ <b>วันที่นี้เป็น${escapeHtml(blocked.label)}</b> — ฝ่ายเขียนแบบไม่ทำงาน กรุณากำหนดวันใหม่${next ? `<br>💡 วันทำการถัดไป: <b>${escapeHtml(formatThaiDate(next))}</b>` : ""}`;
+          box.innerHTML = dueBlockedHtml(blocked, input.value, priority);
         }
-        showToast(`⛔ กำหนดส่งตรงกับ${blocked.label} — กรุณากำหนดวันใหม่`, "warning");
+        if (notify) {
+          showToast(blocked.reason === "same-day"
+            ? `⛔ ส่งภายในวันได้เฉพาะ “${SAME_DAY_PRIORITY}” — กรุณาเลือกวันถัดไป`
+            : `⛔ กำหนดส่ง${blocked.reason === "past" ? "เป็นวันที่ผ่านมาแล้ว" : `ตรงกับ${blocked.label}`} — กรุณากำหนดวันใหม่`, "warning");
+        }
       } else {
         input.style.border = "";
         input.style.background = "";
         if (box) { box.style.display = "none"; box.innerHTML = ""; }
       }
     };
-    input.addEventListener("change", warn);
-    input.addEventListener("blur", warn);
-    if (key) { /* keep key referenced for clarity */ }
+    input.addEventListener("change", () => warn(true));
+    input.addEventListener("blur", () => warn(false));
+    // เปลี่ยนระดับความเร่งด่วนแล้ววันที่เดิมอาจใช้ไม่ได้ (เช่นลดจากเร่งด่วนมากแต่เลือกวันนี้ไว้)
+    prioritySelect?.addEventListener("change", () => warn(Boolean(input.value)));
   });
 
   target.querySelectorAll("[data-remove-selected]").forEach((button) => {
