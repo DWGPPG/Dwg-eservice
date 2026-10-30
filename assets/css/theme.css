@@ -336,6 +336,25 @@ html[data-theme] {
   padding: 22px 26px 40px;
 }
 
+/* grid track ของ .view เดิมเป็น auto → ตารางกว้างดันทั้งหน้าล้นขอบขวา (เช่นหน้ารับงาน)
+   จำกัดเป็น minmax(0,1fr) แล้วให้ตาราง/แถวฟิลเตอร์เลื่อนแนวนอนในกล่องของตัวเองแทน */
+[data-theme] .view {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-theme] .view > *,
+[data-theme] .admin-page > * {
+  min-width: 0;
+}
+
+[data-theme] :is(.admin-section-block, .pickup-section, .track-table-wrap):has(> table, > div > table) {
+  overflow-x: auto;
+}
+
+[data-theme] .filter-row {
+  flex-wrap: wrap;
+}
+
 [data-theme] .main-panel::-webkit-scrollbar-thumb {
   background: var(--line-strong);
 }
@@ -752,6 +771,312 @@ html[data-theme] {
 
 [data-theme] #app-view.is-refresh > * {
   animation: none;
+}
+
+/* ══════════════ หน้าจัดการข้อมูล (/manage) ══════════════ */
+[data-theme] .manage-tabs {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+[data-theme] .manage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+[data-theme] .manage-tab b {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+[data-theme] .manage-tab:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 223, 143, 0.25);
+}
+
+[data-theme] .manage-tab.is-active {
+  background: var(--primary-light);
+  border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+  color: var(--text);
+}
+
+[data-theme] .manage-tab.is-active b {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+[data-theme] .manage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+[data-theme] .manage-toolbar .manage-search {
+  flex: 1 1 260px;
+  max-width: 380px;
+}
+
+[data-theme] .manage-toolbar select {
+  width: auto;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+[data-theme] .manage-spacer {
+  flex: 1;
+}
+
+[data-theme] .manage-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+[data-theme] .manage-check input {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme] .manage-field-check {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+[data-theme] .manage-count {
+  margin: 14px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+[data-theme] .manage-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow-x: auto;
+}
+
+[data-theme] .manage-table td,
+[data-theme] .manage-table th {
+  padding: 11px 14px;
+  vertical-align: middle;
+}
+
+[data-theme] .manage-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+[data-theme] .manage-table .is-num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme] .manage-table .is-mono {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme] .manage-table .is-nowrap {
+  white-space: nowrap;
+}
+
+[data-theme] .manage-table .is-actions {
+  width: 1%;
+  text-align: right;
+}
+
+[data-theme] .manage-detail {
+  max-width: 420px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+[data-theme] .manage-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+[data-theme] .manage-table .is-hidden-row td {
+  opacity: 0.5;
+}
+
+[data-theme] .manage-table .is-hidden-row td.is-actions {
+  opacity: 1;
+}
+
+[data-theme] .manage-empty {
+  padding: 40px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+[data-theme] .manage-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+[data-theme] .manage-stat {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: left;
+  transition: border-color var(--transition-smooth), transform var(--transition-smooth), box-shadow var(--transition-smooth);
+}
+
+[data-theme] .manage-stat:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 0 20px -6px rgba(0, 223, 143, 0.45);
+}
+
+[data-theme] .manage-stat strong {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--text);
+}
+
+[data-theme] .manage-stat-icon {
+  font-size: 18px;
+}
+
+[data-theme] .manage-subhead {
+  margin: 28px 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+[data-theme] .manage-issues {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-theme] .manage-issue {
+  --tone: var(--accent);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--tone) 30%, var(--line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--tone) 7%, transparent);
+}
+
+[data-theme] .manage-issue.is-warn { --tone: var(--warning); }
+[data-theme] .manage-issue.is-error { --tone: var(--danger); }
+
+[data-theme] .manage-issue-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 10px var(--tone);
+}
+
+[data-theme] .manage-issue p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+[data-theme] .manage-ok {
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+}
+
+[data-theme] .manage-form {
+  display: grid;
+  gap: 14px;
+}
+
+[data-theme] .manage-form textarea {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+[data-theme] .manage-form-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+[data-theme] .manage-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  [data-theme] .manage-toolbar .manage-search,
+  [data-theme] .manage-toolbar select {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  [data-theme] .manage-spacer {
+    display: none;
+  }
+
+  [data-theme] .manage-issue {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  [data-theme] .manage-issue > button {
+    grid-column: 2;
+    justify-self: start;
+  }
 }
 
 /* ══════════════ Login — hero + ID badge ══════════════ */

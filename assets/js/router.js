@@ -7,6 +7,7 @@ import { renderTrack } from "./pages/track.js";
 import { renderAdmin } from "./pages/admin.js";
 import { renderReport } from "./pages/report.js";
 import { renderGuide } from "./pages/guide.js";
+import { renderManage } from "./pages/manage.js";
 import { adminPendingCount, mgrReviewPendingCount } from "./services/notification-service.js";
 
 const routes = {
@@ -16,6 +17,7 @@ const routes = {
   "/admin": renderAdmin,
   "/report": renderReport,
   "/guide": renderGuide,
+  "/manage": renderManage,
 };
 
 export function initRouter() {
