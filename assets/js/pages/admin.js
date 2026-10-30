@@ -640,7 +640,7 @@ async function notifyTakeover({ request, me, prevOwnerName, prevOwnerEmail, full
   }
 
   // ── ช่องทาง 2: Teams 1:1 → ผู้จัดการทุกคน ──
-  const mgrEmails = getAllManagerEmails(appConfig.approverLv2Emails || []);
+  const mgrEmails = getAllManagerEmails(appConfig.bootstrapAdminEmails || []);
   mgrEmails.forEach((email) => {
     // ไม่ส่งหาตัวเองถ้าผู้จัดการเป็นคนดึงงาน
     if (email.toLowerCase() === (me.email || "").toLowerCase()) return;

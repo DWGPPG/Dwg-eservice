@@ -31,7 +31,7 @@ Deploy บน GitHub Pages / Vercel ได้โดยไม่ต้อง buil
 
 | Role | เงื่อนไข | สิทธิ์ |
 |---|---|---|
-| `manager` | อีเมลอยู่ใน `approverLv2Emails` (config) หรือ `IsAdmin=true` ใน SharePoint DrawingTeam | อนุมัติ Lv.2, ตรวจสอบ+ส่งมอบ, ดูรายงาน, ดึงงานจากทีม |
+| `manager` | `IsAdmin=true` ใน SharePoint DrawingTeam (ตั้งได้จากหน้าจัดการข้อมูล) — หรืออีเมลใน `bootstrapAdminEmails` (config — รายชื่อเดิมระหว่างย้าย: กด "ย้ายเข้า SharePoint" ในหน้าจัดการข้อมูล แล้วลบรายชื่อออกจาก config) | อนุมัติ Lv.2, ตรวจสอบ+ส่งมอบ, ดูรายงาน, ดึงงานจากทีม |
 | `designer` | อีเมลอยู่ใน SharePoint List `DrawingTeam` | รับงาน Lv.1, ส่งงาน, ดึงงานจากเพื่อนร่วมทีม |
 | `requester` | อีเมล `@primepower.co.th` ที่ไม่อยู่สองกลุ่มบน | ส่งคำร้อง, ติดตามงาน, ตรวจรับงาน, ออกใบส่งมอบ |
 | `viewer` | ยังไม่ login | ดูภาพรวมแบบ read-only |

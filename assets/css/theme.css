@@ -1010,6 +1010,10 @@ html[data-theme] {
 }
 
 [data-theme] .manage-issue.is-warn { --tone: var(--warning); }
+
+[data-theme] .manage-migrate {
+  margin-bottom: 16px;
+}
 [data-theme] .manage-issue.is-error { --tone: var(--danger); }
 
 [data-theme] .manage-issue-dot {
