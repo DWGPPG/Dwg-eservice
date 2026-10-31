@@ -56,11 +56,32 @@ export function createListItem(siteId, listId, fields) {
   });
 }
 
-export function updateListItem(siteId, listId, itemId, fields) {
-  return graphFetch(`/sites/${siteId}/lists/${listId}/items/${itemId}/fields`, {
-    method: "PATCH",
-    body: JSON.stringify(fields),
-  });
+// SharePoint ตอบ 409 "resourceModified" เมื่อมีการแก้ไขรายการเดียวกันพร้อมกัน (คนอื่น/อีกแท็บ/ระบบอนุมัติอัตโนมัติ)
+// และ 429/503 เมื่อโดนจำกัดความถี่ — ลองใหม่อัตโนมัติ (ไม่ได้ส่ง If-Match จึงบันทึกทับเวอร์ชันล่าสุดได้)
+const RETRY_DELAYS_MS = [400, 900, 1800, 3500];
+const RETRYABLE = /Graph API error (409|429|503)\b/;
+
+export async function updateListItem(siteId, listId, itemId, fields) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await graphFetch(`/sites/${siteId}/lists/${listId}/items/${itemId}/fields`, {
+        method: "PATCH",
+        body: JSON.stringify(fields),
+      });
+    } catch (error) {
+      const message = String(error.message || "");
+      if (!RETRYABLE.test(message)) throw error;
+      if (attempt >= RETRY_DELAYS_MS.length) {
+        if (message.includes("409")) {
+          throw new Error("มีการแก้ไขคำร้องนี้พร้อมกันจากที่อื่น ระบบลองบันทึกซ้ำแล้วยังไม่สำเร็จ — กรุณารีเฟรชหน้าแล้วลองใหม่");
+        }
+        throw error;
+      }
+      const jitter = Math.random() * 250;
+      console.warn(`updateListItem: ${message.slice(0, 40)} — ลองใหม่ครั้งที่ ${attempt + 1}`);
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAYS_MS[attempt] + jitter));
+    }
+  }
 }
 
 // ขนาด chunk 10MB — ต้องเป็นทวีคูณของ 320KB ตาม Graph API spec

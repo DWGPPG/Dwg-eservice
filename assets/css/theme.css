@@ -606,6 +606,21 @@ html[data-theme] {
   letter-spacing: 0.02em;
 }
 
+/* รายการตัวเลือกของ <select> เป็น UI ของเบราว์เซอร์ — ต้องบอกให้วาดแบบมืด ไม่งั้นได้พื้นขาว+ตัวอักษรขาว */
+[data-theme="dark"] select {
+  color-scheme: dark;
+}
+
+[data-theme="dark"] select option,
+[data-theme="dark"] select optgroup {
+  background-color: var(--surface-2);
+  color: var(--text);
+}
+
+[data-theme="dark"] select option:disabled {
+  color: var(--muted);
+}
+
 /* ══════════════ Tables ══════════════ */
 [data-theme] table {
   border-collapse: separate;
@@ -1591,6 +1606,17 @@ html[data-theme] {
 }
 
 /* ── popup รายละเอียดคำร้อง: แผงอัปเดตงานของผู้รับผิดชอบ ── */
+[data-theme] .request-detail-history .request-detail-timeline {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+[data-theme] .request-detail-history .detail-actions {
+  flex: none;
+  margin: 12px 0 0;
+}
+
 [data-theme] .detail-actions {
   margin: 12px 0 14px;
   padding: 12px 14px;
