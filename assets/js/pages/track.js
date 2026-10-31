@@ -1697,6 +1697,22 @@ export function openRequestDetail(request) {
             <strong>${escapeHtml(request.requestNo)}</strong>
             <span class="detail-status badge badge-${request.status}">${escapeHtml(STATUS_LABELS[request.status] || request.status)}</span>
           </div>
+          ${canAct ? `
+            <div class="detail-actions">
+              <div class="detail-actions-title">🛠️ อัปเดตงานของคุณ</div>
+              <div class="detail-actions-row">
+                <label class="detail-actions-status">
+                  <span>สถานะ</span>
+                  <select data-detail-status>
+                    ${request.status === STATUS.MGR_REJECTED ? `<option value="${STATUS.MGR_REJECTED}" selected disabled>↩️ ถูกส่งกลับแก้ไข</option>` : ""}
+                    ${WORK_STATUS_OPTIONS.filter((o) => !o.value.startsWith("__")).map((o) => `<option value="${o.value}" ${request.status === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+                  </select>
+                </label>
+                <button type="button" class="primary-button" data-detail-complete>✅ เสร็จสิ้น — ส่งงาน</button>
+                <button type="button" class="small-button danger" data-detail-cancel>❌ ยกเลิกงาน</button>
+              </div>
+              ${request.status === STATUS.MGR_REJECTED && request.mgrRejectReason ? `<p class="detail-actions-note">↩️ ผู้จัดการส่งกลับ: ${escapeHtml(request.mgrRejectReason)}</p>` : ""}
+            </div>` : ""}
           <div class="request-detail-grid">
             ${detailItem("โครงการ", request.projectName)}
             ${detailItemLink("Location โครงการ", request.location)}
