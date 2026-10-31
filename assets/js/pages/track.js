@@ -24,6 +24,10 @@ const WORK_STATUS_OPTIONS = [
   { value: "__cancel__", label: "❌ ยกเลิก" },
 ];
 
+// คำร้องที่กำลังบันทึกสถานะอยู่ — ล็อกช่องเลือกสถานะไว้จนกว่าจะเสร็จ (ตารางถูกวาดใหม่ทันทีแบบ optimistic
+// ถ้าไม่ล็อก ผู้ใช้เปลี่ยนซ้ำได้ระหว่างคำสั่งแรกยังไม่เสร็จ → แก้ไขรายการเดียวกันซ้อนกัน)
+const statusSaving = new Set();
+
 // สถานะที่ผู้รับผิดชอบอัปเดต/กดเสร็จสิ้นได้เอง (ใช้ทั้งตารางและ popup รายละเอียด)
 const DESIGNER_EDITABLE_STATUSES = [STATUS.APPROVED, STATUS.WORKING, STATUS.MGR_REJECTED];
 
@@ -417,7 +421,7 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
       <td data-label="โฟลเดอร์ / ลิงก์ / ไฟล์" class="file-groups-cell">${renderFileGroups(item)}</td>
       <td data-label="สถานะ" style="vertical-align:middle;text-align:center;width:155px;">
         ${canEditStatus ? `
-          <select class="track-status-select" data-designer-status="${escapeHtml(item.requestNo)}">
+          <select class="track-status-select" data-designer-status="${escapeHtml(item.requestNo)}" ${statusSaving.has(item.requestNo) ? "disabled title=\"กำลังบันทึก...\"" : ""}>
             ${item.status === STATUS.MGR_REJECTED ? `<option value="${STATUS.MGR_REJECTED}" selected disabled>↩️ ถูกส่งกลับแก้ไข</option>` : ""}
             ${WORK_STATUS_OPTIONS.map((opt) => `<option value="${opt.value}" ${item.status === opt.value ? "selected" : ""}>${opt.label}</option>`).join("")}
           </select>
@@ -572,8 +576,9 @@ function bindWorkbookEvents(view, state) {
       return;
     }
 
-    // Optimistic update — เปลี่ยน state ทันทีก่อนรอ API
-    select.disabled = true;
+    // Optimistic update — เปลี่ยน state ทันทีก่อนรอ API (ช่องเลือกถูกล็อกจนบันทึกเสร็จ)
+    if (statusSaving.has(requestNo)) return;
+    statusSaving.add(requestNo);
     const originalValue = request.status;
     request.status = value; // update state ทันที
     renderWorkbookTrack(view, state); // re-render ทันที ผู้ใช้เห็นสถานะใหม่เลย
@@ -584,7 +589,9 @@ function bindWorkbookEvents(view, state) {
     } catch (error) {
       request.status = originalValue; // คืนค่าเดิมถ้า error
       showToast(`อัปเดตไม่สำเร็จ: ${error.message}`, "error");
-      renderWorkbookTrack(view, state);
+    } finally {
+      statusSaving.delete(requestNo);
+      if (state.currentRoute === "/track") renderWorkbookTrack(view, state); // ปลดล็อกช่องเลือก
     }
   }, opts);
 }
@@ -1753,6 +1760,23 @@ export function openRequestDetail(request) {
           <div class="request-detail-timeline" id="audit-timeline-slot">
             <div class="timeline-loading">⏳ กำลังโหลดประวัติ...</div>
           </div>
+          <!-- แผงอัปเดตงาน อยู่มุมล่างขวาของ popup — เห็นตลอดแม้เลื่อนดูรายละเอียด/ประวัติ -->
+          ${canAct ? `
+          <div class="detail-actions">
+            <div class="detail-actions-title">🛠️ อัปเดตงานของคุณ</div>
+            <div class="detail-actions-row">
+              <label class="detail-actions-status">
+                <span>สถานะ</span>
+                <select data-detail-status>
+                  ${request.status === STATUS.MGR_REJECTED ? `<option value="${STATUS.MGR_REJECTED}" selected disabled>↩️ ถูกส่งกลับแก้ไข</option>` : ""}
+                  ${WORK_STATUS_OPTIONS.filter((o) => !o.value.startsWith("__")).map((o) => `<option value="${o.value}" ${request.status === o.value ? "selected" : ""}>${o.label}</option>`).join("")}
+                </select>
+              </label>
+              <button type="button" class="primary-button" data-detail-complete>✅ เสร็จสิ้น — ส่งงาน</button>
+              <button type="button" class="small-button danger" data-detail-cancel>❌ ยกเลิกงาน</button>
+            </div>
+            ${request.status === STATUS.MGR_REJECTED && request.mgrRejectReason ? `<p class="detail-actions-note">↩️ ผู้จัดการส่งกลับ: ${escapeHtml(request.mgrRejectReason)}</p>` : ""}
+          </div>` : ""}
         </aside>
       </div>
     `,
@@ -1775,6 +1799,8 @@ function bindDetailActions(root, request, closeDetail) {
   select?.addEventListener("change", async () => {
     const value = select.value;
     const original = request.status;
+    if (statusSaving.has(request.requestNo)) { select.value = original; return; }
+    statusSaving.add(request.requestNo);
     select.disabled = true;
     request.status = value;
     try {
@@ -1790,6 +1816,7 @@ function bindDetailActions(root, request, closeDetail) {
       select.value = original;
       showToast(`อัปเดตไม่สำเร็จ: ${error.message}`, "error");
     } finally {
+      statusSaving.delete(request.requestNo);
       select.disabled = false;
     }
   });

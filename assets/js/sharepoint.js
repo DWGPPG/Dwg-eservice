@@ -92,7 +92,22 @@ export async function deleteItem(listName, itemId) {
 // ── cache ชื่อ field ที่ไม่มีจริงใน List แต่ละตัว เพื่อไม่ต้อง retry ซ้ำ ──
 const unknownFieldsCache = {};
 
+// ส่งคำสั่งแก้ไขรายการเดียวกันทีละคำสั่ง — คำสั่งที่ซ้อนกัน (เช่นเปลี่ยนสถานะซ้ำเร็วๆ) ทำให้ SharePoint ตอบ 409
+const itemPatchQueues = new Map();
+
 export async function patchItem(listName, itemId, fieldsPayload) {
+  const key = `${listName}:${itemId}`;
+  const previous = itemPatchQueues.get(key) || Promise.resolve();
+  const run = previous.catch(() => {}).then(() => patchItemNow(listName, itemId, fieldsPayload));
+  itemPatchQueues.set(key, run);
+  try {
+    return await run;
+  } finally {
+    if (itemPatchQueues.get(key) === run) itemPatchQueues.delete(key);
+  }
+}
+
+async function patchItemNow(listName, itemId, fieldsPayload) {
   const siteId = await ensureSite();
   const listId = await ensureListId(listName);
   if (!listId) throw new Error(`ไม่พบ List "${listName}" บน SharePoint`);
