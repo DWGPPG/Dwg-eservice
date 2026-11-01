@@ -9,6 +9,9 @@ export const REQUEST_TYPES = [
   "📁 อื่นๆ",
 ];
 
+// กลุ่มบริษัทผู้ส่งคำร้อง — บังคับเลือกหลังเลือกประเภทงาน (เก็บในคอลัมน์ Department ของคำร้อง)
+export const COMPANY_GROUPS = ["PPC", "PPE", "PPR", "PPS"];
+
 export const PRIORITIES = ["ปกติ", "เร่งด่วน", "เร่งด่วนมาก"];
 
 // role model จริง: viewer (ยังไม่ login) / requester (ทุกคนใน primepower.co.th) /

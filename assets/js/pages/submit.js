@@ -1,5 +1,6 @@
 import { holidayName } from "../services/due-date.js";
 import { ownerNoticeHtml, ownerSummaryText } from "../services/owner-service.js";
+import { COMPANY_GROUPS } from "../constants.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { lists } from "../../../config/schema.js";
 import { openModal } from "../components/modal.js";
@@ -154,6 +155,17 @@ export function renderSubmit(view) {
               `).join("")}
             </div>
           </div>
+          <div class="field request-type-field company-group-field submit-project-field-hidden" id="company-group-wrapper">
+            <span>เลือกกลุ่มบริษัท <b class="req">*</b></span>
+            <div class="request-type-options">
+              ${COMPANY_GROUPS.map((code) => `
+                <label class="request-type-check">
+                  <input type="radio" name="companyGroup" value="${escapeHtml(code)}" />
+                  <span>${escapeHtml(code)}</span>
+                </label>
+              `).join("")}
+            </div>
+          </div>
           <div class="field project-select-field submit-project-field-hidden" id="project-select-wrapper">
             <span>ชื่อโครงการ <b class="req">*</b></span>
             <div class="project-picker">
@@ -229,12 +241,9 @@ function bindSubmitFlow(view) {
       activeCategory = "";
 
       updateOwnerNotice(view);
-      // Step 1 → โชว์ช่องโครงการ, ซ่อน drawing+queue ก่อนเสมอเมื่อเปลี่ยนประเภท
-      const projectWrapper = view.querySelector("#project-select-wrapper");
-      if (projectWrapper) {
-        projectWrapper.classList.remove("submit-project-field-hidden");
-        projectWrapper.classList.add("submit-project-field-visible");
-      }
+      // Step 1 → โชว์ช่องกลุ่มบริษัท (บังคับเลือก) → เลือกแล้วจึงโชว์ช่องโครงการ
+      showStepField(view.querySelector("#company-group-wrapper"));
+      if (getSelectedCompanyGroup(form)) showStepField(view.querySelector("#project-select-wrapper"));
 
       // ซ่อน drawing+queue เสมอเมื่อเปลี่ยนประเภท (รอเลือกโครงการก่อน)
       ["#drawing-section", "#queue-section"].forEach((sel) => {
@@ -252,6 +261,14 @@ function bindSubmitFlow(view) {
     });
   });
 
+  view.querySelectorAll("input[name='companyGroup']").forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const projectWrapper = view.querySelector("#project-select-wrapper");
+      showStepField(projectWrapper);
+      setTimeout(() => projectWrapper?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+    });
+  });
+
   document.addEventListener("click", (event) => {
     if (!view.querySelector(".project-picker")?.contains(event.target) && !menu.contains(event.target)) closeProjectMenu(view);
   }, { signal: pageSignal });
@@ -262,6 +279,11 @@ function bindSubmitFlow(view) {
     if (_submitLock) return; // ป้องกันกด submit ซ้ำตอนเน็ตช้า
     if (!getSelectedRequestType(form)) {
       showToast("กรุณาเลือกประเภทคำร้อง", "warning");
+      return;
+    }
+    if (!getSelectedCompanyGroup(form)) {
+      showToast("กรุณาเลือกกลุ่มบริษัท (PPC / PPE / PPR / PPS)", "warning");
+      view.querySelector("#company-group-wrapper")?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (!selectedProjectName) {
@@ -934,6 +956,7 @@ function openConfirmSubmit(view, form, onModalClose) {
   const body = `
     <div class="confirm-stack">
       ${confirmRow("ประเภทคำร้อง", requestType)}
+      ${confirmRow("กลุ่มบริษัท", getSelectedCompanyGroup(form))}
       ${confirmRow("ชื่อโครงการ", selectedProjectName)}
       ${ownerSummaryText(selectedProjectName, requestType) ? confirmRow("ผู้รับผิดชอบ", ownerSummaryText(selectedProjectName, requestType)) : ""}
       ${ownerNoticeHtml(selectedProjectName, requestType).includes("owner-notice-warn") ? ownerNoticeHtml(selectedProjectName, requestType) : ""}
@@ -989,6 +1012,7 @@ async function submitConfirmed(view, form) {
     try {
       const request = await createRequest({
         requestType,
+        department: getSelectedCompanyGroup(form),
         projectName: selectedProjectName,
         projectCode: selectedProjectName,
         drawingNo: item.no,
@@ -1072,6 +1096,16 @@ function hideUploadProgress(view) {
 
 function getSelectedRequestType(form) {
   return new FormData(form).get("requestType") || "";
+}
+
+function getSelectedCompanyGroup(form) {
+  return new FormData(form).get("companyGroup") || "";
+}
+
+function showStepField(el) {
+  if (!el) return;
+  el.classList.remove("submit-project-field-hidden");
+  el.classList.add("submit-project-field-visible");
 }
 
 function confirmRow(label, value) {

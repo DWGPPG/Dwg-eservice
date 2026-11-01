@@ -1725,6 +1725,7 @@ export function openRequestDetail(request) {
             ${detailItem("โครงการ", request.projectName)}
             ${detailItemLink("Location โครงการ", request.location)}
             ${detailItem("ประเภทแบบ", request.requestType)}
+            ${request.department ? detailItem("กลุ่มบริษัท", request.department) : ""}
             ${detailItem("Drawing Number", request.drawingNo)}
             ${detailItem("Drawing Name", request.drawingName)}
             ${detailItem("Revise", request.currentRevise || request.reviseNumber || "—")}

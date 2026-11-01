@@ -1522,8 +1522,8 @@ function renderMgrReviewRow(item, state) {
         <small style="display:block;white-space:nowrap;color:#64748B;margin-top:2px;">📤 ${formatDate(item.deptFinishedAt)}</small>
       </td>
       <td data-label="หมายเหตุ" class="mgr-note-cell">
-        ${note ? `<span class="approval-clamp" title="${escapeHtml(note)}">📝 ${escapeHtml(note)}</span>` : `<span style="color:#CBD5E1;font-size:11px;">—</span>`}
-        ${item.description ? `<small class="approval-clamp approval-desc" title="${escapeHtml(item.description)}">💬 ${escapeHtml(item.description)}</small>` : ""}
+        ${note ? `<span class="mgr-note-full">📝 ${escapeHtml(note)}</span>` : `<span style="color:#CBD5E1;font-size:11px;">—</span>`}
+        ${item.description ? `<small class="approval-clamp approval-desc is-expandable" title="คลิกเพื่อดูรายละเอียดคำขอทั้งหมด" onclick="this.classList.toggle('is-open')">💬 ${escapeHtml(item.description)}</small>` : ""}
       </td>
       <td data-label="ไฟล์งาน" class="file-groups-cell">
         ${renderFileGroups(item, { maxLen: 24 })}
