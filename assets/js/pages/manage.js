@@ -13,6 +13,7 @@ import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, historySuggestions, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
 import { REQUEST_TYPES } from "../constants.js";
 import { holidayName, holidayNameField } from "../services/due-date.js";
+import { COVER_KEY, hydrateTeamPhotos, uploadTeamPhoto } from "../services/team-photo-service.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
 
@@ -127,7 +128,9 @@ const TABS = {
     data: () => state.masterData.team,
     hideField: "IsActive",
     hideFieldInverted: true,
+    teamPhotos: true,
     columns: [
+      { label: "รูป", html: (r) => `<span class="team-photo-thumb" data-team-photo="${escapeHtml(norm(r.Email))}">${escapeHtml(photoInitials(r.Title0 || r.Title || r.Email))}</span>`, value: () => "" },
       { label: "ชื่อ", value: (r) => r.Title0 || r.Title, strong: true },
       { label: "อีเมล", value: (r) => r.Email, mono: true },
       { label: "สายงาน", value: (r) => r.Role },
@@ -326,6 +329,31 @@ function holidayPayload(name, dateKey) {
   return payload;
 }
 
+// ── รูปทีมงาน (สไลด์ทีมงาน หน้าภาพรวม) ──
+function photoInitials(name) {
+  return String(name || "").replace(/^(?:นางสาว|นาง|นาย|mrs?\.?|ms\.?)\s+/i, "").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => [...w][0]).join("").toUpperCase();
+}
+
+function pickAndUploadPhoto(key, label, rerender) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    showToast(`กำลังอัปโหลด${label}…`, "info");
+    try {
+      await uploadTeamPhoto(key, file);
+      await writeAudit({ action: "จัดการข้อมูล: อัปโหลดรูปทีมงาน", detail: label });
+      showToast(`อัปโหลด${label}แล้ว — แสดงในสไลด์ทีมงาน หน้าภาพรวม`, "success");
+      rerender();
+    } catch (error) {
+      showToast(`อัปโหลดรูปไม่สำเร็จ: ${error.message}`, "error");
+    }
+  });
+  input.click();
+}
+
 function leaveRangeText(r) {
   const start = String(r.LeaveStart || "").slice(0, 10);
   const end = String(r.LeaveEnd || start).slice(0, 10);
@@ -441,6 +469,7 @@ function renderTable(key) {
       ${tab.bulkHolidays ? `<button class="secondary-button" type="button" data-action="copy-year" title="ดึงวันหยุดปีก่อนมาเป็นร่างให้ตรวจแก้ก่อนบันทึก">📑 คัดลอกจากปี ${ui.holidayYear + 542}</button>` : ""}
       ${tab.bulkHolidays ? `<button class="secondary-button" type="button" data-action="bulk">📋 เพิ่มหลายวัน</button>` : ""}
       ${tab.importHistory ? `<button class="secondary-button" type="button" data-action="import-history">📥 นำเข้าจากหน้าติดตามงาน</button>` : ""}
+      ${tab.teamPhotos ? `<button class="secondary-button" type="button" data-action="cover-photo" title="ภาพพื้นหลังสไลด์แรก (ภาพรวมทั้งฝ่าย) ในหน้าภาพรวม">🖼️ รูปปกสไลด์ฝ่าย</button>` : ""}
       <button class="primary-button" type="button" data-action="add">+ เพิ่ม${escapeHtml(tab.addLabel || tab.label)}</button>
     </div>
     <p class="manage-count">${tab.yearFilter ? holidaySummary(rows) : `${rows.length} รายการ`}</p>
@@ -463,6 +492,7 @@ function renderTable(key) {
 function rowActions(key, tab, row) {
   const id = escapeHtml(row.id);
   const buttons = [`<button class="small-button" type="button" data-action="edit" data-id="${id}">แก้ไข</button>`];
+  if (tab.teamPhotos && row.Email) buttons.push(`<button class="small-button" type="button" data-action="photo" data-id="${id}" title="รูปที่แสดงในสไลด์ทีมงาน หน้าภาพรวม">📷 รูป</button>`);
   const isSelf = key === "team" && norm(row.Email) === norm(state.user?.email);
   if (tab.hideField && !isSelf) {
     const hidden = isHidden(tab, row);
@@ -754,6 +784,12 @@ function bindBody(view) {
   body.querySelector('[data-action="add"]')?.addEventListener("click", () => openForm(ui.tab, null, rerender));
   body.querySelector('[data-action="bulk"]')?.addEventListener("click", () => openBulkHolidays(rerender));
   body.querySelector('[data-action="import-history"]')?.addEventListener("click", () => openImportOwners(rerender));
+  body.querySelector('[data-action="cover-photo"]')?.addEventListener("click", () => pickAndUploadPhoto(COVER_KEY, "รูปปกสไลด์ฝ่ายเขียนแบบ", rerender));
+  body.querySelectorAll('[data-action="photo"]').forEach((b) => b.addEventListener("click", () => {
+    const row = find(b.dataset.id);
+    if (row?.Email) pickAndUploadPhoto(norm(row.Email), `รูปของ ${row.Title0 || row.Email}`, rerender);
+  }));
+  hydrateTeamPhotos(body);
   body.querySelector('[data-action="copy-year"]')?.addEventListener("click", () => openBulkHolidays(rerender, copyFromPreviousYear()));
   body.querySelectorAll("[data-holiday-year]").forEach((chip) => chip.addEventListener("click", () => {
     ui.holidayYear = Number(chip.dataset.holidayYear);
