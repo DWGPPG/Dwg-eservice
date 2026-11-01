@@ -16,6 +16,7 @@ import { state, subscribe } from "./state.js";
 import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
 import { startLinkInputEnhancer } from "./components/cloud-picker.js";
+import { startResponsiveTables } from "./components/responsive-tables.js";
 
 const MAX_BACKOFF_MS = 2 * 60 * 1000;
 let pollTimer = null;
@@ -99,6 +100,7 @@ async function boot() {
 
   bindChrome();
   startLinkInputEnhancer();
+  startResponsiveTables();
   subscribe(updateShell);
   subscribe(onRequestsChanged);
   updateShell(state);

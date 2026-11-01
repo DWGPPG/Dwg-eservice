@@ -472,7 +472,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
 
       return pBox(`📅 Workload รายวัน <span style="font-size:11px;font-weight:400;color:#94A3B8;">— สแนปช็อตวันนี้ ${new Date().toLocaleDateString("th-TH",{year:"numeric",month:"long",day:"numeric"})}</span>`, `
         ${dailyStats.length ? `
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <table class="m-card-table" style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr style="background:#F8FAFC;">
               <th style="padding:7px 8px;text-align:left;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;">ชื่อ</th>
@@ -521,7 +521,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
     <!-- Row 1: Workload + Tips (ย้ายขึ้นบนสุดของหน้าภาพรวม) -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
       ${pBox("👥 Workload รายบุคคล",`
-        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <table class="m-card-table" style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr style="background:#F8FAFC;">
               <th style="padding:7px 8px;text-align:left;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;">ชื่อ</th>
@@ -822,7 +822,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
             <br>⏳ <b>ล่าช้าเฉลี่ย</b> = เฉลี่ยจากงาน<b>ทุกชิ้นในคอลัมน์สะสม</b> — งานที่ยังค้างนับถึงวันนี้ · งานที่ส่งเสร็จแล้วนับถึงวันที่ส่งเสร็จ (เป็นวันทำงาน ไม่รวมวันหยุด)
           </div>
           ${memberOverdue.filter((m) => m.overdue > 0 || m.everOverdue > 0).length ? `
-            <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <table class="m-card-table" style="width:100%;border-collapse:collapse;font-size:12px;">
               <thead>
                 <tr style="background:#FFF1F2;">
                   <th style="padding:6px 8px;text-align:left;color:#991B1B;font-weight:600;border-bottom:1px solid #FECACA;">ชื่อ</th>
@@ -910,7 +910,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
               🔄 อัปเดตตามจริง — งานที่ฝ่ายกด<b>เสร็จสิ้น</b>แล้วจะหลุดออกจากตารางทันที
             </div>
             <div style="max-height:340px;overflow-y:auto;">
-              <table style="width:100%;border-collapse:collapse;">
+              <table class="m-card-table" style="width:100%;border-collapse:collapse;">
                 <thead>
                   <tr style="background:#FFF7ED;">
                     <th style="padding:6px 10px;text-align:left;font-size:11px;color:#9A3412;border-bottom:1px solid #FED7AA;">#</th>
@@ -1024,7 +1024,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
               🔒 <b>เก็บถาวรเป็น KPI</b> — ล่าสุดอยู่อันดับ 1 มีรายการใหม่จะดันอันดับเดิมลง
             </div>
             <div style="max-height:340px;overflow-y:auto;">
-              <table style="width:100%;border-collapse:collapse;">
+              <table class="m-card-table" style="width:100%;border-collapse:collapse;">
                 <thead>
                   <tr style="background:#FAF5FF;">
                     <th style="padding:6px 10px;text-align:left;font-size:11px;color:#6B21A8;border-bottom:1px solid #E9D5FF;">#</th>
@@ -1174,7 +1174,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
               <span style="font-size:10px;background:#DBEAFE;color:#1E40AF;padding:1px 7px;border-radius:10px;font-weight:600;">1.4 ลูกค้า</span>
             </div>
             <div style="max-height:340px;overflow-y:auto;">
-              <table style="width:100%;border-collapse:collapse;">
+              <table class="m-card-table" style="width:100%;border-collapse:collapse;">
                 <thead>
                   <tr style="background:#FFFBEB;">
                     <th style="padding:6px 10px;text-align:left;font-size:11px;color:#92400E;border-bottom:1px solid #FDE68A;">#</th>
