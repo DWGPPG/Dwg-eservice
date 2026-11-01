@@ -3174,55 +3174,29 @@ html.signing-in #auth-panel > * {
 /* ══════════════════════════════════════════════════════════════
    เคอร์เซอร์เรืองแสง (ui-effects.js) — ทุกหน้า, เฉพาะเมาส์ (ปิดบนจอสัมผัส)
    ══════════════════════════════════════════════════════════════ */
-.cursor-glow,
-.cursor-ring {
+.cursor-glow {
   position: fixed;
   top: 0;
   left: 0;
+  z-index: 9998;
+  width: 520px;
+  height: 520px;
+  margin: -260px 0 0 -260px;
   border-radius: 50%;
   pointer-events: none;
   opacity: 0;
   will-change: transform;
   transition: opacity 0.35s ease;
+  background: radial-gradient(circle, rgba(0, 223, 143, 0.15) 0%, rgba(0, 223, 143, 0.06) 32%, transparent 64%);
 }
-.cursor-glow {
-  z-index: 9998;
-  width: 520px;
-  height: 520px;
-  margin: -260px 0 0 -260px;
-  background: radial-gradient(circle, rgba(0, 223, 143, 0.13) 0%, rgba(0, 223, 143, 0.05) 32%, transparent 64%);
-}
-.cursor-ring {
-  z-index: 9999;
-  width: 30px;
-  height: 30px;
-  margin: -15px 0 0 -15px;
-  border: 1.5px solid rgba(0, 223, 143, 0.75);
-  box-shadow: 0 0 14px rgba(0, 223, 143, 0.55), inset 0 0 8px rgba(0, 223, 143, 0.25);
-  transition: opacity 0.35s ease, width 0.22s ease, height 0.22s ease, margin 0.22s ease, background-color 0.22s ease, border-color 0.22s ease;
-}
-body.cursor-fx-on .cursor-glow,
-body.cursor-fx-on .cursor-ring { opacity: 1; }
-.cursor-ring.is-hover {
-  width: 46px;
-  height: 46px;
-  margin: -23px 0 0 -23px;
-  background-color: rgba(0, 223, 143, 0.1);
-  border-color: rgba(0, 223, 143, 0.95);
-}
-.cursor-ring.is-press { width: 22px; height: 22px; margin: -11px 0 0 -11px; }
-body.cursor-fx-on .cursor-ring.is-text { opacity: 0.25; }
+body.cursor-fx-on .cursor-glow { opacity: 1; }
 
 /* โหมดสว่าง: แสงอ่อนลง ไม่ให้พื้นขาวดูหม่น */
 [data-theme="light"] .cursor-glow {
-  background: radial-gradient(circle, rgba(0, 190, 120, 0.09) 0%, rgba(0, 190, 120, 0.035) 32%, transparent 64%);
-}
-[data-theme="light"] .cursor-ring {
-  border-color: rgba(0, 170, 108, 0.8);
-  box-shadow: 0 0 12px rgba(0, 190, 120, 0.4);
+  background: radial-gradient(circle, rgba(0, 190, 120, 0.1) 0%, rgba(0, 190, 120, 0.04) 32%, transparent 64%);
 }
 
-@media print { .cursor-glow, .cursor-ring { display: none !important; } }
+@media print { .cursor-glow { display: none !important; } }
 
 /* รูปโปรไฟล์ Microsoft 365 ในการ์ดผู้ใช้ */
 [data-theme] .sidebar-avatar.has-photo { background: var(--surface-muted); padding: 0; overflow: hidden; box-shadow: 0 0 0 2px color-mix(in srgb, var(--neon) 55%, transparent); }
