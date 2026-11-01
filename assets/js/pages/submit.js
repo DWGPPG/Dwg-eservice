@@ -240,6 +240,15 @@ function bindSubmitFlow(view) {
       drawingDetails = {};
       activeCategory = "";
 
+      // โครงการที่เลือกไว้ไม่อยู่ในหมวดของประเภทใหม่ → ล้างให้เลือกใหม่
+      if (selectedProjectName) {
+        const group = selectedTypeGroup(view);
+        const project = getProjects().find((p) => p.Title === selectedProjectName);
+        const groups = project ? projectGroups(project) : new Set();
+        if (group && groups.size && !groups.has(group)) clearProject(view);
+      }
+      if (getProjectMenu(view)?.classList.contains("open")) renderProjectOptions(view);
+
       updateOwnerNotice(view);
       // Step 1 → โชว์ช่องกลุ่มบริษัท (บังคับเลือก) → เลือกแล้วจึงโชว์ช่องโครงการ
       showStepField(view.querySelector("#company-group-wrapper"));
@@ -312,18 +321,78 @@ function getProjects() {
   return (state.masterData.projects || []).filter((project) => !project.IsHidden);
 }
 
-function renderProjectOptions(view) {
-  const query = view.querySelector("#project-search").value.toLowerCase().trim();
-  const menu = getProjectMenu(view);
-  const filtered = getProjects().filter((project) => (project.Title || "").toLowerCase().includes(query));
-  menu.innerHTML = filtered.length
-    ? filtered.map((project) => `
+// ── หมวดโครงการตามประเภทคำร้อง ──
+//  - Proposal → โครงการ Proposal
+//  - ขออนุญาตก่อสร้าง / เขียนแบบก่อสร้าง / As-Built → โครงการ "เขียนแบบก่อสร้าง" (ชุดเดียวกัน)
+//  - อื่นๆ → ทุกโครงการ
+// หมวดของโครงการ: คอลัมน์ ProjectGroup ใน ProjectList (ถ้ามี) + ประวัติคำร้องในหน้าติดตามงาน
+const PROJECT_GROUP_LABEL = { proposal: "Proposal", construction: "เขียนแบบก่อสร้าง" };
+
+function projectGroupOfType(type) {
+  const t = String(type || "");
+  if (t.includes("Proposal")) return "proposal";
+  if (t.includes("ก่อสร้าง") || t.includes("As-Built")) return "construction";
+  return "";
+}
+
+function projectGroups(project) {
+  const groups = new Set();
+  String(project.ProjectGroup || "").split(/[,;\n]/).forEach((g) => {
+    const key = projectGroupOfType(g) || (/proposal/i.test(g) ? "proposal" : "");
+    if (key) groups.add(key);
+  });
+  const name = String(project.Title || "").trim().toLowerCase();
+  (state.requests || []).forEach((r) => {
+    if (String(r.projectName || "").trim().toLowerCase() !== name) return;
+    const key = projectGroupOfType(r.requestType);
+    if (key) groups.add(key);
+  });
+  return groups;
+}
+
+function selectedTypeGroup(view) {
+  return projectGroupOfType(view.querySelector("input[name='requestType']:checked")?.value || "");
+}
+
+/** แยกโครงการเป็น: ในหมวดนี้ / ยังไม่มีคำขอ (ยังไม่รู้หมวด) */
+function projectsForGroup(group) {
+  const all = getProjects();
+  if (!group) return { inGroup: all, unassigned: [] };
+  const inGroup = [];
+  const unassigned = [];
+  all.forEach((project) => {
+    const groups = projectGroups(project);
+    if (groups.has(group)) inGroup.push(project);
+    else if (!groups.size) unassigned.push(project);
+  });
+  return { inGroup, unassigned };
+}
+
+function projectOptionHtml(project) {
+  return `
       <button class="combo-option" data-project="${escapeHtml(project.Title)}" type="button">
         <strong>${escapeHtml(project.Title)}</strong>
         <small>${escapeHtml(project.DefaultKwp || project.SolarKwp || "")}</small>
-      </button>
-    `).join("")
-    : `<div class="combo-empty">ไม่พบโครงการ — กด “+ โครงการใหม่” เพื่อสร้าง</div>`;
+      </button>`;
+}
+
+function renderProjectOptions(view) {
+  const query = view.querySelector("#project-search").value.toLowerCase().trim();
+  const menu = getProjectMenu(view);
+  const group = selectedTypeGroup(view);
+  const match = (project) => (project.Title || "").toLowerCase().includes(query);
+  const { inGroup, unassigned } = projectsForGroup(group);
+  const list = inGroup.filter(match);
+  const extra = unassigned.filter(match);
+  const label = PROJECT_GROUP_LABEL[group];
+  let html = label ? `<div class="combo-group-head">โครงการ ${escapeHtml(label)} · ${list.length}</div>` : "";
+  html += list.length
+    ? list.map(projectOptionHtml).join("")
+    : `<div class="combo-empty">${label ? `ยังไม่มีโครงการ${escapeHtml(label)}${query ? "ที่ตรงกับคำค้น" : ""}` : "ไม่พบโครงการ"} — กด “+ โครงการใหม่” เพื่อสร้าง</div>`;
+  if (extra.length) {
+    html += `<div class="combo-group-head is-muted">โครงการที่ยังไม่มีคำขอ · ${extra.length}</div>${extra.map(projectOptionHtml).join("")}`;
+  }
+  menu.innerHTML = html;
   openProjectMenu(view);
 
   menu.querySelectorAll("[data-project]").forEach((option) => {
@@ -1252,13 +1321,16 @@ function openAddProjectModal(view, requestType = "", prefilledProjectName = "") 
 
           try {
             if (!isExisting) {
-              await addItem(lists.projects, {
+              const projectFields = {
                 Title: data.name,
                 DefaultKwp: data.kwp ? `${data.kwp} kWp` : "",
                 SolarKwp: data.kwp ? `${data.kwp} kWp` : "",
                 DefaultLocation: data.location || "",
-              });
-              state.masterData.projects.push({ Title: data.name, DefaultKwp: data.kwp ? `${data.kwp} kWp` : "", DefaultLocation: data.location || "" });
+              };
+              // บันทึกหมวดโครงการ (คอลัมน์ ProjectGroup — ถ้ายังไม่ได้สร้างคอลัมน์ addItem จะตัดทิ้งให้อัตโนมัติ)
+              const groupLabel = PROJECT_GROUP_LABEL[projectGroupOfType(requestType)] || "";
+              const created = await addItem(lists.projects, groupLabel ? { ...projectFields, ProjectGroup: groupLabel } : projectFields);
+              state.masterData.projects.push({ ...projectFields, id: created?.id, ProjectGroup: groupLabel });
             } else {
               const project = getProjects().find((p) => p.Title === data.name);
               if (project?.id) {

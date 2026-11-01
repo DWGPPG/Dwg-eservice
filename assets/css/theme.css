@@ -3556,3 +3556,9 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme="dark"] .clean-chart-container .chart-period-button.active {
   background: rgba(34, 211, 238, 0.16); color: #67e8f9; box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
 }
+
+/* หัวกลุ่มในรายการโครงการ (หน้าส่งคำขอ) */
+.combo-group-head { position: sticky; top: 0; z-index: 1; padding: 8px 14px 6px; font-size: 11.5px; font-weight: 800; letter-spacing: .02em; color: #047857; background: var(--surface, #fff); border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); }
+.combo-group-head.is-muted { color: var(--muted); }
+[data-theme="dark"] .combo-group-head { color: hsl(163, 94%, 70%); background: var(--surface); }
+[data-theme="dark"] .combo-group-head.is-muted { color: var(--muted); }
