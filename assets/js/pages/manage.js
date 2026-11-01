@@ -10,7 +10,7 @@ import { writeAudit } from "../services/audit-service.js";
 import { addItem, deleteItem, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
-import { LEAVE_PERIODS, leaveOf, personName, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
+import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
 import { REQUEST_TYPES } from "../constants.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
@@ -176,7 +176,7 @@ const TABS = {
     data: () => state.masterData.projectOwners || [],
     deletable: true,
     projectFilter: true,
-    note: () => `📋 งาน <b>เขียนแบบ Proposal</b> รับผิดชอบโดย <b>${(appConfig.proposalOwners || []).map((e) => escapeHtml(personName(e))).join(", ")}</b> เสมอ (ไม่ขึ้นกับตารางนี้)
+    note: () => `📋 งาน <b>เขียนแบบ Proposal</b> รับผิดชอบโดย <b>${proposalOwnerEmails().map((e) => escapeHtml(personName(e))).join(", ")}</b> เสมอ (แก้ได้ที่แท็บตั้งค่าระบบ)
       · การดึงงาน/โอนงานระหว่างบุคคล <b>ไม่เปลี่ยน</b>ผู้รับผิดชอบโครงการ`,
     sort: (a, b) => String(a.ProjectName || "").localeCompare(String(b.ProjectName || ""), "th", { numeric: true }) || String(personName(a.OwnerEmail)).localeCompare(personName(b.OwnerEmail), "th"),
     columns: [
@@ -729,10 +729,109 @@ function renderSettings() {
           <button class="primary-button" type="submit">บันทึกเวอร์ชัน</button>
         </div>
       </form>
+      ${proposalOwnersCard()}
+      ${contactCard()}
     </div>`;
 }
 
+function settingMeta(key, fallbackText) {
+  const row = (state.masterData?.settingRows || []).find((r) => r.Title === key);
+  const custom = String(state.masterData?.settings?.[key] || "").trim();
+  if (!custom) return `ตอนนี้ใช้ค่าเริ่มต้นจาก config.js${fallbackText ? ` (${escapeHtml(fallbackText)})` : ""}`;
+  return `ตั้งค่าจากหน้านี้${row?.Modified ? ` · แก้ไขล่าสุด ${escapeHtml(formatDate(row.Modified))}` : ""}`;
+}
+
+function proposalOwnersCard() {
+  const chosen = new Set(proposalOwnerEmails());
+  const options = teamOptions();
+  // คนที่ถูกตั้งไว้แต่ไม่อยู่ในรายชื่อทีม (ยังไม่ได้เพิ่ม/ปิดใช้งาน) — แสดงไว้ให้เห็นและเอาออกได้
+  const extra = [...chosen].filter((e) => !options.some((o) => o.value === e)).map((e) => ({ value: e, label: `${e} (ไม่อยู่ในรายชื่อทีม)` }));
+  const custom = String(state.masterData?.settings?.[PROPOSAL_OWNERS_KEY] || "").trim();
+  return `
+    <form class="manage-setting-card" data-setting-form="proposal" novalidate>
+      <div class="manage-setting-head">
+        <div>
+          <h3>📋 ผู้รับผิดชอบงาน Proposal</h3>
+          <p>คำร้องประเภท “เขียนแบบ Proposal” รับผิดชอบโดยคนที่เลือกไว้ที่นี่เสมอ (ไม่ขึ้นกับแท็บผู้รับผิดชอบโครงการ) — ผู้ส่งคำร้องเห็นชื่อ และได้คำเตือนเมื่อคนเหล่านี้ลา</p>
+        </div>
+      </div>
+      <div class="manage-setting-checks">
+        ${[...options, ...extra].map((o) => `
+          <label class="manage-check"><input type="checkbox" name="proposalOwner" value="${escapeHtml(o.value)}" ${chosen.has(o.value) ? "checked" : ""} /><span>${escapeHtml(o.label)}</span></label>`).join("")}
+      </div>
+      <div class="manage-setting-meta">${settingMeta(PROPOSAL_OWNERS_KEY, (appConfig.proposalOwners || []).map(personName).join(", "))}</div>
+      <div class="manage-setting-actions">
+        ${custom ? `<button class="secondary-button" type="button" data-action="proposal-reset">คืนค่าเริ่มต้น</button>` : ""}
+        <button class="primary-button" type="submit">บันทึกผู้รับผิดชอบ Proposal</button>
+      </div>
+    </form>`;
+}
+
+function contactCard() {
+  const custom = String(state.masterData?.settings?.[DRAWING_CONTACT_KEY] || "").trim();
+  return `
+    <form class="manage-setting-card" data-setting-form="contact" novalidate>
+      <div class="manage-setting-head">
+        <div>
+          <h3>☎️ ช่องทางติดต่อฝ่ายเขียนแบบ</h3>
+          <p>แสดงในคำเตือนตอนผู้รับผิดชอบลา: “หากเร่งด่วน ติดต่อฝ่ายเขียนแบบได้ที่ …”</p>
+        </div>
+      </div>
+      <label class="field">
+        <span>ข้อความติดต่อ</span>
+        <input type="text" name="contact" maxlength="200" value="${escapeHtml(drawingContact())}" placeholder="${escapeHtml(appConfig.drawingContact || "")}" autocomplete="off" />
+      </label>
+      <p class="manage-setting-preview-text">ตัวอย่าง: หากเร่งด่วน ติดต่อฝ่ายเขียนแบบได้ที่ <b data-contact-preview>${escapeHtml(drawingContact())}</b></p>
+      <div class="manage-setting-meta">${settingMeta(DRAWING_CONTACT_KEY, appConfig.drawingContact || "")}</div>
+      <div class="manage-setting-actions">
+        ${custom ? `<button class="secondary-button" type="button" data-action="contact-reset">คืนค่าเริ่มต้น</button>` : ""}
+        <button class="primary-button" type="submit">บันทึกช่องทางติดต่อ</button>
+      </div>
+    </form>`;
+}
+
+async function saveSimpleSetting(key, value, button, auditLabel, beforeText, afterText, rerender) {
+  button.disabled = true;
+  try {
+    await saveSetting(key, value);
+    await writeAudit({ action: `จัดการข้อมูล: แก้ไข${auditLabel}`, detail: `${beforeText} → ${afterText}`.slice(0, 900) });
+    await reloadMasterData();
+    showToast(`บันทึก${auditLabel} แล้ว`, "success");
+    rerender();
+  } catch (error) {
+    showToast(`บันทึกไม่สำเร็จ: ${error.message}`, "error");
+    button.disabled = false;
+  }
+}
+
 function bindSettings(body, rerender) {
+  const proposal = body.querySelector('[data-setting-form="proposal"]');
+  if (proposal) {
+    const names = (emails) => emails.map(personName).join(", ") || "—";
+    proposal.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const picked = [...proposal.querySelectorAll('[name="proposalOwner"]:checked')].map((c) => c.value);
+      if (!picked.length) { showToast("เลือกผู้รับผิดชอบงาน Proposal อย่างน้อย 1 คน", "warning"); return; }
+      saveSimpleSetting(PROPOSAL_OWNERS_KEY, picked.join(", "), proposal.querySelector('[type="submit"]'), "ผู้รับผิดชอบงาน Proposal", names(proposalOwnerEmails()), names(picked), rerender);
+    });
+    proposal.querySelector('[data-action="proposal-reset"]')?.addEventListener("click", (e) =>
+      saveSimpleSetting(PROPOSAL_OWNERS_KEY, "", e.currentTarget, "ผู้รับผิดชอบงาน Proposal", names(proposalOwnerEmails()), `ค่าเริ่มต้น (${names(appConfig.proposalOwners || [])})`, rerender));
+  }
+  const contact = body.querySelector('[data-setting-form="contact"]');
+  if (contact) {
+    const input = contact.querySelector('[name="contact"]');
+    const preview = contact.querySelector("[data-contact-preview]");
+    input.addEventListener("input", () => { preview.textContent = input.value.trim() || appConfig.drawingContact || ""; });
+    contact.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const value = input.value.trim();
+      if (!value) { showToast("กรุณากรอกช่องทางติดต่อ", "warning"); input.focus(); return; }
+      saveSimpleSetting(DRAWING_CONTACT_KEY, value, contact.querySelector('[type="submit"]'), "ช่องทางติดต่อฝ่ายเขียนแบบ", drawingContact(), value, rerender);
+    });
+    contact.querySelector('[data-action="contact-reset"]')?.addEventListener("click", (e) =>
+      saveSimpleSetting(DRAWING_CONTACT_KEY, "", e.currentTarget, "ช่องทางติดต่อฝ่ายเขียนแบบ", drawingContact(), `ค่าเริ่มต้น (${appConfig.drawingContact || ""})`, rerender));
+  }
+
   const form = body.querySelector('[data-setting-form="version"]');
   if (!form) return;
   const input = form.querySelector('input[name="version"]');
