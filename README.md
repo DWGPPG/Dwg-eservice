@@ -185,7 +185,7 @@ Logo ที่ใช้: `PPC NEW-2024 - R1.png` (ไฟล์ root ของโ
 
 **ฝั่ง SharePoint ที่แนะนำให้ IT ตั้งค่า**
 - สร้าง **Index** คอลัมน์ `Status`, `Modified`, `Title`, `SenderEmail`, `AssigneeEmail`, `SubmittedAt` ของ List `DrawingRequests` (ก่อนเกิน 5,000 รายการ)
-- จำกัด **Version history** ของ Document Library (Library settings → Versioning settings): จำนวน major versions = **100** (ค่าต่ำสุดที่ SharePoint Online ยอมให้ตั้งในหน้านี้; ค่าเริ่มต้น 500) + **version time limit = Automatic** (หรือ Manual เช่น 365 วัน) — ถ้าต้องการต่ำกว่า 100 ใช้ PowerShell/หน้า Version history limits ของ site แทน · ดูขนาดที่ Site settings → Storage Metrics
+- จำกัด **Version history** ของ Document Library (Library settings → Versioning settings) เลือกอย่างใดอย่างหนึ่ง: **Automatic** (Microsoft จัดการจำนวน+อายุเวอร์ชันให้เอง — ช่องจำนวนเวอร์ชันจะถูกปิด) หรือ **Manual** = เก็บไม่เกิน N วัน (เช่น 365) + จำนวน major versions **100** (ค่าต่ำสุดที่หน้านี้ยอมรับ; ค่าเริ่มต้น 500) · ดูขนาดที่ Site settings → Storage Metrics
 
 ## ธีม / ดีไซน์ (Neon Blueprint)
 
