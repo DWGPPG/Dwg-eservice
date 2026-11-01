@@ -14,6 +14,7 @@ export const state = {
     kwp: [],
     team: [],
     holidays: [],
+    settings: {},
   },
   loading: false,
   currentRoute: "/dashboard",

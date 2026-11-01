@@ -17,6 +17,7 @@ import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
 import { startLinkInputEnhancer } from "./components/cloud-picker.js";
 import { startResponsiveTables } from "./components/responsive-tables.js";
+import { displayVersion } from "./services/app-settings.js";
 
 const MAX_BACKOFF_MS = 2 * 60 * 1000;
 let pollTimer = null;
@@ -64,8 +65,7 @@ async function boot() {
   document.documentElement.dataset.theme = state.theme;
 
   // แสดงเวอร์ชันระบบใต้ปุ่มออกจากระบบ — ดึงจาก config ที่เดียว ไม่ hardcode ซ้ำใน HTML
-  const versionLabel = qs("#app-version-label");
-  if (versionLabel) versionLabel.textContent = `V${appConfig.app.version}`;
+  renderVersionLabel(state);
 
   // โหลด background video — ลอง path หลายแบบ
   const video = document.getElementById("auth-bg-video");
@@ -432,7 +432,15 @@ function initialsOf(name) {
   return words.slice(0, 2).map((w) => [...w][0]).join("").toUpperCase();
 }
 
+function renderVersionLabel(nextState) {
+  const versionLabel = qs("#app-version-label");
+  if (!versionLabel) return;
+  const text = `V${displayVersion(nextState)}`;
+  if (versionLabel.textContent !== text) versionLabel.textContent = text;
+}
+
 function updateShell(nextState) {
+  renderVersionLabel(nextState);
   const roleChip = qs("#user-role-chip");
   if (roleChip) roleChip.textContent = nextState.user?.roleLabel || "";
   const userName = qs("#sidebar-user-name");

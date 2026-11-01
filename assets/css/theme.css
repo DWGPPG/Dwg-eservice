@@ -3132,3 +3132,41 @@ html.signing-in #auth-panel > * {
   /* กล่องตารางคำร้องล่าสุด: ไม่ต้องจำกัดความสูง/เส้นกรอบซ้อนการ์ด */
   [data-theme] .recent-panel .table-wrap:has(> table.m-card-table) { max-height: none; overflow: visible; border: 0; }
 }
+
+/* ── หน้าจัดการข้อมูล: ตั้งค่าระบบ ── */
+[data-theme] .manage-settings { display: grid; gap: 16px; max-width: 720px; }
+[data-theme] .manage-setting-card {
+  display: grid; gap: 14px; padding: 20px;
+  border: 1px solid var(--line); border-radius: 18px; background: var(--surface-muted);
+}
+[data-theme] .manage-setting-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+[data-theme] .manage-setting-head h3 { margin: 0 0 4px; font-size: 16px; }
+[data-theme] .manage-setting-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+[data-theme] .manage-setting-preview {
+  padding: 6px 14px; border: 1px solid var(--neon); border-radius: 999px;
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: .08em; color: var(--neon); white-space: nowrap;
+}
+[data-theme] .manage-setting-input { display: flex; align-items: center; gap: 8px; }
+[data-theme] .manage-setting-input b { font-family: var(--font-mono); color: var(--muted); }
+[data-theme] .manage-setting-input input { flex: 1; font-family: var(--font-mono); letter-spacing: .04em; }
+[data-theme] .manage-setting-card small { color: var(--muted); font-size: 12px; }
+[data-theme] .manage-setting-meta { font-size: 12px; color: var(--muted); }
+[data-theme] .manage-setting-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/* ── หน้าจัดการข้อมูล: แก้ไขคำร้อง ── */
+[data-theme] .manage-note {
+  margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6;
+  border: 1px solid color-mix(in srgb, var(--neon) 35%, transparent);
+  background: color-mix(in srgb, var(--neon) 7%, transparent); color: var(--text);
+}
+[data-theme] .manage-request-form { display: grid; gap: 12px; }
+[data-theme] .manage-request-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+[data-theme] .manage-request-meta b { color: var(--text); }
+[data-theme] .manage-request-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+[data-theme] .manage-request-grid .is-wide { grid-column: 1 / -1; }
+[data-theme] .manage-request-form textarea { width: 100%; resize: vertical; font: inherit; }
+[data-theme] .manage-request-hint { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.6; color: #b45309; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); }
+[data-theme="dark"] .manage-request-hint { color: #fbbf24; }
+@media (max-width: 640px) {
+  [data-theme] .manage-request-grid { grid-template-columns: minmax(0, 1fr); }
+}

@@ -197,13 +197,14 @@ async function patchItemNow(listName, itemId, fieldsPayload) {
 }
 
 export async function loadMasterData() {
-  let [projects, drawingNumbers, drawingNames, kwp, team, holidays] = await Promise.all([
+  let [projects, drawingNumbers, drawingNames, kwp, team, holidays, settingRows] = await Promise.all([
     getListItems(lists.projects).catch(() => []),
     getListItems(lists.drawingNumbers).catch(() => []),
     getListItems(lists.drawingNames).catch(() => []),
     getListItems(lists.kwp).catch(() => []),
     getListItems(lists.team).catch(() => []),
     getListItems(lists.holidays).catch(() => []),
+    getListItems(lists.settings).catch(() => []),
   ]);
 
   // ทีมโหลดไม่ได้ (เน็ต/สิทธิ์ SharePoint มีปัญหาชั่วคราว) → ใช้รายชื่อชุดล่าสุดที่เคยโหลดสำเร็จแทน
@@ -217,10 +218,48 @@ export async function loadMasterData() {
     teamSource = cached ? "cache" : "none";
   }
 
-  const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays, teamSource };
+  const settings = settingsFromRows(settingRows);
+  const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays, teamSource, settings, settingRows };
   setState({ masterData });
   if (state.account && teamSource === "sharepoint") cacheSet(masterCacheKey(state.account), masterData);
   return masterData;
+}
+
+// ══════════════════════════════════════════════════════════════
+// การตั้งค่าระบบ (List "AppSettings": Title = ชื่อค่า, SettingValue = ค่า)
+// ══════════════════════════════════════════════════════════════
+
+const SETTING_VALUE_FIELD = "SettingValue";
+
+function settingsFromRows(rows = []) {
+  return Object.fromEntries(rows.filter((r) => r.Title).map((r) => [r.Title, r[SETTING_VALUE_FIELD] ?? ""]));
+}
+
+/** สร้าง List "AppSettings" ถ้ายังไม่มี — ใช้สิทธิ์ Sites.ReadWrite.All ที่ระบบมีอยู่แล้ว */
+async function ensureSettingsList() {
+  const existing = await ensureListId(lists.settings);
+  if (existing) return existing;
+  const siteId = await ensureSite();
+  await graphFetch(`/sites/${siteId}/lists`, {
+    method: "POST",
+    body: JSON.stringify({
+      displayName: lists.settings,
+      columns: [{ name: SETTING_VALUE_FIELD, text: { allowMultipleLines: true } }],
+      list: { template: "genericList" },
+    }),
+  });
+  const created = await ensureListId(lists.settings);
+  if (!created) throw new Error(`สร้าง List "${lists.settings}" ไม่สำเร็จ`);
+  return created;
+}
+
+/** บันทึกค่าตั้งค่า 1 รายการ (สร้าง List/รายการให้อัตโนมัติถ้ายังไม่มี) */
+export async function saveSetting(key, value) {
+  await ensureSettingsList();
+  const rows = await getListItems(lists.settings);
+  const row = rows.find((r) => r.Title === key);
+  if (row) await patchItem(lists.settings, row.id, { [SETTING_VALUE_FIELD]: value });
+  else await addItem(lists.settings, { Title: key, [SETTING_VALUE_FIELD]: value });
 }
 
 function masterCacheKey(account) {

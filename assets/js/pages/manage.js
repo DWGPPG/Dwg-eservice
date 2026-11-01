@@ -6,7 +6,9 @@ import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import { refreshNavBadges } from "../router.js";
 import { writeAudit } from "../services/audit-service.js";
-import { addItem, deleteItem, getListItems, loadMasterData, patchItem } from "../sharepoint.js";
+import { addItem, deleteItem, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
+import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
+import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
 
@@ -183,7 +185,9 @@ export function renderManage(view) {
 
   const tabs = [
     { key: "overview", label: "ภาพรวม", icon: "🩺" },
+    { key: "requests", label: "แก้ไขคำร้อง", icon: "✏️", count: state.requests.length },
     ...Object.entries(TABS).map(([key, tab]) => ({ key, label: tab.label, icon: tab.icon, count: activeRows(tab).length })),
+    { key: "settings", label: "ตั้งค่าระบบ", icon: "⚙️" },
     { key: "audit", label: "Audit log", icon: "🧾" },
   ];
 
@@ -208,12 +212,22 @@ export function renderManage(view) {
   `;
 
   bind(view);
+  // แถบแท็บเลื่อนแนวนอนได้ (มีหลายแท็บ) — เลื่อนให้แท็บที่เลือกอยู่มองเห็นเสมอ
+  const activeTab = view.querySelector(".manage-tab.is-active");
+  const strip = activeTab?.parentElement;
+  if (activeTab && strip && strip.scrollWidth > strip.clientWidth) {
+    strip.scrollLeft = Math.max(0, activeTab.offsetLeft - strip.offsetLeft - 16);
+  }
   if (ui.tab === "audit" && !ui.audit && !ui.auditLoading) loadAudit(view);
 }
+
+let rerenderBodyRef = () => {};
 
 function renderBody() {
   if (ui.tab === "overview") return renderOverview();
   if (ui.tab === "audit") return renderAudit();
+  if (ui.tab === "settings") return renderSettings();
+  if (ui.tab === "requests") return renderRequestEditor(() => rerenderBodyRef());
   return renderTable(ui.tab);
 }
 
@@ -567,6 +581,15 @@ function bindBody(view) {
   body.querySelectorAll('[data-action="toggle"]').forEach((b) => b.addEventListener("click", () => toggleHidden(ui.tab, find(b.dataset.id), rerender)));
   body.querySelectorAll('[data-action="delete"]').forEach((b) => b.addEventListener("click", () => confirmDelete(ui.tab, find(b.dataset.id), rerender)));
 
+  bindSettings(body, rerender);
+  // แท็บแก้ไขคำร้อง: วาดเฉพาะเนื้อหาแท็บใหม่ (ไม่วาดแถบแท็บ) — ช่องค้นหาไม่เสียโฟกัส
+  rerenderBodyRef = () => {
+    if (!body.isConnected) return;
+    body.innerHTML = renderBody();
+    bindBody(view);
+  };
+  bindRequestEditor(body, rerenderBodyRef);
+
   body.querySelector('[data-action="audit-reload"]')?.addEventListener("click", () => {
     ui.audit = null;
     rerender();
@@ -576,6 +599,89 @@ function bindBody(view) {
       ["เวลา", "การกระทำ", "เลขคำร้อง", "ผู้ใช้", "อีเมล", "รายละเอียด"],
       ...(ui.audit || []).map((r) => [formatDate(r.actionAt), r.action, r.requestNo, r.userName, r.userEmail, r.detail]),
     ]);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ตั้งค่าระบบ — เวอร์ชันเว็บ (แสดงใต้แถบเมนูซ้าย)
+// ══════════════════════════════════════════════════════════════
+
+const VERSION_PATTERN = /^[0-9A-Za-z][0-9A-Za-z.\-_ ()]{0,29}$/;
+
+function renderSettings() {
+  const custom = normalizeVersion(state.masterData?.settings?.[VERSION_KEY]);
+  const fallback = normalizeVersion(appConfig.app.version);
+  const row = (state.masterData?.settingRows || []).find((r) => r.Title === VERSION_KEY);
+  const updated = row?.Modified ? `แก้ไขล่าสุด ${formatDate(row.Modified)}` : "";
+  return `
+    <div class="manage-settings">
+      <form class="manage-setting-card" data-setting-form="version" novalidate>
+        <div class="manage-setting-head">
+          <div>
+            <h3>🏷️ เวอร์ชันเว็บ</h3>
+            <p>แสดงใต้แถบเมนูซ้ายของผู้ใช้ทุกคน — ใช้บอกว่ากำลังใช้ระบบรุ่นไหน (เช่นหลังอัปเดตฟีเจอร์ใหม่)</p>
+          </div>
+          <span class="manage-setting-preview" aria-label="ตัวอย่าง">V${escapeHtml(displayVersion())}</span>
+        </div>
+        <label class="field">
+          <span>เลขเวอร์ชัน</span>
+          <div class="manage-setting-input">
+            <b aria-hidden="true">V</b>
+            <input type="text" name="version" maxlength="30" value="${escapeHtml(custom || fallback)}" placeholder="${escapeHtml(fallback)}" autocomplete="off" />
+          </div>
+          <small>ใช้ตัวเลข ตัวอักษร จุด ขีด ได้ ไม่เกิน 30 ตัว เช่น 1.1.0.2026 · ไม่ต้องพิมพ์ “V” นำหน้า</small>
+        </label>
+        <div class="manage-setting-meta">
+          ${custom ? `ตั้งค่าจากหน้านี้${updated ? ` · ${escapeHtml(updated)}` : ""}` : `ตอนนี้ใช้ค่าเริ่มต้นจาก config.js (V${escapeHtml(fallback)})`}
+        </div>
+        <div class="manage-setting-actions">
+          ${custom ? `<button class="secondary-button" type="button" data-action="version-reset">คืนค่าเริ่มต้น (V${escapeHtml(fallback)})</button>` : ""}
+          <button class="primary-button" type="submit">บันทึกเวอร์ชัน</button>
+        </div>
+      </form>
+    </div>`;
+}
+
+function bindSettings(body, rerender) {
+  const form = body.querySelector('[data-setting-form="version"]');
+  if (!form) return;
+  const input = form.querySelector('input[name="version"]');
+  const preview = form.querySelector(".manage-setting-preview");
+  input.addEventListener("input", () => {
+    preview.textContent = `V${normalizeVersion(input.value) || normalizeVersion(appConfig.app.version)}`;
+  });
+
+  const save = async (value, button, label) => {
+    const before = displayVersion();
+    button.disabled = true;
+    try {
+      await saveSetting(VERSION_KEY, value);
+      await writeAudit({ action: "จัดการข้อมูล: แก้ไขเวอร์ชันเว็บ", detail: `V${before} → V${value || normalizeVersion(appConfig.app.version)}` });
+      await reloadMasterData();
+      showToast(label, "success");
+      rerender();
+    } catch (error) {
+      showToast(`บันทึกเวอร์ชันไม่สำเร็จ: ${error.message}`, "error");
+      button.disabled = false;
+    }
+  };
+
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const value = normalizeVersion(input.value);
+    if (!value || !VERSION_PATTERN.test(value)) {
+      showToast("รูปแบบเวอร์ชันไม่ถูกต้อง — ใช้ตัวเลข ตัวอักษร จุด หรือขีด ไม่เกิน 30 ตัว", "warning");
+      input.focus();
+      return;
+    }
+    if (value === displayVersion() && normalizeVersion(state.masterData?.settings?.[VERSION_KEY])) {
+      showToast("เวอร์ชันนี้ถูกตั้งไว้แล้ว", "info");
+      return;
+    }
+    save(value, form.querySelector('[type="submit"]'), `บันทึกเวอร์ชัน V${value} แล้ว — ผู้ใช้คนอื่นจะเห็นเมื่อเปิดเว็บหรือรีเฟรชครั้งถัดไป`);
+  });
+  form.querySelector('[data-action="version-reset"]')?.addEventListener("click", (event) => {
+    save("", event.currentTarget, `คืนค่าเวอร์ชันเป็น V${normalizeVersion(appConfig.app.version)} แล้ว`);
   });
 }
 
