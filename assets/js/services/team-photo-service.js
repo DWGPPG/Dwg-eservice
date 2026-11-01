@@ -16,6 +16,8 @@ const MAX_SIDE = 1600;
 
 let listing = null;       // Promise<Map<name, {id, url, ts}>>
 let listedAt = 0;
+let resolved = new Map(); // รายการล่าสุดที่โหลดเสร็จแล้ว — ใช้แบบ synchronous ตอนวาด (ไม่ให้รูปกระพริบ)
+const preloaded = new Map(); // url → Promise (ถอดรหัสรูปไว้ล่วงหน้า สลับสไลด์ได้ทันที)
 
 export function photoFileName(key) {
   const base = String(key || "").trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "_");
@@ -46,9 +48,28 @@ export function listTeamPhotos(force = false) {
     } catch (error) {
       if (!String(error.message || "").includes("404")) console.warn("โหลดรูปทีมงานไม่สำเร็จ:", error.message);
     }
+    resolved = map;
     return map;
   })();
   return listing;
+}
+
+/** ลิงก์รูปจากรายการที่โหลดแล้ว (ไม่รอเครือข่าย) — null ถ้ายังไม่โหลด/ไม่มีรูป */
+export function photoUrlSync(key) {
+  return resolved.get(photoFileName(key))?.url || null;
+}
+
+/** โหลด+ถอดรหัสรูปไว้ล่วงหน้า — resolve เมื่อพร้อมแสดง (ล้มเหลวก็ resolve เพื่อไม่ค้าง) */
+export function preloadPhoto(url) {
+  if (!url) return Promise.resolve(false);
+  if (!preloaded.has(url)) {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    preloaded.set(url, (img.decode ? img.decode() : new Promise((res, rej) => { img.onload = res; img.onerror = rej; }))
+      .then(() => true).catch(() => false));
+  }
+  return preloaded.get(url);
 }
 
 /** ลิงก์รูปของคน (อีเมล) หรือรูปปก (COVER_KEY) — null ถ้ายังไม่มีรูป */

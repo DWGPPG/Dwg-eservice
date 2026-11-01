@@ -9,7 +9,7 @@
 
 import { STATUS } from "../../../config/schema.js";
 import { getDrawingTeamMembers } from "../services/team-service.js";
-import { COVER_KEY, hydrateTeamPhotos } from "../services/team-photo-service.js";
+import { COVER_KEY, listTeamPhotos, photoUrlSync, preloadPhoto } from "../services/team-photo-service.js";
 import { escapeHtml } from "../utils.js";
 import { openRequestDetail } from "./track.js";
 
@@ -178,10 +178,16 @@ function slideBody(slide) {
     </div>`;
 }
 
+const photoStyle = (key) => {
+  const url = photoUrlSync(key);
+  return url ? ` style="background-image:url(&quot;${url.replace(/"/g, "%22")}&quot;)"` : "";
+};
+
 function cardHtml(slide, index) {
+  const has = Boolean(photoUrlSync(slide.key));
   return `
     <button type="button" class="ts-card" data-ts-go="${index}" aria-label="ดู ${escapeHtml(slide.title)}">
-      <span class="ts-card-photo" data-team-photo="${escapeHtml(slide.key)}"><b>${escapeHtml(slide.isTeam ? "DWG" : initials(slide.title))}</b></span>
+      <span class="ts-card-photo ${has ? "has-photo" : ""}" data-photo-key="${escapeHtml(slide.key)}"${photoStyle(slide.key)}><b>${escapeHtml(slide.isTeam ? "DWG" : initials(slide.title))}</b></span>
       <span class="ts-card-text">
         <small>${escapeHtml(slide.kicker)}</small>
         <strong>${escapeHtml(slide.title)}</strong>
@@ -190,58 +196,142 @@ function cardHtml(slide, index) {
     </button>`;
 }
 
+const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 export function renderTeamShowcase(state) {
   const section = document.createElement("section");
   section.className = "team-showcase";
   section.setAttribute("aria-label", "ทีมงานฝ่ายเขียนแบบ");
   const requests = state.requests || [];
+  let slides = buildSlides(requests, ui.period);
+  ui.index = ((ui.index % slides.length) + slides.length) % slides.length;
 
-  const draw = () => {
-    const slides = buildSlides(requests, ui.period);
-    ui.index = ((ui.index % slides.length) + slides.length) % slides.length;
-    const current = slides[ui.index];
-    const nextCards = [];
-    // แสดงการ์ดของทุกคน (ไม่รวมสไลด์ที่เปิดอยู่) เรียงต่อจากคนปัจจุบัน
-    for (let i = 1; i < slides.length; i++) nextCards.push((ui.index + i) % slides.length);
+  // โครงสร้างคงที่ — สลับสไลด์แค่เปลี่ยนเนื้อหาข้างใน (ไม่สร้างใหม่ทั้งกล่อง รูปจึงไม่กระพริบ)
+  section.innerHTML = `
+    <div class="ts-bg" data-layer="0"><span class="ts-bg-initials" aria-hidden="true"></span></div>
+    <div class="ts-bg" data-layer="1"><span class="ts-bg-initials" aria-hidden="true"></span></div>
+    <div class="ts-shade" aria-hidden="true"></div>
+    <div class="ts-top">
+      <span class="ts-brand">👥 ทีมงานฝ่ายเขียนแบบ</span>
+      <div class="ts-periods" role="tablist">
+        ${Object.entries(PERIODS).map(([k, label]) => `<button type="button" class="ts-period ${ui.period === k ? "is-active" : ""}" data-ts-period="${k}">${label}</button>`).join("")}
+      </div>
+    </div>
+    <div class="ts-body"></div>
+    <div class="ts-cards"></div>
+    <div class="ts-nav">
+      <button type="button" class="ts-arrow" data-ts-step="-1" aria-label="ก่อนหน้า">‹</button>
+      <button type="button" class="ts-arrow" data-ts-step="1" aria-label="ถัดไป">›</button>
+      <div class="ts-progress"><i></i></div>
+      <span class="ts-number"></span>
+    </div>`;
+  const layers = [...section.querySelectorAll(".ts-bg")];
+  const body = section.querySelector(".ts-body");
+  const cards = section.querySelector(".ts-cards");
+  let activeLayer = 0;
+  let busy = false;
 
-    section.innerHTML = `
-      <div class="ts-bg" data-team-photo="${escapeHtml(current.key)}">
-        <span class="ts-bg-initials" aria-hidden="true">${escapeHtml(current.isTeam ? "DWG" : initials(current.title))}</span>
-      </div>
-      <div class="ts-shade" aria-hidden="true"></div>
-      <div class="ts-top">
-        <span class="ts-brand">👥 ทีมงานฝ่ายเขียนแบบ</span>
-        <div class="ts-periods" role="tablist">
-          ${Object.entries(PERIODS).map(([k, label]) => `<button type="button" class="ts-period ${ui.period === k ? "is-active" : ""}" data-ts-period="${k}">${label}</button>`).join("")}
-        </div>
-      </div>
-      <div class="ts-body">${slideBody(current)}</div>
-      <div class="ts-cards">${nextCards.map((i) => cardHtml(slides[i], i)).join("")}</div>
-      <div class="ts-nav">
-        <button type="button" class="ts-arrow" data-ts-step="-1" aria-label="ก่อนหน้า">‹</button>
-        <button type="button" class="ts-arrow" data-ts-step="1" aria-label="ถัดไป">›</button>
-        <div class="ts-progress"><i style="width:${((ui.index + 1) / slides.length) * 100}%"></i></div>
-        <span class="ts-number">${pad(ui.index + 1)}</span>
-      </div>`;
-    hydrateTeamPhotos(section);
+  const paintLayer = (layer, slide) => {
+    const url = photoUrlSync(slide.key);
+    layer.style.backgroundImage = url ? `url("${url.replace(/"/g, "%22")}")` : "";
+    layer.classList.toggle("has-photo", Boolean(url));
+    layer.querySelector(".ts-bg-initials").textContent = slide.isTeam ? "DWG" : initials(slide.title);
+  };
+  const restartKenBurns = (layer) => {
+    layer.classList.remove("is-zooming");
+    void layer.offsetWidth; // รีสตาร์ทแอนิเมชันซูมช้า
+    layer.classList.add("is-zooming");
+  };
+  const renderCards = () => {
+    const order = [];
+    for (let i = 1; i < slides.length; i++) order.push((ui.index + i) % slides.length);
+    cards.innerHTML = order.map((i) => cardHtml(slides[i], i)).join("");
+  };
+  const renderNav = () => {
+    section.querySelector(".ts-progress i").style.width = `${((ui.index + 1) / slides.length) * 100}%`;
+    section.querySelector(".ts-number").textContent = pad(ui.index + 1);
+  };
+  const renderAll = () => {
+    const slide = slides[ui.index];
+    paintLayer(layers[activeLayer], slide);
+    layers[activeLayer].classList.add("is-active");
+    restartKenBurns(layers[activeLayer]);
+    body.innerHTML = slideBody(slide);
+    renderCards();
+    renderNav();
   };
 
-  const go = (index, fromCard = null) => {
-    // การ์ดที่คลิกขยายเต็มกรอบก่อนเปลี่ยนสไลด์ (เหมือนในวิดีโอ)
-    if (fromCard && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const box = section.getBoundingClientRect();
-      const r = fromCard.getBoundingClientRect();
-      const ghost = fromCard.querySelector(".ts-card-photo").cloneNode(true);
-      ghost.className = "ts-ghost";
-      Object.assign(ghost.style, { left: `${r.left - box.left}px`, top: `${r.top - box.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-      section.appendChild(ghost);
-      requestAnimationFrame(() => Object.assign(ghost.style, { left: "0px", top: "0px", width: `${box.width}px`, height: `${box.height}px`, borderRadius: "28px" }));
-      setTimeout(() => { ui.index = index; draw(); }, 480);
+  /** เปลี่ยนสไลด์: เนื้อหาเลื่อนออก-เข้า + รูปพื้นหลังค่อยๆ ซ้อนทับ (crossfade) — รูปถูกโหลดไว้ล่วงหน้าแล้ว */
+  const go = async (index, fromCard = null) => {
+    if (busy) return;
+    const next = ((index % slides.length) + slides.length) % slides.length;
+    if (next === ui.index && !fromCard) return;
+    busy = true;
+    const slide = slides[next];
+    const url = photoUrlSync(slide.key);
+    const loading = preloadPhoto(url);
+    const incoming = layers[1 - activeLayer];
+    const outgoing = layers[activeLayer];
+
+    if (reduceMotion()) {
+      ui.index = next;
+      await loading;
+      outgoing.classList.remove("is-active");
+      activeLayer = 1 - activeLayer;
+      renderAll();
+      busy = false;
       return;
     }
-    ui.index = index;
-    section.classList.add("is-switching");
-    setTimeout(() => { draw(); section.classList.remove("is-switching"); }, 180);
+
+    body.classList.add("is-leaving");
+    cards.classList.add("is-leaving");
+
+    if (fromCard) {
+      // การ์ดที่คลิกขยายเต็มกรอบด้วย clip-path (ลื่นบน GPU ไม่บิดรูป) แล้วกลายเป็นพื้นหลัง
+      const box = section.getBoundingClientRect();
+      const r = fromCard.getBoundingClientRect();
+      const ghost = document.createElement("div");
+      ghost.className = "ts-ghost";
+      if (url) ghost.style.backgroundImage = `url("${url.replace(/"/g, "%22")}")`;
+      else ghost.classList.add("is-blank");
+      const inset = `inset(${r.top - box.top}px ${box.right - r.right}px ${box.bottom - r.bottom}px ${r.left - box.left}px round 18px)`;
+      ghost.style.clipPath = inset;
+      section.appendChild(ghost);
+      await loading;
+      await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
+      ghost.classList.add("is-expanding");
+      ghost.style.clipPath = "inset(0px 0px 0px 0px round 28px)";
+      await wait(620);
+      ui.index = next;
+      paintLayer(incoming, slide);
+      incoming.classList.add("is-instant", "is-active");
+      restartKenBurns(incoming);
+      outgoing.classList.remove("is-active");
+      activeLayer = 1 - activeLayer;
+      requestAnimationFrame(() => incoming.classList.remove("is-instant"));
+      ghost.classList.add("is-done");
+      setTimeout(() => ghost.remove(), 350);
+    } else {
+      await Promise.all([loading, wait(220)]);
+      ui.index = next;
+      paintLayer(incoming, slide);
+      restartKenBurns(incoming);
+      incoming.classList.add("is-active");   // ค่อยๆ ปรากฏทับรูปเดิม
+      outgoing.classList.remove("is-active");
+      activeLayer = 1 - activeLayer;
+    }
+
+    body.innerHTML = slideBody(slide);
+    renderCards();
+    renderNav();
+    body.classList.remove("is-leaving");
+    cards.classList.remove("is-leaving");
+    body.classList.add("is-entering");
+    cards.classList.add("is-entering");
+    setTimeout(() => { body.classList.remove("is-entering"); cards.classList.remove("is-entering"); }, 600);
+    await wait(250);
+    busy = false;
   };
 
   section.addEventListener("click", (event) => {
@@ -256,7 +346,13 @@ export function renderTeamShowcase(state) {
     const card = event.target.closest("[data-ts-go]");
     if (card) { go(Number(card.dataset.tsGo), card); restart(); return; }
     const period = event.target.closest("[data-ts-period]");
-    if (period) { ui.period = period.dataset.tsPeriod; draw(); }
+    if (period) {
+      ui.period = period.dataset.tsPeriod;
+      section.querySelectorAll("[data-ts-period]").forEach((b) => b.classList.toggle("is-active", b === period));
+      slides = buildSlides(requests, ui.period);
+      body.innerHTML = slideBody(slides[ui.index]);
+      renderCards();
+    }
   });
 
   // เลื่อนอัตโนมัติ — timer เดียวทั้งหน้า (หน้าถูกวาดใหม่บ่อยจาก polling)
@@ -265,7 +361,7 @@ export function renderTeamShowcase(state) {
   section.addEventListener("pointerleave", () => { hovering = false; });
   const restart = () => {
     clearInterval(ui.timer);
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduceMotion()) return;
     ui.timer = setInterval(() => {
       if (!section.isConnected) { clearInterval(ui.timer); return; }
       if (hovering || document.hidden || document.querySelector("#modal-root")?.children.length) return;
@@ -273,7 +369,32 @@ export function renderTeamShowcase(state) {
     }, AUTOPLAY_MS);
   };
 
-  draw();
+  renderAll();
   restart();
+
+  // รูปมาถึงทีหลัง (ครั้งแรกที่เปิดหน้า) → ใส่รูปแบบค่อยๆ ปรากฏ แล้วโหลดรูปทุกคนไว้ล่วงหน้า
+  listTeamPhotos().then(async (map) => {
+    if (!section.isConnected) return;
+    const slide = slides[ui.index];
+    const url = photoUrlSync(slide.key);
+    if (url && !layers[activeLayer].classList.contains("has-photo")) {
+      await preloadPhoto(url);
+      if (busy || slides[ui.index] !== slide) return;
+      // ค่อยๆ เฟดรูปเข้ามาแทนพื้นสี (ไม่โผล่ทันที)
+      const incoming = layers[1 - activeLayer];
+      paintLayer(incoming, slide);
+      restartKenBurns(incoming);
+      incoming.classList.add("is-active");
+      layers[activeLayer].classList.remove("is-active");
+      activeLayer = 1 - activeLayer;
+    }
+    cards.querySelectorAll("[data-photo-key]").forEach((el) => {
+      const u = photoUrlSync(el.dataset.photoKey);
+      if (!u || el.classList.contains("has-photo")) return;
+      preloadPhoto(u).then(() => { el.style.backgroundImage = `url("${u.replace(/"/g, "%22")}")`; el.classList.add("has-photo"); });
+    });
+    [...map.values()].forEach((entry) => preloadPhoto(entry.url));
+  });
+
   return section;
 }
