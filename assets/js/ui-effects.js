@@ -262,3 +262,63 @@
     });
   }
 })();
+
+// ── เคอร์เซอร์เรืองแสง (ทุกหน้า): แสงนวลตามเมาส์ + วงแหวนนีออนรอบเคอร์เซอร์ ──
+// ตกแต่งล้วนๆ: pointer-events: none ไม่บังการคลิก, ไม่ซ่อนเคอร์เซอร์จริง
+// ปิดอัตโนมัติบนจอสัมผัส (มือถือ/แท็บเล็ต) และเมื่อผู้ใช้ตั้งค่า "ลดการเคลื่อนไหว"
+(function () {
+  const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!finePointer || reduceMotion) return;
+
+  const glow = document.createElement("div");
+  glow.className = "cursor-glow";
+  glow.setAttribute("aria-hidden", "true");
+  const ring = document.createElement("div");
+  ring.className = "cursor-ring";
+  ring.setAttribute("aria-hidden", "true");
+  document.body.append(glow, ring);
+
+  let tx = -999, ty = -999;     // ตำแหน่งเมาส์จริง
+  let gx = tx, gy = ty;         // แสงนวล (ตามช้าๆ ให้ดูนุ่ม)
+  let rx = tx, ry = ty;         // วงแหวน (ตามเร็ว)
+  let raf = 0;
+
+  const INTERACTIVE = "a, button, select, summary, label, [role='button'], [role='tab'], [data-request-detail], input[type='checkbox'], input[type='radio']";
+  const TEXT = "input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']), textarea, [contenteditable='true']";
+
+  const loop = () => {
+    gx += (tx - gx) * 0.14;
+    gy += (ty - gy) * 0.14;
+    rx += (tx - rx) * 0.42;
+    ry += (ty - ry) * 0.42;
+    glow.style.transform = `translate3d(${gx}px, ${gy}px, 0)`;
+    ring.style.transform = `translate3d(${rx}px, ${ry}px, 0)`;
+    // หยุดวาดเมื่อแสงตามทันแล้ว — ไม่กิน CPU ตอนเมาส์นิ่ง
+    if (Math.abs(tx - gx) + Math.abs(ty - gy) + Math.abs(tx - rx) + Math.abs(ty - ry) > 0.5) {
+      raf = requestAnimationFrame(loop);
+    } else {
+      raf = 0;
+    }
+  };
+  const kick = () => { if (!raf) raf = requestAnimationFrame(loop); };
+
+  document.addEventListener("pointermove", (event) => {
+    if (event.pointerType && event.pointerType !== "mouse") return;
+    tx = event.clientX;
+    ty = event.clientY;
+    if (!document.body.classList.contains("cursor-fx-on")) {
+      gx = rx = tx; gy = ry = ty; // เข้าหน้าจอครั้งแรก: วางตรงเมาส์เลย ไม่ลอยมาจากมุมจอ
+      document.body.classList.add("cursor-fx-on");
+    }
+    const target = event.target instanceof Element ? event.target : null;
+    ring.classList.toggle("is-hover", Boolean(target?.closest(INTERACTIVE)));
+    ring.classList.toggle("is-text", Boolean(target?.closest(TEXT)));
+    kick();
+  }, { passive: true });
+
+  document.addEventListener("pointerdown", () => ring.classList.add("is-press"), { passive: true });
+  document.addEventListener("pointerup", () => ring.classList.remove("is-press"), { passive: true });
+  document.documentElement.addEventListener("mouseleave", () => document.body.classList.remove("cursor-fx-on"));
+  window.addEventListener("blur", () => document.body.classList.remove("cursor-fx-on"));
+})();
