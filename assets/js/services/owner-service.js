@@ -2,7 +2,7 @@
 // ผู้รับผิดชอบโครงการ + วันลาของบุคลากรฝ่ายเขียนแบบ
 //  - ProjectOwners: ProjectName, OwnerEmail, RequestTypes (ว่าง = ทุกประเภท), Note
 //  - StaffLeave:    Title(ชื่อ), Email, LeaveStart, LeaveEnd (YYYY-MM-DD), Period, Note
-//  - งาน "📋 เขียนแบบ Proposal" → appConfig.proposalOwners เสมอ
+//  - งาน "📋 เขียนแบบ Proposal" → ผู้รับผิดชอบงาน Proposal (ตั้งในหน้าจัดการข้อมูล → ตั้งค่าระบบ) เสมอ
 //  - ผู้รับผิดชอบโครงการ "ไม่เปลี่ยน" เมื่อมีการดึงงาน/โอนงานระหว่างบุคคล (เป็นข้อมูลแยกจากผู้รับงานของคำร้อง)
 // ══════════════════════════════════════════════════════════════
 
@@ -11,6 +11,22 @@ import { state } from "../state.js";
 import { escapeHtml } from "../utils.js";
 import { toDateKey } from "./due-date.js";
 import { getDrawingTeamMembers } from "./team-service.js";
+
+// ค่าที่แก้ได้จากหน้า "จัดการข้อมูล → ตั้งค่าระบบ" (List AppSettings) — ไม่เคยตั้ง = ใช้ค่าใน config.js
+export const PROPOSAL_OWNERS_KEY = "proposalOwners";
+export const DRAWING_CONTACT_KEY = "drawingContact";
+
+/** อีเมลผู้รับผิดชอบงาน Proposal */
+export function proposalOwnerEmails() {
+  const custom = String(state.masterData?.settings?.[PROPOSAL_OWNERS_KEY] || "").trim();
+  const list = custom ? custom.split(/[,\s]+/) : (appConfig.proposalOwners || []);
+  return [...new Set(list.map((e) => String(e).trim().toLowerCase()).filter(Boolean))];
+}
+
+/** ช่องทางติดต่อฝ่ายเขียนแบบ (แสดงตอนผู้รับผิดชอบลา) */
+export function drawingContact() {
+  return String(state.masterData?.settings?.[DRAWING_CONTACT_KEY] || "").trim() || appConfig.drawingContact || "ห้องฝ่ายเขียนแบบ";
+}
 
 export const LEAVE_PERIODS = ["เต็มวัน", "ครึ่งวันเช้า", "ครึ่งวันบ่าย"];
 
@@ -41,7 +57,7 @@ export function splitTypes(text) {
  */
 export function ownersFor(projectName, requestType) {
   if (isProposalType(requestType)) {
-    return (appConfig.proposalOwners || []).map((email) => ({ email: norm(email), name: personName(email), source: "proposal" }));
+    return proposalOwnerEmails().map((email) => ({ email, name: personName(email), source: "proposal" }));
   }
   if (!projectName) return [];
   const seen = new Set();
@@ -73,7 +89,7 @@ export function ownerNoticeHtml(projectName, requestType, dateKey = todayKey()) 
   const owners = ownersFor(projectName, requestType).map((o) => ({ ...o, leave: leaveOf(o.email, dateKey) }));
   if (!owners.length) return "";
   const away = owners.filter((o) => o.leave);
-  const contact = appConfig.drawingContact || "ห้องฝ่ายเขียนแบบ";
+  const contact = drawingContact();
   const chips = owners.map((o) => `
     <span class="owner-chip ${o.leave ? "is-away" : ""}">
       <b>${escapeHtml(o.name)}</b>${o.leave ? ` <em>ลา${o.leave.Period && o.leave.Period !== "เต็มวัน" ? escapeHtml(o.leave.Period) : "วันนี้"}</em>` : ""}
