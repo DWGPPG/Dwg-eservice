@@ -8,6 +8,8 @@ export const lists = {
   team: "DrawingTeam",
   auditLog: "AuditLog",
   holidays: "HolidayList",
+  // การตั้งค่าระบบที่แก้จากหน้า "จัดการข้อมูล" (เช่น เวอร์ชันเว็บ) — ระบบสร้าง List นี้ให้เองตอนบันทึกครั้งแรก
+  settings: "AppSettings",
 };
 
 // ── Field mapping: local key (ใช้ในโค้ด JS) → SharePoint internal field name จริง ──

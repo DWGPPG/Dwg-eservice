@@ -3132,3 +3132,23 @@ html.signing-in #auth-panel > * {
   /* กล่องตารางคำร้องล่าสุด: ไม่ต้องจำกัดความสูง/เส้นกรอบซ้อนการ์ด */
   [data-theme] .recent-panel .table-wrap:has(> table.m-card-table) { max-height: none; overflow: visible; border: 0; }
 }
+
+/* ── หน้าจัดการข้อมูล: ตั้งค่าระบบ ── */
+[data-theme] .manage-settings { display: grid; gap: 16px; max-width: 720px; }
+[data-theme] .manage-setting-card {
+  display: grid; gap: 14px; padding: 20px;
+  border: 1px solid var(--line); border-radius: 18px; background: var(--surface-muted);
+}
+[data-theme] .manage-setting-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+[data-theme] .manage-setting-head h3 { margin: 0 0 4px; font-size: 16px; }
+[data-theme] .manage-setting-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+[data-theme] .manage-setting-preview {
+  padding: 6px 14px; border: 1px solid var(--neon); border-radius: 999px;
+  font-family: var(--font-mono); font-size: 13px; letter-spacing: .08em; color: var(--neon); white-space: nowrap;
+}
+[data-theme] .manage-setting-input { display: flex; align-items: center; gap: 8px; }
+[data-theme] .manage-setting-input b { font-family: var(--font-mono); color: var(--muted); }
+[data-theme] .manage-setting-input input { flex: 1; font-family: var(--font-mono); letter-spacing: .04em; }
+[data-theme] .manage-setting-card small { color: var(--muted); font-size: 12px; }
+[data-theme] .manage-setting-meta { font-size: 12px; color: var(--muted); }
+[data-theme] .manage-setting-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
