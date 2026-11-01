@@ -3170,3 +3170,97 @@ html.signing-in #auth-panel > * {
 @media (max-width: 640px) {
   [data-theme] .manage-request-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   เคอร์เซอร์เรืองแสง (ui-effects.js) — ทุกหน้า, เฉพาะเมาส์ (ปิดบนจอสัมผัส)
+   ══════════════════════════════════════════════════════════════ */
+.cursor-glow,
+.cursor-ring {
+  position: fixed;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+  transition: opacity 0.35s ease;
+}
+.cursor-glow {
+  z-index: 9998;
+  width: 520px;
+  height: 520px;
+  margin: -260px 0 0 -260px;
+  background: radial-gradient(circle, rgba(0, 223, 143, 0.13) 0%, rgba(0, 223, 143, 0.05) 32%, transparent 64%);
+}
+.cursor-ring {
+  z-index: 9999;
+  width: 30px;
+  height: 30px;
+  margin: -15px 0 0 -15px;
+  border: 1.5px solid rgba(0, 223, 143, 0.75);
+  box-shadow: 0 0 14px rgba(0, 223, 143, 0.55), inset 0 0 8px rgba(0, 223, 143, 0.25);
+  transition: opacity 0.35s ease, width 0.22s ease, height 0.22s ease, margin 0.22s ease, background-color 0.22s ease, border-color 0.22s ease;
+}
+body.cursor-fx-on .cursor-glow,
+body.cursor-fx-on .cursor-ring { opacity: 1; }
+.cursor-ring.is-hover {
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  background-color: rgba(0, 223, 143, 0.1);
+  border-color: rgba(0, 223, 143, 0.95);
+}
+.cursor-ring.is-press { width: 22px; height: 22px; margin: -11px 0 0 -11px; }
+body.cursor-fx-on .cursor-ring.is-text { opacity: 0.25; }
+
+/* โหมดสว่าง: แสงอ่อนลง ไม่ให้พื้นขาวดูหม่น */
+[data-theme="light"] .cursor-glow {
+  background: radial-gradient(circle, rgba(0, 190, 120, 0.09) 0%, rgba(0, 190, 120, 0.035) 32%, transparent 64%);
+}
+[data-theme="light"] .cursor-ring {
+  border-color: rgba(0, 170, 108, 0.8);
+  box-shadow: 0 0 12px rgba(0, 190, 120, 0.4);
+}
+
+@media print { .cursor-glow, .cursor-ring { display: none !important; } }
+
+/* รูปโปรไฟล์ Microsoft 365 ในการ์ดผู้ใช้ */
+[data-theme] .sidebar-avatar.has-photo { background: var(--surface-muted); padding: 0; overflow: hidden; box-shadow: 0 0 0 2px color-mix(in srgb, var(--neon) 55%, transparent); }
+[data-theme] .sidebar-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+
+/* ══════════════════════════════════════════════════════════════
+   กำหนดส่งตรงวันหยุด / ผู้รับผิดชอบโครงการ / วันลา
+   ══════════════════════════════════════════════════════════════ */
+[data-theme] .due-use-next {
+  margin-left: 6px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid #dc2626; background: #fff; color: #b91c1c; font: inherit; font-size: 11.5px; font-weight: 700;
+}
+[data-theme] .due-use-next:hover { background: #dc2626; color: #fff; }
+[data-theme] .due-offday-warn {
+  margin-top: 6px; padding: 8px 12px; border-radius: 10px; font-size: 12px; line-height: 1.6;
+  background: #fef2f2; border: 1.5px solid #fca5a5; color: #991b1b;
+}
+[data-theme="dark"] .due-offday-warn { background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.45); color: #fecaca; }
+[data-theme="dark"] .due-use-next { background: transparent; color: #fecaca; border-color: rgba(248, 113, 113, 0.7); }
+[data-theme] input.is-off-day { border-color: #ef4444 !important; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+
+[data-theme] .owner-notice {
+  margin-top: 10px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6;
+  border: 1px solid color-mix(in srgb, var(--neon) 35%, transparent);
+  background: color-mix(in srgb, var(--neon) 7%, transparent);
+}
+[data-theme] .owner-notice.has-away { border-color: rgba(245, 158, 11, 0.5); background: rgba(245, 158, 11, 0.08); }
+[data-theme] .owner-notice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+[data-theme] .owner-notice-label { font-weight: 700; color: var(--text); }
+[data-theme] .owner-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+[data-theme] .owner-chip { padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface); font-size: 12.5px; }
+[data-theme] .owner-chip.is-away { border-color: rgba(245, 158, 11, 0.7); }
+[data-theme] .owner-chip em { font-style: normal; color: #d97706; font-weight: 700; font-size: 11.5px; }
+[data-theme] .owner-notice-warn { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(245, 158, 11, 0.5); color: #b45309; }
+[data-theme="dark"] .owner-notice-warn, [data-theme="dark"] .owner-chip em { color: #fbbf24; }
+[data-theme] .owner-tag { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; color: #047857; background: rgba(16, 185, 129, 0.14); vertical-align: middle; }
+[data-theme] .owner-tag.is-away { color: #b45309; background: rgba(245, 158, 11, 0.16); }
+[data-theme="dark"] .owner-tag { color: #6ee7b7; }
+[data-theme="dark"] .owner-tag.is-away { color: #fbbf24; }
+[data-theme] .manage-multicheck { border: 0; padding: 0; margin: 0; }
+[data-theme] .manage-multicheck > div { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }

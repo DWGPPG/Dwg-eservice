@@ -1,5 +1,28 @@
 import { appConfig } from "../../../config/config.js";
-import { getCustomDisplayLabel, isAdminFromSharePoint, isDrawingTeamMember } from "./team-service.js";
+import { state } from "../state.js";
+import { getCustomDisplayLabel, getDrawingTeamMembers, isAdminFromSharePoint, isDrawingTeamMember } from "./team-service.js";
+
+export const BOOTSTRAP_MIGRATED_KEY = "bootstrapMigrated";
+
+/** ย้ายสิทธิ์ผู้จัดการจาก config เข้า SharePoint แล้วหรือยัง (บันทึกใน List AppSettings — ดู admin-migration.js) */
+export function bootstrapMigrated() {
+  return Boolean(state.masterData?.settings?.[BOOTSTRAP_MIGRATED_KEY]);
+}
+
+/**
+ * รายชื่อใน config.js ยังให้สิทธิ์อยู่ไหม
+ * - ก่อนย้าย: ใช่ (กันคนเสียสิทธิ์ระหว่างเปลี่ยนระบบ)
+ * - หลังย้าย: ไม่ — ยกเว้นกรณีฉุกเฉินที่ SharePoint ไม่มีผู้จัดการ (IsAdmin) ที่ใช้งานอยู่เหลือเลย
+ */
+export function bootstrapListActive() {
+  if (!bootstrapMigrated()) return true;
+  return !getDrawingTeamMembers().some((member) => member.isAdmin);
+}
+
+/** อีเมลผู้จัดการจาก config ที่ยังมีผลตอนนี้ */
+export function effectiveBootstrapEmails() {
+  return bootstrapListActive() ? (appConfig.bootstrapAdminEmails || []) : [];
+}
 
 /**
  * เช็คว่าเป็นผู้จัดการ Lv.2 (แอดมิน) หรือไม่
@@ -16,7 +39,7 @@ export function isMgr(email) {
 /** ได้สิทธิ์ผู้จัดการจากรายชื่อใน config.js (ถอดจากหน้าเว็บไม่ได้จนกว่าจะลบออกจาก config) */
 export function isBootstrapAdmin(email) {
   const lower = String(email || "").toLowerCase();
-  return Boolean(lower) && (appConfig.bootstrapAdminEmails || []).some((e) => e.toLowerCase() === lower);
+  return Boolean(lower) && effectiveBootstrapEmails().some((e) => e.toLowerCase() === lower);
 }
 
 /**
@@ -49,7 +72,7 @@ export function roleLabel(role, email = "") {
   const fromSharePoint = getCustomDisplayLabel(email);
   if (fromSharePoint) return fromSharePoint;
 
-  const fromConfig = appConfig.bootstrapRoleLabels?.[String(email).toLowerCase()];
+  const fromConfig = bootstrapListActive() ? appConfig.bootstrapRoleLabels?.[String(email).toLowerCase()] : "";
   if (fromConfig) return fromConfig;
 
   return {

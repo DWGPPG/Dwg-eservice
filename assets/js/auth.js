@@ -140,6 +140,7 @@ export async function logout() {
   const account = state.account;
   // ลบสำเนาข้อมูลในเครื่องทุกครั้งที่ออกจากระบบ (กันคนถัดไปที่ใช้เครื่องเดียวกันเห็นข้อมูล)
   await clearAllCache().catch(() => {});
+  try { Object.keys(localStorage).filter((k) => k.startsWith("ppg-photo::")).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ }
   setState({ account: null, user: null, accessToken: null, siteId: null, requests: [] });
   if (!account || !msalInstance) return;
   await msalInstance.logoutRedirect({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });

@@ -1,14 +1,17 @@
 import { appConfig } from "../../../config/config.js";
 import { fields, lists } from "../../../config/schema.js";
 import { refreshUserRole } from "../auth.js";
-import { isBootstrapAdmin } from "../services/role-service.js";
+import { BOOTSTRAP_MIGRATED_KEY, bootstrapListActive, bootstrapMigrated, isBootstrapAdmin } from "../services/role-service.js";
+import { migrateBootstrapAdmins, pendingBootstrap } from "../services/admin-migration.js";
 import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import { refreshNavBadges } from "../router.js";
 import { writeAudit } from "../services/audit-service.js";
-import { addItem, deleteItem, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
+import { addItem, deleteItem, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
+import { LEAVE_PERIODS, leaveOf, personName, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
+import { REQUEST_TYPES } from "../constants.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
 
@@ -164,7 +167,92 @@ const TABS = {
     duplicateKey: (v) => toDateInput(v.HolidayDate),
     searchText: (r) => `${r.Title} ${formatDateOnly(r.HolidayDate)}`,
   },
+  projectOwners: {
+    label: "ผู้รับผิดชอบโครงการ",
+    addLabel: "ผู้รับผิดชอบ",
+    icon: "👷",
+    list: lists.projectOwners,
+    ensure: () => ensureList(lists.projectOwners, ["ProjectName", "OwnerEmail", "RequestTypes", "Note"]),
+    data: () => state.masterData.projectOwners || [],
+    deletable: true,
+    projectFilter: true,
+    note: () => `📋 งาน <b>เขียนแบบ Proposal</b> รับผิดชอบโดย <b>${(appConfig.proposalOwners || []).map((e) => escapeHtml(personName(e))).join(", ")}</b> เสมอ (ไม่ขึ้นกับตารางนี้)
+      · การดึงงาน/โอนงานระหว่างบุคคล <b>ไม่เปลี่ยน</b>ผู้รับผิดชอบโครงการ`,
+    sort: (a, b) => String(a.ProjectName || "").localeCompare(String(b.ProjectName || ""), "th", { numeric: true }) || String(personName(a.OwnerEmail)).localeCompare(personName(b.OwnerEmail), "th"),
+    columns: [
+      { label: "โครงการ", value: (r) => r.ProjectName, strong: true },
+      { label: "ผู้รับผิดชอบ", html: (r) => `${escapeHtml(personName(r.OwnerEmail))}${leaveOf(r.OwnerEmail) ? ' <span class="badge badge-cancelled">ลาวันนี้</span>' : ""}`, value: (r) => personName(r.OwnerEmail) },
+      { label: "ประเภทงานที่รับ", value: (r) => splitTypes(r.RequestTypes).join(", ") || "ทุกประเภท" },
+      { label: "หมายเหตุ", value: (r) => r.Note },
+    ],
+    form: [
+      { key: "ProjectName", label: "โครงการ", required: true, type: "select", options: projectNames },
+      { key: "OwnerEmail", label: "ผู้รับผิดชอบ (ฝ่ายเขียนแบบ)", required: true, type: "select", options: teamOptions },
+      { key: "RequestTypes", label: "ประเภทงานที่รับ (ไม่เลือก = ทุกประเภท)", type: "multicheck", options: () => REQUEST_TYPES.filter((t) => !t.includes("Proposal")) },
+      { key: "Note", label: "หมายเหตุ (ไม่บังคับ)", placeholder: "เช่น รับเฉพาะงานไฟฟ้า" },
+    ],
+    toPayload: (v) => ({ Title: `${v.ProjectName} · ${personName(v.OwnerEmail)}`, ProjectName: v.ProjectName, OwnerEmail: v.OwnerEmail.toLowerCase(), RequestTypes: v.RequestTypes, Note: v.Note }),
+    duplicateKey: (v) => `${norm(v.ProjectName)}|${norm(v.OwnerEmail)}`,
+    searchText: (r) => `${r.ProjectName || ""} ${personName(r.OwnerEmail)} ${r.OwnerEmail || ""} ${r.RequestTypes || ""}`,
+  },
+  staffLeave: {
+    label: "บุคลากรลา",
+    addLabel: "วันลา",
+    icon: "🏖️",
+    list: lists.staffLeave,
+    ensure: () => ensureList(lists.staffLeave, ["Email", "LeaveStart", "LeaveEnd", "Period", "Note"]),
+    data: () => state.masterData.staffLeave || [],
+    deletable: true,
+    // วันลาที่ผ่านไปแล้วซ่อนไว้ (ติ๊ก "แสดงที่ผ่านมาแล้ว" เพื่อดูย้อนหลัง)
+    isHiddenRow: (r) => String(r.LeaveEnd || r.LeaveStart || "").slice(0, 10) < todayKey(),
+    hiddenLabel: "แสดงวันลาที่ผ่านมาแล้ว",
+    note: () => {
+      const today = (state.masterData.staffLeave || []).filter((r) => leaveOf(r.Email) === r);
+      return today.length
+        ? `🏖️ <b>วันนี้ลา ${today.length} คน:</b> ${today.map((r) => `${escapeHtml(personName(r.Email))}${r.Period && r.Period !== "เต็มวัน" ? ` (${escapeHtml(r.Period)})` : ""}`).join(", ")} — ผู้ส่งคำร้องจะเห็นคำเตือนเมื่อเลือกโครงการที่คนเหล่านี้รับผิดชอบ`
+        : "✅ วันนี้ไม่มีใครลา — อัปเดตทุกเช้าเพื่อให้ผู้ส่งคำร้องเห็นคำเตือนที่ถูกต้อง";
+    },
+    sort: (a, b) => String(a.LeaveStart || "").localeCompare(String(b.LeaveStart || "")),
+    columns: [
+      { label: "ชื่อ", value: (r) => personName(r.Email), strong: true },
+      { label: "วันที่ลา", value: (r) => leaveRangeText(r) },
+      { label: "ช่วงเวลา", value: (r) => r.Period || "เต็มวัน" },
+      { label: "สถานะ", html: (r) => leaveStatusBadge(r), value: (r) => leaveStatusText(r) },
+      { label: "หมายเหตุ", value: (r) => r.Note },
+    ],
+    form: [
+      { key: "Email", label: "บุคลากร", required: true, type: "select", options: teamOptions },
+      { key: "LeaveStart", label: "ลาตั้งแต่วันที่", required: true, type: "date", default: () => todayKey() },
+      { key: "LeaveEnd", label: "ถึงวันที่ (เว้นว่าง = วันเดียว)", type: "date" },
+      { key: "Period", label: "ช่วงเวลา", type: "select", options: () => LEAVE_PERIODS, required: true, default: () => LEAVE_PERIODS[0] },
+      { key: "Note", label: "หมายเหตุ (ไม่บังคับ)", placeholder: "เช่น ลาป่วย / ไปหน้างาน" },
+    ],
+    validate: (v) => (v.LeaveEnd && v.LeaveEnd < v.LeaveStart ? "วันสิ้นสุดต้องไม่อยู่ก่อนวันเริ่มลา" : ""),
+    toPayload: (v) => ({ Title: personName(v.Email), Email: v.Email.toLowerCase(), LeaveStart: v.LeaveStart, LeaveEnd: v.LeaveEnd || v.LeaveStart, Period: v.Period, Note: v.Note }),
+    duplicateKey: (v) => `${norm(v.Email)}|${v.LeaveStart}`,
+    searchText: (r) => `${personName(r.Email)} ${r.Email || ""} ${r.Note || ""} ${r.LeaveStart || ""}`,
+  },
 };
+
+function leaveRangeText(r) {
+  const start = String(r.LeaveStart || "").slice(0, 10);
+  const end = String(r.LeaveEnd || start).slice(0, 10);
+  const fmt = (k) => (k ? new Date(`${k}T00:00:00`).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "2-digit" }) : "—");
+  return start === end ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+}
+function leaveStatusText(r) {
+  const t = todayKey();
+  const start = String(r.LeaveStart || "").slice(0, 10);
+  const end = String(r.LeaveEnd || start).slice(0, 10);
+  if (end < t) return "ผ่านแล้ว";
+  if (start <= t) return "ลาวันนี้";
+  return "ล่วงหน้า";
+}
+function leaveStatusBadge(r) {
+  const text = leaveStatusText(r);
+  const cls = text === "ลาวันนี้" ? "badge-cancelled" : text === "ล่วงหน้า" ? "badge-pending" : "badge-done";
+  return `<span class="badge ${cls}">${text}</span>`;
+}
 
 // ── ui state (คงไว้ข้าม re-render) ──
 const ui = {
@@ -242,6 +330,7 @@ function renderTable(key) {
 
   return `
     ${key === "team" ? bootstrapCard() : ""}
+    ${tab.note ? `<div class="manage-note">${tab.note()}</div>` : ""}
     ${tab.yearFilter ? holidayYearBar() : ""}
     <div class="manage-toolbar">
       <input class="manage-search" type="search" placeholder="ค้นหา${escapeHtml(tab.label)}..." value="${escapeHtml(ui.search)}" data-input="search" />
@@ -250,10 +339,10 @@ function renderTable(key) {
           <option value="">ทุกโครงการ</option>
           ${projectNames().sort((a, b) => a.localeCompare(b, "th")).map((name) => `<option ${ui.project === name ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
         </select>` : ""}
-      ${tab.hideField ? `
+      ${tab.hideField || tab.isHiddenRow ? `
         <label class="manage-check">
           <input type="checkbox" data-input="showHidden" ${ui.showHidden ? "checked" : ""} />
-          <span>${tab.hideFieldInverted ? "แสดงคนที่ปิดใช้งาน" : "แสดงที่ซ่อนไว้"} (${hiddenCount})</span>
+          <span>${tab.hiddenLabel || (tab.hideFieldInverted ? "แสดงคนที่ปิดใช้งาน" : "แสดงที่ซ่อนไว้")} (${hiddenCount})</span>
         </label>` : ""}
       <span class="manage-spacer"></span>
       <button class="secondary-button" type="button" data-action="csv">⬇ CSV</button>
@@ -297,7 +386,7 @@ function rowActions(key, tab, row) {
 function teamRoleBadge(row) {
   if (!isTrue(row.IsActive) && row.IsActive !== undefined && row.IsActive !== null) return `<span class="badge badge-cancelled">ปิดใช้งาน</span>`;
   if (isTrue(row.IsAdmin)) return `<span class="badge badge-done">ผู้จัดการ Lv.2</span>`;
-  if (isBootstrapAdmin(row.Email)) return `<span class="badge badge-pending" title="ได้สิทธิ์จากรายชื่อใน config.js — กด “ย้ายเข้า SharePoint”">ผู้จัดการ (config)</span>`;
+  if (isBootstrapAdmin(row.Email)) return `<span class="badge badge-pending" title="${bootstrapMigrated() ? "ใช้รายชื่อกู้คืนฉุกเฉินจาก config.js เพราะไม่มีผู้จัดการใน SharePoint" : "ได้สิทธิ์จากรายชื่อใน config.js — กด “ย้ายเข้า SharePoint”"}">ผู้จัดการ (config)</span>`;
   return `<span class="badge badge-working">ฝ่ายเขียนแบบ</span>`;
 }
 
@@ -390,19 +479,20 @@ function healthChecks() {
     });
   }
 
-  const pending = pendingBootstrap();
-  if (!pending.length && (appConfig.bootstrapAdminEmails || []).length) {
+  if (!bootstrapMigrated()) {
+    const pending = pendingBootstrap();
+    if (pending.length) {
+      issues.push({
+        level: "warn", tab: "team",
+        title: `ยังมีรายชื่อผู้จัดการ ${pending.length} คนที่อยู่ในโค้ด (config.js) ไม่ได้อยู่ใน SharePoint`,
+        detail: "ระบบจะย้ายเข้า SharePoint ให้อัตโนมัติเมื่อผู้จัดการเปิดเว็บ หรือกด “ย้ายเข้า SharePoint” ในแท็บทีม & สิทธิ์",
+      });
+    }
+  } else if (bootstrapListActive()) {
     issues.push({
-      level: "info", tab: "team",
-      title: "ย้ายผู้จัดการเข้า SharePoint ครบแล้ว — เหลือลบรายชื่อออกจาก config.js",
-      detail: "ตั้ง bootstrapAdminEmails: [] และ bootstrapRoleLabels: {} ใน config/config.js แล้ว deploy จากนั้นถอดสิทธิ์ผู้จัดการทุกคนได้จากหน้านี้",
-    });
-  }
-  if (pending.length) {
-    issues.push({
-      level: "warn", tab: "team",
-      title: `ยังมีรายชื่อผู้จัดการ ${pending.length} คนที่อยู่ในโค้ด (config.js) ไม่ได้อยู่ใน SharePoint`,
-      detail: "คนเหล่านี้ได้สิทธิ์ผู้จัดการจากโค้ด ถอดสิทธิ์จากหน้าเว็บไม่ได้ — กด “ย้ายเข้า SharePoint” ในแท็บทีม & สิทธิ์",
+      level: "error", tab: "team",
+      title: "ไม่มีผู้จัดการ (IsAdmin) ที่ใช้งานอยู่ใน SharePoint — ใช้รายชื่อกู้คืนฉุกเฉินจาก config.js ชั่วคราว",
+      detail: "ตั้งสิทธิ์ผู้จัดการให้อย่างน้อย 1 คนในแท็บทีม & สิทธิ์",
     });
   }
 
@@ -575,7 +665,7 @@ function bindBody(view) {
     ui.holidayYear = Number(chip.dataset.holidayYear);
     rerender();
   }));
-  body.querySelector('[data-action="migrate"]')?.addEventListener("click", (event) => migrateBootstrapAdmins(event.currentTarget, rerender));
+  body.querySelector('[data-action="migrate"]')?.addEventListener("click", (event) => runMigrationNow(event.currentTarget, rerender));
   body.querySelector('[data-action="csv"]')?.addEventListener("click", () => exportCsv(ui.tab));
   body.querySelectorAll('[data-action="edit"]').forEach((b) => b.addEventListener("click", () => openForm(ui.tab, find(b.dataset.id), rerender)));
   body.querySelectorAll('[data-action="toggle"]').forEach((b) => b.addEventListener("click", () => toggleHidden(ui.tab, find(b.dataset.id), rerender)));
@@ -718,6 +808,7 @@ function openForm(key, item, rerender) {
               await patchItem(tab.list, item.id, payload);
             } else {
               if (tab.hideField) payload[tab.hideField] = Boolean(tab.hideFieldInverted); // IsHidden=false / IsActive=true
+              if (tab.ensure) await tab.ensure(); // List ใหม่ (ผู้รับผิดชอบโครงการ / วันลา) — สร้างให้ครั้งแรก
               await addItem(tab.list, payload);
             }
             await writeAudit({ action: `จัดการข้อมูล: ${isEdit ? "แก้ไข" : "เพิ่ม"}${tab.label}`, detail: summarize(payload) });
@@ -746,20 +837,32 @@ function openForm(key, item, rerender) {
 }
 
 function formField(f, item) {
-  const value = item ? (f.read ? f.read(item) : item[f.key]) : "";
+  const value = item ? (f.read ? f.read(item) : item[f.key]) : (f.default ? f.default() : "");
   const label = `<span>${escapeHtml(f.label)}${f.required ? ' <b class="req">*</b>' : ""}</span>`;
+
+  if (f.type === "multicheck") {
+    const chosen = splitTypes(value);
+    return `
+      <fieldset class="field manage-multicheck">${label}
+        <div>${f.options().map((o) => `<label class="manage-check"><input type="checkbox" name="${f.key}" value="${escapeHtml(o)}" ${chosen.includes(o) ? "checked" : ""} /><span>${escapeHtml(o)}</span></label>`).join("")}</div>
+      </fieldset>`;
+  }
 
   if (f.type === "checkbox") {
     return `<label class="manage-check manage-field-check"><input type="checkbox" name="${f.key}" ${isTrue(value) ? "checked" : ""} /><span>${escapeHtml(f.label)}</span></label>`;
   }
   if (f.type === "select") {
-    const options = f.options();
-    const custom = value && !options.includes(value);
+    // ตัวเลือกเป็นข้อความ หรือ { value, label } (เช่น อีเมล → ชื่อ)
+    const options = f.options().map((o) => (typeof o === "object" ? o : { value: o, label: o }));
+    const current = String(value ?? "");
+    const match = options.find((o) => o.value === current || o.value.toLowerCase() === current.toLowerCase());
+    const custom = current && !match;
     return `
       <label class="field">${label}
         <select name="${f.key}" ${f.allowCustom ? "data-custom" : ""}>
           <option value="">${f.optional ? "— ไม่ระบุ —" : "— เลือก —"}</option>
-          ${options.map((o) => `<option ${o === value ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+          ${!f.allowCustom && custom ? `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>` : ""}
+          ${options.map((o) => `<option value="${escapeHtml(o.value)}" ${o === match ? "selected" : ""}>${escapeHtml(o.label)}</option>`).join("")}
           ${f.allowCustom ? `<option value="__custom" ${custom ? "selected" : ""}>อื่นๆ (พิมพ์เอง)</option>` : ""}
         </select>
         ${f.allowCustom ? `<input type="text" data-custom-input="${f.key}" value="${custom ? escapeHtml(value) : ""}" placeholder="พิมพ์${escapeHtml(f.label)}" hidden />` : ""}
@@ -775,6 +878,7 @@ function readForm(form, tab) {
   const values = {};
   tab.form.forEach((f) => {
     const el = form.querySelector(`[name="${f.key}"]`);
+    if (f.type === "multicheck") { values[f.key] = [...form.querySelectorAll(`[name="${f.key}"]:checked`)].map((c) => c.value).join(", "); return; }
     if (f.type === "checkbox") values[f.key] = el.checked;
     else if (el.value === "__custom") values[f.key] = form.querySelector(`[data-custom-input="${f.key}"]`).value.trim();
     else values[f.key] = el.value.trim();
@@ -803,8 +907,11 @@ function validateTeamMember(values, item) {
   const email = values.Email.toLowerCase();
   if (!/^[^\s@]+@[^\s@]+$/.test(email)) return "รูปแบบอีเมลไม่ถูกต้อง";
   if (!email.endsWith(`@${appConfig.azure.allowedDomain}`)) return `ต้องเป็นอีเมล @${appConfig.azure.allowedDomain} เท่านั้น`;
-  if (item && isTrue(item.IsAdmin) && !values.IsAdmin && isBootstrapAdmin(email)) {
-    return "คนนี้ยังได้สิทธิ์ผู้จัดการจากรายชื่อใน config.js — ถอดจากหน้าเว็บไม่มีผลจนกว่าจะลบรายชื่อออกจาก config";
+  if (item && isTrue(item.IsAdmin) && !values.IsAdmin && !bootstrapMigrated() && isBootstrapAdmin(email)) {
+    return "ระบบยังย้ายสิทธิ์ผู้จัดการจาก config.js เข้า SharePoint ไม่เสร็จ — กด “ย้ายเข้า SharePoint” ด้านบนก่อน แล้วค่อยถอดสิทธิ์";
+  }
+  if (item && isTrue(item.IsAdmin) && !values.IsAdmin && otherActiveAdmins(item) === 0) {
+    return "ต้องมีผู้จัดการอย่างน้อย 1 คน — เพิ่มสิทธิ์ให้คนอื่นก่อน แล้วค่อยถอดสิทธิ์คนนี้";
   }
   // กันผู้จัดการถอดสิทธิ์ตัวเองจนเข้าหน้านี้ไม่ได้
   const self = norm(state.user?.email);
@@ -824,6 +931,10 @@ async function toggleHidden(key, item, rerender) {
   const hidden = isHidden(tab, item);
   if (key === "team" && !hidden && norm(item.Email) === norm(state.user?.email)) {
     showToast("ปิดใช้งานบัญชีตัวเองไม่ได้", "error");
+    return;
+  }
+  if (key === "team" && !hidden && isTrue(item.IsAdmin) && otherActiveAdmins(item) === 0) {
+    showToast("ต้องมีผู้จัดการที่ใช้งานอยู่อย่างน้อย 1 คน — เพิ่มสิทธิ์ให้คนอื่นก่อน", "error");
     return;
   }
   const nextValue = tab.hideFieldInverted ? hidden : !hidden; // IsActive กลับด้านกับ IsHidden
@@ -1004,19 +1115,8 @@ function copyFromPreviousYear() {
 // ══════════════════════════════════════════════════════════════
 
 // รายชื่อใน config ที่ยังไม่ได้เป็นผู้จัดการ (IsAdmin) ใน SharePoint หรือป้ายแสดงผลยังไม่ถูกย้าย
-function pendingBootstrap() {
-  const team = state.masterData.team || [];
-  const labels = appConfig.bootstrapRoleLabels || {};
-  return (appConfig.bootstrapAdminEmails || []).map((email) => {
-    const member = team.find((m) => norm(m.Email) === norm(email));
-    const label = labels[norm(email)] || "";
-    const needsAdmin = !member || !isTrue(member.IsAdmin) || isHidden(TABS.team, member);
-    const needsLabel = Boolean(label) && !String(member?.DisplayLabel || "").trim();
-    return { email: norm(email), member, label, needsAdmin, needsLabel };
-  }).filter((p) => p.needsAdmin || p.needsLabel);
-}
-
 function bootstrapCard() {
+  if (bootstrapMigrated()) return "";
   const pending = pendingBootstrap();
   if (!pending.length) return "";
   return `
@@ -1031,47 +1131,31 @@ function bootstrapCard() {
     </div>`;
 }
 
-async function migrateBootstrapAdmins(button, rerender) {
-  const pending = pendingBootstrap();
-  if (!pending.length) return;
+async function runMigrationNow(button, rerender) {
   button.disabled = true;
   button.textContent = "กำลังย้าย...";
-  const done = [];
   try {
-    for (const p of pending) {
-      const patch = {};
-      if (p.needsAdmin) Object.assign(patch, { IsAdmin: true, IsActive: true });
-      if (p.needsLabel) patch.DisplayLabel = p.label;
-      if (p.member) {
-        await patchItem(lists.team, p.member.id, patch);
-      } else {
-        await addItem(lists.team, { Title0: knownName(p.email), Email: p.email, Role: "Manager", ...patch });
-      }
-      done.push(p.email);
-    }
-    await writeAudit({ action: "จัดการข้อมูล: ย้ายผู้จัดการจาก config เข้า SharePoint", detail: done.join(", ") });
-    showToast(`ย้ายเข้า SharePoint แล้ว ${done.length} คน — แก้ชื่อ/สายงานต่อได้ในตาราง`, "success");
+    const { done } = await migrateBootstrapAdmins();
+    await saveSetting(BOOTSTRAP_MIGRATED_KEY, new Date().toISOString());
+    showToast(`ย้ายเข้า SharePoint แล้ว ${done.length} คน — ต่อจากนี้เพิ่ม/ถอดสิทธิ์ผู้จัดการได้จากตารางนี้`, "success");
   } catch (error) {
-    showToast(`ย้ายได้ ${done.length}/${pending.length} คน — ${error.message}`, "error");
+    showToast(`ย้ายไม่สำเร็จ: ${error.message}`, "error");
   }
   await reloadMasterData();
   rerender();
-}
-
-// ชื่อที่ระบบรู้จักจากคำร้องเดิม (ผู้ร้องขอ/ผู้รับผิดชอบ) — ไม่เจอใช้ส่วนหน้าของอีเมล
-function knownName(email) {
-  const requests = state.requests || [];
-  const asRequester = requests.find((r) => norm(r.requesterEmail) === email)?.requesterName;
-  const asAssignee = requests.find((r) => norm(r.assignedToEmail) === email)?.assignedToName;
-  if (norm(state.user?.email) === email && state.user?.name) return state.user.name;
-  return asRequester || asAssignee || email.split("@")[0];
 }
 
 // ══════════════════════════════════════════════════════════════
 // helpers
 // ══════════════════════════════════════════════════════════════
 
+/** จำนวนผู้จัดการที่ใช้งานอยู่ใน SharePoint นอกจากคนนี้ */
+function otherActiveAdmins(item) {
+  return (state.masterData.team || []).filter((m) => m.id !== item.id && isTrue(m.IsAdmin) && !isHidden(TABS.team, m)).length;
+}
+
 function isHidden(tab, row) {
+  if (tab.isHiddenRow) return tab.isHiddenRow(row);
   if (!tab.hideField) return false;
   const value = row[tab.hideField];
   if (tab.hideFieldInverted) return value !== undefined && value !== null && !isTrue(value); // IsActive ว่าง = ใช้งาน

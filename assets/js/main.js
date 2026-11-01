@@ -17,7 +17,10 @@ import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
 import { startLinkInputEnhancer } from "./components/cloud-picker.js";
 import { startResponsiveTables } from "./components/responsive-tables.js";
+import { startDueGuardEnhancer } from "./services/due-date.js";
 import { displayVersion } from "./services/app-settings.js";
+import { autoMigrateBootstrap } from "./services/admin-migration.js";
+import { getMyPhoto } from "./services/profile-photo.js";
 
 const MAX_BACKOFF_MS = 2 * 60 * 1000;
 let pollTimer = null;
@@ -101,6 +104,7 @@ async function boot() {
   bindChrome();
   startLinkInputEnhancer();
   startResponsiveTables();
+  startDueGuardEnhancer();
   subscribe(updateShell);
   subscribe(onRequestsChanged);
   updateShell(state);
@@ -172,6 +176,7 @@ async function afterSignedIn() {
           lastRequestsHash = hashRequests(state.requests);
           // สิทธิ์เปลี่ยน (เช่นถูกเพิ่ม/ลบจากทีม) → ต้องวาดใหม่แม้ผู้ใช้กำลังพิมพ์ เพื่อไม่ให้เห็นเมนูที่ไม่มีสิทธิ์
           if (state.user?.role !== roleBefore || shouldRender()) navigate();
+          runAutoMigration();
         })
         .catch((error) => handleSyncFailure(error, true));
       afterAppReady();
@@ -183,9 +188,19 @@ async function afterSignedIn() {
     refreshUserRole();
     enterApp();
     afterAppReady();
+    runAutoMigration();
   } catch (error) {
     await handleSyncFailure(error, false);
   }
+}
+
+/** ย้ายสิทธิ์ผู้จัดการจาก config.js เข้า SharePoint ครั้งแรก (ทำเบื้องหลัง ไม่ขวางการใช้งาน) */
+async function runAutoMigration() {
+  const changed = await autoMigrateBootstrap();
+  if (!changed) return;
+  await loadMasterData().catch(() => {});
+  refreshUserRole();
+  if (shouldRender()) navigate();
 }
 
 function enterApp() {
@@ -439,6 +454,35 @@ function renderVersionLabel(nextState) {
   if (versionLabel.textContent !== text) versionLabel.textContent = text;
 }
 
+// รูปโปรไฟล์ Microsoft 365 (ถ้ามี) — ไม่มีรูปใช้อักษรย่อชื่อ
+// ใช้ var: boot() เรียก updateShell ตอนโมดูลยังประเมินไม่ถึงบรรทัดนี้ (let/const จะติด TDZ ทำให้แอปพังทั้งหน้า)
+var avatarPhoto; // eslint-disable-line no-var
+function renderAvatar(avatar, nextState) {
+  avatarPhoto ||= { key: "", url: null, requested: false };
+  const initials = initialsOf(nextState.user?.name || nextState.user?.email || "");
+  const key = nextState.account?.homeAccountId || nextState.account?.username || "";
+  if (key !== avatarPhoto.key) avatarPhoto = { key, url: null, requested: false };
+  if (key && !avatarPhoto.requested) {
+    avatarPhoto.requested = true;
+    getMyPhoto(nextState.account).then((url) => {
+      if (avatarPhoto.key !== key) return;
+      avatarPhoto.url = url;
+      renderAvatar(avatar, state);
+    });
+  }
+  if (avatarPhoto.url) {
+    if (avatar.dataset.photo !== avatarPhoto.url.slice(-32)) {
+      avatar.dataset.photo = avatarPhoto.url.slice(-32);
+      avatar.classList.add("has-photo");
+      avatar.innerHTML = `<img src="${avatarPhoto.url}" alt="" />`;
+    }
+  } else if (avatar.textContent !== initials || avatar.classList.contains("has-photo")) {
+    avatar.classList.remove("has-photo");
+    delete avatar.dataset.photo;
+    avatar.textContent = initials;
+  }
+}
+
 function updateShell(nextState) {
   renderVersionLabel(nextState);
   const roleChip = qs("#user-role-chip");
@@ -449,7 +493,7 @@ function updateShell(nextState) {
   const userCard = qs("#sidebar-user-card");
   if (userCard) userCard.hidden = !nextState.account;
   const avatar = qs("#sidebar-avatar");
-  if (avatar) avatar.textContent = initialsOf(nextState.user?.name || nextState.user?.email || "");
+  if (avatar) renderAvatar(avatar, nextState);
   const newRequest = qs("#sidebar-new-request");
   if (newRequest) newRequest.hidden = !nextState.account || nextState.user?.role === "viewer";
   const logoutButton = qs("#logout-button");

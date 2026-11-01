@@ -1,3 +1,6 @@
+import { leaveOf, ownerNoticeHtml, ownersFor } from "../services/owner-service.js";
+import { checkOffDay, offDayText } from "../services/due-date.js";
+import { effectiveBootstrapEmails } from "../services/role-service.js";
 import { parseLinkEntries } from "../components/cloud-picker.js";
 import { paginate } from "../components/pager.js";
 import { STATUS, STATUS_LABELS , CANCEL_SOURCES , getCancelSource } from "../../../config/schema.js";
@@ -657,7 +660,7 @@ async function notifyTakeover({ request, me, prevOwnerName, prevOwnerEmail, full
   }
 
   // ── ช่องทาง 2: Teams 1:1 → ผู้จัดการทุกคน ──
-  const mgrEmails = getAllManagerEmails(appConfig.bootstrapAdminEmails || []);
+  const mgrEmails = getAllManagerEmails(effectiveBootstrapEmails());
   mgrEmails.forEach((email) => {
     // ไม่ส่งหาตัวเองถ้าผู้จัดการเป็นคนดึงงาน
     if (email.toLowerCase() === (me.email || "").toLowerCase()) return;
@@ -897,7 +900,10 @@ function bindFilterEvents(view, state, rerender) {
 // ══════════════════════════════════════════════════════════════
 
 function openPickupAssignModal(view, state, request) {
-  const members = getDrawingTeamMembers();
+  // ผู้รับผิดชอบโครงการขึ้นก่อน + ป้าย "ลาวันนี้" — ผู้มอบหมายเห็นทันทีว่าควรให้ใคร
+  const ownerEmails = new Set(ownersFor(request.projectName, request.requestType).map((o) => o.email));
+  const members = [...getDrawingTeamMembers()].sort((a, b) =>
+    Number(ownerEmails.has(b.email.toLowerCase())) - Number(ownerEmails.has(a.email.toLowerCase())));
   const body = `
     <div class="assign-work-panel">
       <div class="assign-work-summary">
@@ -906,13 +912,14 @@ function openPickupAssignModal(view, state, request) {
         <small>${escapeHtml(request.drawingNo || "—")} · ${escapeHtml(request.drawingName || "—")}</small>
       </div>
       <p class="assign-work-label">เลือกพนักงานฝ่ายเขียนแบบที่จะรับงานนี้</p>
+      ${ownerNoticeHtml(request.projectName, request.requestType)}
       <div class="assignee-choice-grid">
         ${members.map((m, idx) => `
           <label class="assignee-choice">
             <input type="radio" name="pickupAssignMember" value="${idx}" />
             <span class="assignee-avatar">${escapeHtml(initials(m.name || m.email))}</span>
             <span>
-              <strong>${escapeHtml(m.name || m.email)}</strong>
+              <strong>${escapeHtml(m.name || m.email)}${ownerEmails.has(m.email.toLowerCase()) ? ' <span class="owner-tag">ผู้รับผิดชอบโครงการ</span>' : ""}${leaveOf(m.email) ? ' <span class="owner-tag is-away">ลาวันนี้</span>' : ""}</strong>
               <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>
             </span>
           </label>`).join("")}
@@ -1561,7 +1568,7 @@ function renderMgrReviewRow(item, state) {
         <label style="display:block;font-size:12px;font-weight:600;color:#92400E;margin:12px 0 4px;">
           4️⃣ กำหนดส่งใหม่ <b style="color:#EF4444;">*</b>
         </label>
-        <input type="date" id="mgr-reject-due-${escapeHtml(item.requestNo)}"
+        <input type="date" data-due-guard id="mgr-reject-due-${escapeHtml(item.requestNo)}"
           style="width:100%;padding:8px;border:1.5px solid #FCD34D;background:#FFFBEB;border-radius:6px;font-size:13px;" />
         <div id="mgr-reject-due-warn-${escapeHtml(item.requestNo)}" style="display:none;"></div>
 
@@ -1663,6 +1670,8 @@ function bindMgrReviewEvents(view, state) {
       if (!reason)        { showToast("กรุณาระบุเหตุผล / จุดที่ต้องแก้ไข", "warning"); return; }
       if (!files.length)  { showToast("กรุณาแนบไฟล์ประกอบอย่างน้อย 1 ไฟล์", "warning"); return; }
       if (!newDue)        { showToast("กรุณากรอกกำหนดส่งใหม่", "warning"); return; }
+      const offDay = checkOffDay(newDue);
+      if (offDay) { showToast(`⛔ ${offDayText(offDay)} — กรุณาเลือกวันใหม่`, "warning"); return; }
 
       // ── เตือนถ้ากำหนดส่งใหม่เป็นวันเดียวกันกับวันที่ส่งกลับ (เตือนเฉยๆ ยังไปต่อได้) ──
       const now = new Date();

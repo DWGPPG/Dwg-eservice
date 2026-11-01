@@ -1,3 +1,4 @@
+import { ownerNoticeHtml, ownerSummaryText } from "../services/owner-service.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { lists } from "../../../config/schema.js";
 import { openModal } from "../components/modal.js";
@@ -92,12 +93,12 @@ function suggestValidDueDate(dateStr, priority) {
 /** ข้อความเตือน (HTML) สำหรับกำหนดส่งที่ใช้ไม่ได้ */
 function dueBlockedHtml(blocked, dateStr, priority) {
   const next = suggestValidDueDate(dateStr, priority);
-  const hint = next ? `<br>💡 เลือกได้ตั้งแต่: <b>${escapeHtml(formatThaiDate(next))}</b>` : "";
+  const hint = next ? `<br>💡 เลือกได้ตั้งแต่: <b>${escapeHtml(formatThaiDate(next))}</b> <button type="button" class="due-use-next" data-use-due="${next}">ใช้วันนี้แทน</button>` : "";
   if (blocked.reason === "same-day") {
     return `⛔ <b>กำหนดส่งภายในวันนี้ได้เฉพาะความเร่งด่วน “${SAME_DAY_PRIORITY}”</b> — กรุณาเลือกวันถัดไป หรือเปลี่ยนระดับความเร่งด่วน${hint}`;
   }
   if (blocked.reason === "past") return `⛔ <b>วันที่นี้ผ่านมาแล้ว</b> — กรุณาเลือกวันใหม่${hint}`;
-  return `⛔ <b>วันที่นี้เป็น${escapeHtml(blocked.label)}</b> — ฝ่ายเขียนแบบไม่ทำงาน กรุณากำหนดวันใหม่${hint}`;
+  return `⛔ <b>วันที่นี้เป็น${escapeHtml(blocked.label)}</b> — ฝ่ายเขียนแบบไม่ทำงาน ส่งคำขอไม่ได้ทุกกรณี (รวมเร่งด่วนมาก)${hint.replace("เลือกได้ตั้งแต่", "วันทำการถัดไป")}`;
 }
 
 /** หาวันทำการถัดไปที่ใช้ได้จริง เพื่อแนะนำผู้ใช้ */
@@ -167,6 +168,7 @@ export function renderSubmit(view) {
               </div>
             </div>
             <div id="project-info" class="project-info"></div>
+            <div id="owner-notice" aria-live="polite"></div>
           </div>
         </div>
       </section>
@@ -225,6 +227,7 @@ function bindSubmitFlow(view) {
       drawingDetails = {};
       activeCategory = "";
 
+      updateOwnerNotice(view);
       // Step 1 → โชว์ช่องโครงการ, ซ่อน drawing+queue ก่อนเสมอเมื่อเปลี่ยนประเภท
       const projectWrapper = view.querySelector("#project-select-wrapper");
       if (projectWrapper) {
@@ -349,6 +352,7 @@ function pickProject(view, projectName) {
     ${location ? `<div><span>ที่ตั้งโครงการ</span><a href="${escapeHtml(location)}" target="_blank" rel="noreferrer">เปิดแผนที่ 📍</a></div>` : ""}
   `;
   view.querySelector("#project-info").classList.add("show");
+  updateOwnerNotice(view);
 
   // Step 2 → โชว์ Drawing section หลังเลือกโครงการ
   const drawingSection = view.querySelector("#drawing-section");
@@ -362,6 +366,14 @@ function pickProject(view, projectName) {
   renderSelectedDrawingQueue(view);
 }
 
+/** แสดงผู้รับผิดชอบโครงการ/งาน Proposal + เตือนถ้าผู้รับผิดชอบลาวันนี้ */
+function updateOwnerNotice(view) {
+  const box = view.querySelector("#owner-notice");
+  if (!box) return;
+  const type = view.querySelector("input[name='requestType']:checked")?.value || "";
+  box.innerHTML = type ? ownerNoticeHtml(selectedProjectName, type) : "";
+}
+
 function clearProject(view) {
   selectedProjectName = "";
   selectedDrawings = [];
@@ -372,6 +384,7 @@ function clearProject(view) {
   view.querySelector("#project-info").classList.remove("show");
   view.querySelector("#project-info").innerHTML = "";
   updateAddProjectButtonText(view);
+  updateOwnerNotice(view);
 
   // ซ่อน drawing section และ queue section กลับไปเมื่อล้างโครงการ
   ["#drawing-section", "#queue-section"].forEach((sel) => {
@@ -781,6 +794,20 @@ function renderSelectedDrawingQueue(view) {
     input.addEventListener("change", () => syncDetailFromQueue(input));
   });
 
+  // ── ปุ่ม "ใช้วันนี้แทน" ในกล่องเตือน → เปลี่ยนกำหนดส่งเป็นวันทำการที่แนะนำ ──
+  target.querySelectorAll("[data-due-warning]").forEach((box) => {
+    box.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-use-due]");
+      if (!btn) return;
+      event.preventDefault();
+      const input = box.closest("[data-selected-drawing]")?.querySelector('[data-detail="dueDate"]');
+      if (!input) return;
+      input.value = btn.dataset.useDue;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  });
+
   // ── เตือนทันทีเมื่อเลือกกำหนดส่งตรงวันเสาร์-อาทิตย์ / วันหยุดนักขัตฤกษ์ ──
   target.querySelectorAll('[data-detail="dueDate"]').forEach((input) => {
     const card = input.closest("[data-selected-drawing]");
@@ -907,6 +934,8 @@ function openConfirmSubmit(view, form, onModalClose) {
     <div class="confirm-stack">
       ${confirmRow("ประเภทคำร้อง", requestType)}
       ${confirmRow("ชื่อโครงการ", selectedProjectName)}
+      ${ownerSummaryText(selectedProjectName, requestType) ? confirmRow("ผู้รับผิดชอบ", ownerSummaryText(selectedProjectName, requestType)) : ""}
+      ${ownerNoticeHtml(selectedProjectName, requestType).includes("owner-notice-warn") ? ownerNoticeHtml(selectedProjectName, requestType) : ""}
       ${confirmRow("จำนวนคำร้องที่จะสร้าง", `${selectedDrawings.length} Drawing`)}
       <div class="confirm-batch-list">
         ${selectedDrawings.map((item, index) => {
