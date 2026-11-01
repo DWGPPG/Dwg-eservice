@@ -250,7 +250,7 @@ teams: {
 | List | Field สำคัญ |
 |---|---|
 | `DrawingRequests` | `Title`, `Status0`, `ProjectName0`, `DrawingNumber`, `AssigneeName`/`AssigneeEmail`, `DwgFileUrl`/`PdfFileUrl`, `NoteFromDrawing`, `SubmittedAt`, `DeliveryFormUrl`, `DeliveryFormGeneratedAt` |
-| `ProjectList` | `Title`, `IsHidden`, `DefaultKwp`, `DefaultLocation` |
+| `ProjectList` | `Title`, `IsHidden`, `DefaultKwp`, `DefaultLocation`, `ProjectGroup` (ไม่บังคับ — ข้อความ: "Proposal" / "เขียนแบบก่อสร้าง" ใช้แยกรายชื่อโครงการตามประเภทในหน้าส่งคำขอ; ถ้าไม่มีคอลัมน์ ระบบดูจากประวัติคำร้องแทน) |
 | `DrawingNumberList` | `Title`, `ProjectName`, `DrawingCategory`, `DrawingName`, `IsHidden` |
 | `DrawingTeam` | `Title0` (ชื่อ), `Email`, `Role`, `IsActive`, `IsAdmin`, `DisplayLabel` |
 | `AuditLog` | `Title`, `RequestId`, `UserEmail`, `UserName`, `Detail`, `ActionAt` |

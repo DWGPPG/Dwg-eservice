@@ -183,7 +183,7 @@
   }, { threshold: 0.2, rootMargin: "0px 0px -30px 0px" });
 
   function isCardLike(el) {
-    if (el.closest(".dash-hero") || el.matches("button, a, input, select, textarea, option, svg *, table *, .badge")) return false;
+    if (el.closest(".dash-hero, .team-column-chart") || el.matches("button, a, input, select, textarea, option, svg *, table *, .badge, i, b, em, strong, span, small")) return false;
     if (el.offsetWidth < 140 || el.offsetHeight < 56) return false;
     const cs = getComputedStyle(el);
     if (parseFloat(cs.borderTopLeftRadius) < 8) return false;

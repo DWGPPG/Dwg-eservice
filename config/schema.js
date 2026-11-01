@@ -90,6 +90,7 @@ export const fields = {
     defaultKwp: "DefaultKwp",
     solarKwp: "SolarKwp",
     defaultLocation: "DefaultLocation",
+    projectGroup: "ProjectGroup",          // (ไม่บังคับ) "Proposal" / "เขียนแบบก่อสร้าง" — หมวดโครงการในหน้าส่งคำขอ
   },
   drawingNumbers: {
     title: "Title",

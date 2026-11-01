@@ -548,6 +548,9 @@ function cleanLineChartSvg(data) {
     return d;
   };
 
+  const baseY = getY(min).toFixed(1);
+  const area = (key) => `${smoothCurve(key)} L ${getX(data.length - 1).toFixed(1)} ${baseY} L ${getX(0).toFixed(1)} ${baseY} Z`;
+
   const points = (key, className) => data.map((item, index) => {
     const x = getX(index).toFixed(1);
     const y = getY(item[key]).toFixed(1);
@@ -576,12 +579,34 @@ function cleanLineChartSvg(data) {
   return `
     <svg viewBox="0 0 800 290" role="img" aria-label="Pipeline analytics line chart" class="clean-svg">
       <defs>
-        <filter id="analytics-shadow" x="-8%" y="-12%" width="116%" height="130%">
-          <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#6b7c93" flood-opacity="0.14" />
+        <linearGradient id="analytics-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#101a2b" />
+          <stop offset="1" stop-color="#070c16" />
+        </linearGradient>
+        <linearGradient id="analytics-area-proposal" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#22d3ee" stop-opacity="0.28" />
+          <stop offset="1" stop-color="#22d3ee" stop-opacity="0" />
+        </linearGradient>
+        <linearGradient id="analytics-area-construction" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#00f5a0" stop-opacity="0.24" />
+          <stop offset="1" stop-color="#00f5a0" stop-opacity="0" />
+        </linearGradient>
+        <filter id="analytics-glow" x="-10%" y="-40%" width="120%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="wide" />
+          <feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="tight" />
+          <feMerge>
+            <feMergeNode in="wide" />
+            <feMergeNode in="tight" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
         </filter>
       </defs>
-      <rect class="analytics-card-bg" x="8" y="8" width="784" height="270" rx="14" filter="url(#analytics-shadow)" />
+      <rect class="analytics-card-bg" x="0" y="0" width="800" height="290" rx="16" fill="url(#analytics-bg)" />
       <text x="34" y="40" class="chart-title">Analytics</text>
+      <g class="chart-legend" transform="translate(130 35)">
+        <circle cx="0" cy="0" r="4" class="legend-dot proposal-dot" /><text x="10" y="4">Proposal</text>
+        <circle cx="96" cy="0" r="4" class="legend-dot construction-dot" /><text x="106" y="4">ก่อสร้าง</text>
+      </g>
 
       <g class="grid-group">
         ${gridLines.join("")}
@@ -592,8 +617,10 @@ function cleanLineChartSvg(data) {
         ${labels}
       </g>
 
-      <path class="line-path proposal-path" d="${smoothCurve("proposal")}" />
-      <path class="line-path construction-path" d="${smoothCurve("construction")}" />
+      <path class="line-area" fill="url(#analytics-area-proposal)" d="${area("proposal")}" />
+      <path class="line-area" fill="url(#analytics-area-construction)" d="${area("construction")}" />
+      <path class="line-path proposal-path" filter="url(#analytics-glow)" d="${smoothCurve("proposal")}" />
+      <path class="line-path construction-path" filter="url(#analytics-glow)" d="${smoothCurve("construction")}" />
 
       <g class="chart-points">
         ${points("proposal", "proposal")}

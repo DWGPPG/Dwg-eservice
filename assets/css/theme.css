@@ -3519,3 +3519,46 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
   [data-theme] .team-showcase .ts-card-text em { font-size: 10.5px; }
   [data-theme] .team-showcase .ts-card-photo b { font-size: 26px; }
 }
+
+/* ══════════════ Analytics: การ์ดพื้นเข้ม + เส้นกราฟเรืองแสง (ทั้งโหมดสว่าง/มืด) ══════════════ */
+.clean-chart-container,
+.clean-chart-container.fx-glass { border-radius: 16px; background: #070c16; box-shadow: 0 14px 34px rgba(7, 12, 22, 0.28); }
+.clean-chart-container .analytics-card-bg,
+[data-theme="dark"] .clean-chart-container .analytics-card-bg { fill: url(#analytics-bg); stroke: rgba(56, 189, 248, 0.18); stroke-width: 1; }
+.clean-chart-container .chart-title,
+[data-theme="dark"] .clean-chart-container .chart-title { fill: #e6f1ff; font-size: 17px; font-weight: 800; }
+.clean-chart-container .chart-legend text { fill: #8ea3bd; font-size: 12px; font-weight: 700; }
+.clean-chart-container .proposal-dot { fill: #22d3ee; filter: drop-shadow(0 0 4px #22d3ee); }
+.clean-chart-container .construction-dot { fill: #00f5a0; filter: drop-shadow(0 0 4px #00f5a0); }
+.clean-chart-container .grid-line,
+[data-theme="dark"] .clean-chart-container .grid-line { stroke: rgba(148, 197, 255, 0.1); stroke-dasharray: 4 8; }
+.clean-chart-container .axis-label,
+[data-theme="dark"] .clean-chart-container .axis-label { fill: #7f93ad; }
+.clean-chart-container .line-path { stroke-width: 3; }
+.clean-chart-container .proposal-path { stroke: #22d3ee; }
+.clean-chart-container .construction-path { stroke: #00f5a0; }
+.clean-chart-container .line-area { stroke: none; pointer-events: none; }
+.clean-chart-container .point { fill: #070c16; stroke-width: 2.4; }
+.clean-chart-container .proposal-point { stroke: #22d3ee; filter: drop-shadow(0 0 5px rgba(34, 211, 238, 0.9)); }
+.clean-chart-container .construction-point { stroke: #00f5a0; filter: drop-shadow(0 0 5px rgba(0, 245, 160, 0.9)); }
+.clean-chart-container .point-tooltip rect,
+[data-theme="dark"] .clean-chart-container .point-tooltip rect { fill: rgba(15, 26, 43, 0.95); stroke: rgba(56, 189, 248, 0.45); }
+.clean-chart-container .point-tooltip text { fill: #e6f1ff; }
+.clean-chart-container .chart-period-buttons,
+[data-theme="dark"] .clean-chart-container .chart-period-buttons {
+  border-color: rgba(56, 189, 248, 0.2); background: rgba(15, 26, 43, 0.85); box-shadow: none;
+}
+.clean-chart-container .chart-period-button,
+[data-theme="dark"] .clean-chart-container .chart-period-button { color: #8ea3bd; }
+.clean-chart-container .chart-period-button:hover,
+[data-theme="dark"] .clean-chart-container .chart-period-button:hover { color: #67e8f9; }
+.clean-chart-container .chart-period-button.active,
+[data-theme="dark"] .clean-chart-container .chart-period-button.active {
+  background: rgba(34, 211, 238, 0.16); color: #67e8f9; box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
+}
+
+/* หัวกลุ่มในรายการโครงการ (หน้าส่งคำขอ) */
+.combo-group-head { position: sticky; top: 0; z-index: 1; padding: 8px 14px 6px; font-size: 11.5px; font-weight: 800; letter-spacing: .02em; color: #047857; background: var(--surface, #fff); border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); }
+.combo-group-head.is-muted { color: var(--muted); }
+[data-theme="dark"] .combo-group-head { color: hsl(163, 94%, 70%); background: var(--surface); }
+[data-theme="dark"] .combo-group-head.is-muted { color: var(--muted); }
