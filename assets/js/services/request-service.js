@@ -286,12 +286,20 @@ function toSharePoint(request) {
 // HYDRATE
 // ══════════════════════════════════════════════════════════════
 
+let autoApproveRunning = false;
+
 export async function hydrateRequests() {
   const items = await getListItems(lists.requests);
   const requests = items.map(fromSharePoint);
   setRequests(requests);
   // เช็ค auto-approve หลังโหลดข้อมูลทุกครั้ง (ระบบไม่มี server แยก จึงเช็คได้แค่ตอนมีคนเปิดแอป)
-  await checkAndAutoApproveOverdue(requests);
+  // ทำเบื้องหลัง ไม่ให้ขวางการเข้าระบบ/รีเฟรช และกันรันซ้อนเมื่อ polling มาถึงก่อนรอบก่อนเสร็จ (ไม่ให้แจ้ง Teams ซ้ำ)
+  if (!autoApproveRunning) {
+    autoApproveRunning = true;
+    checkAndAutoApproveOverdue(requests)
+      .catch((error) => console.warn("Auto-approve check failed (non-critical):", error.message))
+      .finally(() => { autoApproveRunning = false; });
+  }
 }
 
 /**

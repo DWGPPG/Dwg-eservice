@@ -11,23 +11,40 @@ import {
 import { readTeamCache, saveTeamCache } from "./services/team-service.js";
 import { setState, state } from "./state.js";
 
-// ── เก็บ List ID แยกตามชื่อ List กัน fetch ซ้ำ ──
+// ── เก็บ Site / List ID เป็น Promise — ตอนเข้าระบบโหลดหลาย List พร้อมกัน ถ้าเก็บแค่ผลลัพธ์
+//    ทุก List จะยิงค้นหา Site ซ้ำพร้อมกันหมด (ช้า + เปลืองโควตา Graph) ──
 const listIdCache = {};
+let sitePromise = null;
 
 export async function ensureSite() {
   if (state.siteId) return state.siteId;
-  const site = await getSiteByPath(appConfig.sharePoint.hostname, appConfig.sharePoint.sitePath);
-  setState({ siteId: site.id });
-  return site.id;
+  sitePromise ||= getSiteByPath(appConfig.sharePoint.hostname, appConfig.sharePoint.sitePath)
+    .then((site) => {
+      setState({ siteId: site.id });
+      return site.id;
+    })
+    .catch((error) => {
+      sitePromise = null; // ให้ลองใหม่ได้ครั้งหน้า
+      throw error;
+    });
+  return sitePromise;
 }
 
 export async function ensureListId(listName) {
   if (listIdCache[listName]) return listIdCache[listName];
-  const siteId = await ensureSite();
-  const result = await getListByName(siteId, listName);
-  const listId = result?.value?.[0]?.id || null;
-  if (listId) listIdCache[listName] = listId;
-  return listId;
+  listIdCache[listName] = (async () => {
+    const siteId = await ensureSite();
+    const result = await getListByName(siteId, listName);
+    return result?.value?.[0]?.id || null;
+  })();
+  try {
+    const listId = await listIdCache[listName];
+    if (!listId) delete listIdCache[listName]; // ไม่เจอ List — ไม่จำไว้ เผื่อสร้างทีหลัง
+    return listId;
+  } catch (error) {
+    delete listIdCache[listName];
+    throw error;
+  }
 }
 
 export async function getListItems(listName) {

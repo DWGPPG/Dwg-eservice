@@ -32,6 +32,20 @@
     <meta name="apple-mobile-web-app-title" content="PPG Drawing" />
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
 
+    <!-- ตรวจก่อนวาดหน้า: เพิ่งกลับจาก Microsoft หรือมีบัญชีค้างในเครื่อง → ซ่อนการ์ด login ไว้ก่อน
+         (main.js จะแสดงหน้า "กำลังเข้าสู่ระบบ" ต่อ) ไม่ให้การ์ด login แวบขึ้นมาก่อน JS โหลดเสร็จ -->
+    <script>
+      (function () {
+        try {
+          var h = location.href, s = h.indexOf("code=") > -1 || h.indexOf("error=") > -1 || !!sessionStorage.getItem("msal.interaction.status");
+          for (var i = 0; !s && i < localStorage.length; i++) {
+            var v = localStorage.getItem(localStorage.key(i)) || "";
+            s = v.charAt(0) === "{" && v.indexOf("homeAccountId") > -1 && v.indexOf("authorityType") > -1 && v.indexOf("username") > -1;
+          }
+          if (s) document.documentElement.classList.add("signing-in");
+        } catch (e) {}
+      })();
+    </script>
     <link rel="stylesheet" href="./assets/css/variables.css" />
     <link rel="stylesheet" href="./assets/css/base.css" />
     <link rel="stylesheet" href="./assets/css/layout.css" />
