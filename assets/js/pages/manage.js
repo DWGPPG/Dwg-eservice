@@ -1,7 +1,8 @@
 import { appConfig } from "../../../config/config.js";
 import { fields, lists } from "../../../config/schema.js";
 import { refreshUserRole } from "../auth.js";
-import { isBootstrapAdmin } from "../services/role-service.js";
+import { BOOTSTRAP_MIGRATED_KEY, bootstrapListActive, bootstrapMigrated, isBootstrapAdmin } from "../services/role-service.js";
+import { migrateBootstrapAdmins, pendingBootstrap } from "../services/admin-migration.js";
 import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import { refreshNavBadges } from "../router.js";
@@ -297,7 +298,7 @@ function rowActions(key, tab, row) {
 function teamRoleBadge(row) {
   if (!isTrue(row.IsActive) && row.IsActive !== undefined && row.IsActive !== null) return `<span class="badge badge-cancelled">ปิดใช้งาน</span>`;
   if (isTrue(row.IsAdmin)) return `<span class="badge badge-done">ผู้จัดการ Lv.2</span>`;
-  if (isBootstrapAdmin(row.Email)) return `<span class="badge badge-pending" title="ได้สิทธิ์จากรายชื่อใน config.js — กด “ย้ายเข้า SharePoint”">ผู้จัดการ (config)</span>`;
+  if (isBootstrapAdmin(row.Email)) return `<span class="badge badge-pending" title="${bootstrapMigrated() ? "ใช้รายชื่อกู้คืนฉุกเฉินจาก config.js เพราะไม่มีผู้จัดการใน SharePoint" : "ได้สิทธิ์จากรายชื่อใน config.js — กด “ย้ายเข้า SharePoint”"}">ผู้จัดการ (config)</span>`;
   return `<span class="badge badge-working">ฝ่ายเขียนแบบ</span>`;
 }
 
@@ -390,19 +391,20 @@ function healthChecks() {
     });
   }
 
-  const pending = pendingBootstrap();
-  if (!pending.length && (appConfig.bootstrapAdminEmails || []).length) {
+  if (!bootstrapMigrated()) {
+    const pending = pendingBootstrap();
+    if (pending.length) {
+      issues.push({
+        level: "warn", tab: "team",
+        title: `ยังมีรายชื่อผู้จัดการ ${pending.length} คนที่อยู่ในโค้ด (config.js) ไม่ได้อยู่ใน SharePoint`,
+        detail: "ระบบจะย้ายเข้า SharePoint ให้อัตโนมัติเมื่อผู้จัดการเปิดเว็บ หรือกด “ย้ายเข้า SharePoint” ในแท็บทีม & สิทธิ์",
+      });
+    }
+  } else if (bootstrapListActive()) {
     issues.push({
-      level: "info", tab: "team",
-      title: "ย้ายผู้จัดการเข้า SharePoint ครบแล้ว — เหลือลบรายชื่อออกจาก config.js",
-      detail: "ตั้ง bootstrapAdminEmails: [] และ bootstrapRoleLabels: {} ใน config/config.js แล้ว deploy จากนั้นถอดสิทธิ์ผู้จัดการทุกคนได้จากหน้านี้",
-    });
-  }
-  if (pending.length) {
-    issues.push({
-      level: "warn", tab: "team",
-      title: `ยังมีรายชื่อผู้จัดการ ${pending.length} คนที่อยู่ในโค้ด (config.js) ไม่ได้อยู่ใน SharePoint`,
-      detail: "คนเหล่านี้ได้สิทธิ์ผู้จัดการจากโค้ด ถอดสิทธิ์จากหน้าเว็บไม่ได้ — กด “ย้ายเข้า SharePoint” ในแท็บทีม & สิทธิ์",
+      level: "error", tab: "team",
+      title: "ไม่มีผู้จัดการ (IsAdmin) ที่ใช้งานอยู่ใน SharePoint — ใช้รายชื่อกู้คืนฉุกเฉินจาก config.js ชั่วคราว",
+      detail: "ตั้งสิทธิ์ผู้จัดการให้อย่างน้อย 1 คนในแท็บทีม & สิทธิ์",
     });
   }
 
@@ -575,7 +577,7 @@ function bindBody(view) {
     ui.holidayYear = Number(chip.dataset.holidayYear);
     rerender();
   }));
-  body.querySelector('[data-action="migrate"]')?.addEventListener("click", (event) => migrateBootstrapAdmins(event.currentTarget, rerender));
+  body.querySelector('[data-action="migrate"]')?.addEventListener("click", (event) => runMigrationNow(event.currentTarget, rerender));
   body.querySelector('[data-action="csv"]')?.addEventListener("click", () => exportCsv(ui.tab));
   body.querySelectorAll('[data-action="edit"]').forEach((b) => b.addEventListener("click", () => openForm(ui.tab, find(b.dataset.id), rerender)));
   body.querySelectorAll('[data-action="toggle"]').forEach((b) => b.addEventListener("click", () => toggleHidden(ui.tab, find(b.dataset.id), rerender)));
@@ -803,8 +805,11 @@ function validateTeamMember(values, item) {
   const email = values.Email.toLowerCase();
   if (!/^[^\s@]+@[^\s@]+$/.test(email)) return "รูปแบบอีเมลไม่ถูกต้อง";
   if (!email.endsWith(`@${appConfig.azure.allowedDomain}`)) return `ต้องเป็นอีเมล @${appConfig.azure.allowedDomain} เท่านั้น`;
-  if (item && isTrue(item.IsAdmin) && !values.IsAdmin && isBootstrapAdmin(email)) {
-    return "คนนี้ยังได้สิทธิ์ผู้จัดการจากรายชื่อใน config.js — ถอดจากหน้าเว็บไม่มีผลจนกว่าจะลบรายชื่อออกจาก config";
+  if (item && isTrue(item.IsAdmin) && !values.IsAdmin && !bootstrapMigrated() && isBootstrapAdmin(email)) {
+    return "ระบบยังย้ายสิทธิ์ผู้จัดการจาก config.js เข้า SharePoint ไม่เสร็จ — กด “ย้ายเข้า SharePoint” ด้านบนก่อน แล้วค่อยถอดสิทธิ์";
+  }
+  if (item && isTrue(item.IsAdmin) && !values.IsAdmin && otherActiveAdmins(item) === 0) {
+    return "ต้องมีผู้จัดการอย่างน้อย 1 คน — เพิ่มสิทธิ์ให้คนอื่นก่อน แล้วค่อยถอดสิทธิ์คนนี้";
   }
   // กันผู้จัดการถอดสิทธิ์ตัวเองจนเข้าหน้านี้ไม่ได้
   const self = norm(state.user?.email);
@@ -824,6 +829,10 @@ async function toggleHidden(key, item, rerender) {
   const hidden = isHidden(tab, item);
   if (key === "team" && !hidden && norm(item.Email) === norm(state.user?.email)) {
     showToast("ปิดใช้งานบัญชีตัวเองไม่ได้", "error");
+    return;
+  }
+  if (key === "team" && !hidden && isTrue(item.IsAdmin) && otherActiveAdmins(item) === 0) {
+    showToast("ต้องมีผู้จัดการที่ใช้งานอยู่อย่างน้อย 1 คน — เพิ่มสิทธิ์ให้คนอื่นก่อน", "error");
     return;
   }
   const nextValue = tab.hideFieldInverted ? hidden : !hidden; // IsActive กลับด้านกับ IsHidden
@@ -1004,19 +1013,8 @@ function copyFromPreviousYear() {
 // ══════════════════════════════════════════════════════════════
 
 // รายชื่อใน config ที่ยังไม่ได้เป็นผู้จัดการ (IsAdmin) ใน SharePoint หรือป้ายแสดงผลยังไม่ถูกย้าย
-function pendingBootstrap() {
-  const team = state.masterData.team || [];
-  const labels = appConfig.bootstrapRoleLabels || {};
-  return (appConfig.bootstrapAdminEmails || []).map((email) => {
-    const member = team.find((m) => norm(m.Email) === norm(email));
-    const label = labels[norm(email)] || "";
-    const needsAdmin = !member || !isTrue(member.IsAdmin) || isHidden(TABS.team, member);
-    const needsLabel = Boolean(label) && !String(member?.DisplayLabel || "").trim();
-    return { email: norm(email), member, label, needsAdmin, needsLabel };
-  }).filter((p) => p.needsAdmin || p.needsLabel);
-}
-
 function bootstrapCard() {
+  if (bootstrapMigrated()) return "";
   const pending = pendingBootstrap();
   if (!pending.length) return "";
   return `
@@ -1031,45 +1029,28 @@ function bootstrapCard() {
     </div>`;
 }
 
-async function migrateBootstrapAdmins(button, rerender) {
-  const pending = pendingBootstrap();
-  if (!pending.length) return;
+async function runMigrationNow(button, rerender) {
   button.disabled = true;
   button.textContent = "กำลังย้าย...";
-  const done = [];
   try {
-    for (const p of pending) {
-      const patch = {};
-      if (p.needsAdmin) Object.assign(patch, { IsAdmin: true, IsActive: true });
-      if (p.needsLabel) patch.DisplayLabel = p.label;
-      if (p.member) {
-        await patchItem(lists.team, p.member.id, patch);
-      } else {
-        await addItem(lists.team, { Title0: knownName(p.email), Email: p.email, Role: "Manager", ...patch });
-      }
-      done.push(p.email);
-    }
-    await writeAudit({ action: "จัดการข้อมูล: ย้ายผู้จัดการจาก config เข้า SharePoint", detail: done.join(", ") });
-    showToast(`ย้ายเข้า SharePoint แล้ว ${done.length} คน — แก้ชื่อ/สายงานต่อได้ในตาราง`, "success");
+    const { done } = await migrateBootstrapAdmins();
+    await saveSetting(BOOTSTRAP_MIGRATED_KEY, new Date().toISOString());
+    showToast(`ย้ายเข้า SharePoint แล้ว ${done.length} คน — ต่อจากนี้เพิ่ม/ถอดสิทธิ์ผู้จัดการได้จากตารางนี้`, "success");
   } catch (error) {
-    showToast(`ย้ายได้ ${done.length}/${pending.length} คน — ${error.message}`, "error");
+    showToast(`ย้ายไม่สำเร็จ: ${error.message}`, "error");
   }
   await reloadMasterData();
   rerender();
 }
 
-// ชื่อที่ระบบรู้จักจากคำร้องเดิม (ผู้ร้องขอ/ผู้รับผิดชอบ) — ไม่เจอใช้ส่วนหน้าของอีเมล
-function knownName(email) {
-  const requests = state.requests || [];
-  const asRequester = requests.find((r) => norm(r.requesterEmail) === email)?.requesterName;
-  const asAssignee = requests.find((r) => norm(r.assignedToEmail) === email)?.assignedToName;
-  if (norm(state.user?.email) === email && state.user?.name) return state.user.name;
-  return asRequester || asAssignee || email.split("@")[0];
-}
-
 // ══════════════════════════════════════════════════════════════
 // helpers
 // ══════════════════════════════════════════════════════════════
+
+/** จำนวนผู้จัดการที่ใช้งานอยู่ใน SharePoint นอกจากคนนี้ */
+function otherActiveAdmins(item) {
+  return (state.masterData.team || []).filter((m) => m.id !== item.id && isTrue(m.IsAdmin) && !isHidden(TABS.team, m)).length;
+}
 
 function isHidden(tab, row) {
   if (!tab.hideField) return false;

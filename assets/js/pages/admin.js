@@ -1,3 +1,4 @@
+import { effectiveBootstrapEmails } from "../services/role-service.js";
 import { parseLinkEntries } from "../components/cloud-picker.js";
 import { paginate } from "../components/pager.js";
 import { STATUS, STATUS_LABELS , CANCEL_SOURCES , getCancelSource } from "../../../config/schema.js";
@@ -657,7 +658,7 @@ async function notifyTakeover({ request, me, prevOwnerName, prevOwnerEmail, full
   }
 
   // ── ช่องทาง 2: Teams 1:1 → ผู้จัดการทุกคน ──
-  const mgrEmails = getAllManagerEmails(appConfig.bootstrapAdminEmails || []);
+  const mgrEmails = getAllManagerEmails(effectiveBootstrapEmails());
   mgrEmails.forEach((email) => {
     // ไม่ส่งหาตัวเองถ้าผู้จัดการเป็นคนดึงงาน
     if (email.toLowerCase() === (me.email || "").toLowerCase()) return;

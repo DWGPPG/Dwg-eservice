@@ -47,18 +47,17 @@ export const appConfig = {
     // งาน "📋 เขียนแบบ Proposal" จะยิงตรงเข้ากลุ่มนี้ผ่าน Graph (ผู้ใช้เป็นสมาชิกกลุ่ม)
     nexusChatId: "19:2bffa8c03c5d4c3e898a1ae3bc0b73d3@thread.v2",
   },
-  // ── รายชื่อผู้จัดการ Lv.2 เดิม (กำลังย้ายไป SharePoint) ──
-  // ผู้จัดการจริงอยู่ใน SharePoint List "DrawingTeam" (IsAdmin = Yes) แก้ได้จากหน้า "จัดการข้อมูล"
-  // รายชื่อนี้ยังให้สิทธิ์ผู้จัดการอยู่ (กันคนเสียสิทธิ์ตอนเปลี่ยนระบบ) — ขั้นตอนเลิกใช้:
-  //   1) หน้าจัดการข้อมูล > ทีม & สิทธิ์ > กด "ย้ายเข้า SharePoint"
-  //   2) เปลี่ยนเป็น bootstrapAdminEmails: [] และ bootstrapRoleLabels: {} แล้ว deploy
+  // ── รายชื่อผู้จัดการ "กู้คืนฉุกเฉิน" ──
+  // สิทธิ์ผู้จัดการจริงอยู่ใน SharePoint List "DrawingTeam" (IsAdmin = Yes) — เพิ่ม/ถอดได้จากหน้า "จัดการข้อมูล → ทีม & สิทธิ์"
+  // ครั้งแรกที่ผู้จัดการเปิดเว็บ ระบบย้ายรายชื่อนี้เข้า SharePoint ให้อัตโนมัติ (บันทึก bootstrapMigrated ใน List AppSettings)
+  // หลังย้ายแล้ว รายชื่อนี้ "ไม่มีผล" ยกเว้นกรณี SharePoint ไม่มีผู้จัดการที่ใช้งานอยู่เหลือเลย (กันทุกคนถูกล็อกออก)
   bootstrapAdminEmails: [
     "jeerapat.up@primepower.co.th",
     "narakorn.pa@primepower.co.th",
     "archan.sa@primepower.co.th",
     "sarit.sr@primepower.co.th",
   ],
-  // ── ป้ายแสดงผลรายบุคคล (ย้ายไป column "DisplayLabel" พร้อมกันตอนกด "ย้ายเข้า SharePoint") ──
+  // ── ป้ายแสดงผลรายบุคคล (ย้ายไป column "DisplayLabel" อัตโนมัติพร้อมรายชื่อด้านบน) ──
   bootstrapRoleLabels: {
     "sarit.sr@primepower.co.th": "Admin ผู้ดูแลระบบ · วิศวกรไฟฟ้าเขียนแบบอาวุโส",
   },

@@ -7,6 +7,7 @@ import { writeAudit } from "./audit-service.js";
 import { ensureRequestFolder, uploadRequestFiles, uploadSendworkFiles } from "./drawing-service.js";
 import { getAllManagerEmails, getDrawingTeamMembers } from "./team-service.js";
 import { initRequestCache, syncRequests, syncRequestsNow } from "./request-sync.js";
+import { effectiveBootstrapEmails } from "./role-service.js";
 import { parseLinkEntries } from "../components/cloud-picker.js";
 
 const escapeAttr = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1041,7 +1042,7 @@ async function notifyManagersForReview(request, { dwgUrl, pdfUrl, note, otherFil
     `<a href="${appConfig.azure.redirectUri}">${appConfig.azure.redirectUri}</a>`,
   ].filter(Boolean);
 
-  const allManagerEmails = getAllManagerEmails(appConfig.bootstrapAdminEmails || []);
+  const allManagerEmails = getAllManagerEmails(effectiveBootstrapEmails());
   for (const mgrEmail of allManagerEmails) {
     await sendTeams1on1(mgrEmail, lines.join("<br>"));
   }

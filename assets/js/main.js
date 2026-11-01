@@ -18,6 +18,7 @@ import { showToast } from "./components/toast.js";
 import { startLinkInputEnhancer } from "./components/cloud-picker.js";
 import { startResponsiveTables } from "./components/responsive-tables.js";
 import { displayVersion } from "./services/app-settings.js";
+import { autoMigrateBootstrap } from "./services/admin-migration.js";
 
 const MAX_BACKOFF_MS = 2 * 60 * 1000;
 let pollTimer = null;
@@ -172,6 +173,7 @@ async function afterSignedIn() {
           lastRequestsHash = hashRequests(state.requests);
           // สิทธิ์เปลี่ยน (เช่นถูกเพิ่ม/ลบจากทีม) → ต้องวาดใหม่แม้ผู้ใช้กำลังพิมพ์ เพื่อไม่ให้เห็นเมนูที่ไม่มีสิทธิ์
           if (state.user?.role !== roleBefore || shouldRender()) navigate();
+          runAutoMigration();
         })
         .catch((error) => handleSyncFailure(error, true));
       afterAppReady();
@@ -183,9 +185,19 @@ async function afterSignedIn() {
     refreshUserRole();
     enterApp();
     afterAppReady();
+    runAutoMigration();
   } catch (error) {
     await handleSyncFailure(error, false);
   }
+}
+
+/** ย้ายสิทธิ์ผู้จัดการจาก config.js เข้า SharePoint ครั้งแรก (ทำเบื้องหลัง ไม่ขวางการใช้งาน) */
+async function runAutoMigration() {
+  const changed = await autoMigrateBootstrap();
+  if (!changed) return;
+  await loadMasterData().catch(() => {});
+  refreshUserRole();
+  if (shouldRender()) navigate();
 }
 
 function enterApp() {
