@@ -190,6 +190,18 @@ Logo ที่ใช้: `PPC NEW-2024 - R1.png` (ไฟล์ root ของโ
 - สร้าง **Index** คอลัมน์ `Status`, `Modified`, `Title`, `SenderEmail`, `AssigneeEmail`, `SubmittedAt` ของ List `DrawingRequests` (ก่อนเกิน 5,000 รายการ)
 - จำกัด **Version history** ของ Document Library (Library settings → Versioning settings) เลือกอย่างใดอย่างหนึ่ง: **Automatic** (Microsoft จัดการจำนวน+อายุเวอร์ชันให้เอง — ช่องจำนวนเวอร์ชันจะถูกปิด) หรือ **Manual** = เก็บไม่เกิน N วัน (เช่น 365) + จำนวน major versions **100** (ค่าต่ำสุดที่หน้านี้ยอมรับ; ค่าเริ่มต้น 500) · ดูขนาดที่ Site settings → Storage Metrics
 
+## List ที่ต้องสร้างเพิ่ม (หน้าจัดการข้อมูล)
+
+ระบบพยายามสร้างให้อัตโนมัติ แต่ต้องใช้สิทธิ์ "จัดการ List" ใน Site — ถ้าขึ้นว่า "ไม่มีสิทธิ์สร้าง List" ให้เจ้าของ Site สร้างเองที่ `sites/DrawingDepartment` (Site contents → New → List → Blank list) ชื่อตรงตัวพิมพ์ และเพิ่มคอลัมน์ชนิด **Single line of text** (หรือ Multiple lines) ตามนี้ — ชื่อคอลัมน์ต้องพิมพ์ตรงทุกตัวอักษร ไม่เว้นวรรค:
+
+| List | คอลัมน์ |
+|---|---|
+| `ProjectOwners` | `ProjectName`, `OwnerEmail`, `RequestTypes`, `Note` |
+| `StaffLeave` | `Email`, `LeaveStart`, `LeaveEnd`, `Period`, `Note` |
+| `AppSettings` | `SettingValue` |
+
+ผู้ใช้ที่จะบันทึกข้อมูลต้องมีสิทธิ์ Edit ใน List เหล่านี้ (ค่าเริ่มต้นสืบทอดจาก Site)
+
 ## ธีม / ดีไซน์ (Neon Blueprint)
 
 หน้าตาระบบทั้งหมดอยู่ใน 2 ไฟล์ที่โหลดท้ายสุด โดยไม่แตะ class / id ที่ JS ใช้งาน workflow จึงเหมือนเดิมทุกอย่าง

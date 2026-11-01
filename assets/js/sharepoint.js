@@ -254,14 +254,22 @@ export async function ensureList(listName, textColumns = []) {
   const existing = await ensureListId(listName);
   if (existing) return existing;
   const siteId = await ensureSite();
-  await graphFetch(`/sites/${siteId}/lists`, {
-    method: "POST",
-    body: JSON.stringify({
-      displayName: listName,
-      columns: textColumns.map((name) => ({ name, text: { allowMultipleLines: true } })),
-      list: { template: "genericList" },
-    }),
-  });
+  try {
+    await graphFetch(`/sites/${siteId}/lists`, {
+      method: "POST",
+      body: JSON.stringify({
+        displayName: listName,
+        columns: textColumns.map((name) => ({ name, text: { allowMultipleLines: true } })),
+        list: { template: "genericList" },
+      }),
+    });
+  } catch (error) {
+    // การสร้าง List ต้องใช้สิทธิ์ "จัดการ List" ใน Site (หรือ Sites.Manage.All) — บัญชีทั่วไปมักไม่มี
+    if (error.status === 403 || /accessDenied/i.test(error.message || "")) {
+      throw new Error(`ไม่มีสิทธิ์สร้าง List "${listName}" อัตโนมัติ — ให้เจ้าของ Site / IT สร้าง List ชื่อ ${listName} ที่ SharePoint ฝ่ายเขียนแบบ พร้อมคอลัมน์ข้อความ (Single/Multiple lines of text): ${textColumns.join(", ")} แล้วลองใหม่`);
+    }
+    throw error;
+  }
   const created = await ensureListId(listName);
   if (!created) throw new Error(`สร้าง List "${listName}" ไม่สำเร็จ`);
   return created;
