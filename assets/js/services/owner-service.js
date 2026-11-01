@@ -61,7 +61,7 @@ export function ownersFor(projectName, requestType) {
   }
   if (!projectName) return [];
   const seen = new Set();
-  return (state.masterData.projectOwners || [])
+  const configured = (state.masterData.projectOwners || [])
     .filter((row) => norm(row.ProjectName) === norm(projectName) && row.OwnerEmail)
     .filter((row) => {
       const types = splitTypes(row.RequestTypes);
@@ -69,6 +69,80 @@ export function ownersFor(projectName, requestType) {
     })
     .map((row) => ({ email: norm(row.OwnerEmail), name: personName(row.OwnerEmail), source: "project" }))
     .filter((o) => !seen.has(o.email) && seen.add(o.email));
+  if (configured.length) return configured;
+  // ยังไม่ได้กำหนดในหน้าจัดการข้อมูล → ใช้คนที่รับงานโครงการนี้บ่อยในหน้าติดตามงาน (อ้างอิงเท่านั้น)
+  return historyOwners(projectName, requestType).map((h) => ({ email: h.email, name: personName(h.email), source: "history", count: h.count }));
+}
+
+// ══════════════════════════════════════════════════════════════
+// ผู้รับผิดชอบจาก "ประวัติงาน" (คำร้องในหน้าติดตามงาน)
+// ══════════════════════════════════════════════════════════════
+
+const HISTORY_SHARE = 0.25;   // ต้องรับงานอย่างน้อย 25% ของงานโครงการนั้น
+const HISTORY_MAX = 3;
+
+function assignedRequests(projectName) {
+  return (state.requests || []).filter((r) => norm(r.projectName) === norm(projectName) && r.assignedToEmail && !isProposalType(r.requestType));
+}
+
+/** คนที่รับงานโครงการนี้บ่อย (ประเภทเดียวกันก่อน ถ้าข้อมูลประเภทนั้นน้อยใช้ทุกประเภท) */
+export function historyOwners(projectName, requestType = "") {
+  const all = assignedRequests(projectName);
+  const sameType = requestType ? all.filter((r) => r.requestType === requestType) : all;
+  const pool = sameType.length >= 2 ? sameType : all;
+  if (!pool.length) return [];
+  const counts = new Map();
+  pool.forEach((r) => {
+    const email = norm(r.assignedToEmail);
+    counts.set(email, (counts.get(email) || 0) + 1);
+  });
+  return [...counts.entries()]
+    .map(([email, count]) => ({ email, count, share: count / pool.length }))
+    .filter((x) => x.share >= HISTORY_SHARE || counts.size === 1)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, HISTORY_MAX);
+}
+
+/**
+ * ข้อเสนอสำหรับนำเข้า: ทุกโครงการที่มีคำร้อง (ไม่รวม Proposal) → คน + ประเภทงานที่เคยรับ + จำนวน
+ * primary = ผ่านเกณฑ์ historyOwners (ติ๊กไว้ให้ก่อน)
+ */
+export function historySuggestions() {
+  const byProject = new Map();
+  (state.requests || []).forEach((r) => {
+    if (!r.projectName || !r.assignedToEmail || isProposalType(r.requestType)) return;
+    const key = r.projectName.trim();
+    if (!byProject.has(key)) byProject.set(key, []);
+    byProject.get(key).push(r);
+  });
+  const existing = new Set((state.masterData.projectOwners || []).map((row) => `${norm(row.ProjectName)}|${norm(row.OwnerEmail)}`));
+  const out = [];
+  [...byProject.entries()].sort((a, b) => a[0].localeCompare(b[0], "th", { numeric: true })).forEach(([project, rows]) => {
+    const primary = new Set(historyOwners(project).map((h) => h.email));
+    const people = new Map();
+    rows.forEach((r) => {
+      const email = norm(r.assignedToEmail);
+      const p = people.get(email) || { email, count: 0, types: new Set(), last: "" };
+      p.count += 1;
+      if (r.requestType) p.types.add(r.requestType);
+      if (String(r.submittedAt || "") > p.last) p.last = String(r.submittedAt || "");
+      people.set(email, p);
+    });
+    [...people.values()].sort((a, b) => b.count - a.count).forEach((p) => {
+      out.push({
+        project,
+        email: p.email,
+        name: personName(p.email),
+        count: p.count,
+        total: rows.length,
+        types: [...p.types],
+        last: p.last,
+        primary: primary.has(p.email),
+        exists: existing.has(`${norm(project)}|${p.email}`),
+      });
+    });
+  });
+  return out;
 }
 
 /** รายการลาที่ครอบคลุมวันนั้น */
@@ -97,7 +171,7 @@ export function ownerNoticeHtml(projectName, requestType, dateKey = todayKey()) 
   return `
     <div class="owner-notice ${away.length ? "has-away" : ""}">
       <div class="owner-notice-row">
-        <span class="owner-notice-label">👷 ผู้รับผิดชอบ${isProposalType(requestType) ? "งาน Proposal" : "โครงการ"}</span>
+        <span class="owner-notice-label">👷 ผู้รับผิดชอบ${isProposalType(requestType) ? "งาน Proposal" : "โครงการ"}${owners[0]?.source === "history" ? ' <small class="owner-source">(จากประวัติงาน)</small>' : ""}</span>
         <span class="owner-chips">${chips}</span>
       </div>
       ${away.length ? `
@@ -111,7 +185,7 @@ export function ownerNoticeHtml(projectName, requestType, dateKey = todayKey()) 
 
 /** ข้อความสั้นสำหรับตาราง/ป๊อปอัป: "Narakorn, Janjira (ลาวันนี้)" */
 export function ownerSummaryText(projectName, requestType, dateKey = todayKey()) {
-  return ownersFor(projectName, requestType)
-    .map((o) => `${o.name}${leaveOf(o.email, dateKey) ? " (ลาวันนี้)" : ""}`)
-    .join(", ");
+  const owners = ownersFor(projectName, requestType);
+  const text = owners.map((o) => `${o.name}${leaveOf(o.email, dateKey) ? " (ลาวันนี้)" : ""}`).join(", ");
+  return text && owners[0]?.source === "history" ? `${text} · จากประวัติงาน` : text;
 }

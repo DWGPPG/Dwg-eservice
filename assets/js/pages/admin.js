@@ -901,7 +901,9 @@ function bindFilterEvents(view, state, rerender) {
 
 function openPickupAssignModal(view, state, request) {
   // ผู้รับผิดชอบโครงการขึ้นก่อน + ป้าย "ลาวันนี้" — ผู้มอบหมายเห็นทันทีว่าควรให้ใคร
-  const ownerEmails = new Set(ownersFor(request.projectName, request.requestType).map((o) => o.email));
+  const owners = ownersFor(request.projectName, request.requestType);
+  const ownerEmails = new Set(owners.map((o) => o.email));
+  const ownerTag = owners[0]?.source === "history" ? "เคยรับงานโครงการนี้" : "ผู้รับผิดชอบโครงการ";
   const members = [...getDrawingTeamMembers()].sort((a, b) =>
     Number(ownerEmails.has(b.email.toLowerCase())) - Number(ownerEmails.has(a.email.toLowerCase())));
   const body = `
@@ -919,7 +921,7 @@ function openPickupAssignModal(view, state, request) {
             <input type="radio" name="pickupAssignMember" value="${idx}" />
             <span class="assignee-avatar">${escapeHtml(initials(m.name || m.email))}</span>
             <span>
-              <strong>${escapeHtml(m.name || m.email)}${ownerEmails.has(m.email.toLowerCase()) ? ' <span class="owner-tag">ผู้รับผิดชอบโครงการ</span>' : ""}${leaveOf(m.email) ? ' <span class="owner-tag is-away">ลาวันนี้</span>' : ""}</strong>
+              <strong>${escapeHtml(m.name || m.email)}${ownerEmails.has(m.email.toLowerCase()) ? ` <span class="owner-tag">${ownerTag}</span>` : ""}${leaveOf(m.email) ? ' <span class="owner-tag is-away">ลาวันนี้</span>' : ""}</strong>
               <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>
             </span>
           </label>`).join("")}

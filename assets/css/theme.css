@@ -3241,3 +3241,21 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .manage-setting-checks { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 [data-theme] .manage-setting-preview-text { margin: 0; font-size: 12.5px; color: var(--muted); }
 [data-theme] .manage-setting-preview-text b { color: var(--text); }
+
+/* นำเข้าผู้รับผิดชอบโครงการจากประวัติงาน */
+[data-theme] .import-owner { display: grid; gap: 10px; }
+[data-theme] .import-owner-intro { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.6; }
+[data-theme] .import-owner-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+[data-theme] .import-owner-tools .manage-search { flex: 1 1 200px; }
+[data-theme] .import-owner-list { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+[data-theme] .import-owner-row { display: grid; grid-template-columns: 22px minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+[data-theme] .import-owner-row[hidden] { display: none; }
+[data-theme] .import-owner-row:last-child { border-bottom: 0; }
+[data-theme] .import-owner-row.is-exists { opacity: .55; cursor: default; }
+[data-theme] .import-owner-project { font-weight: 600; overflow-wrap: anywhere; }
+[data-theme] .import-owner-name em { font-style: normal; font-size: 10.5px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: rgba(16, 185, 129, .15); color: #059669; }
+[data-theme] .import-owner-name em.is-muted { background: var(--surface-muted); color: var(--muted); }
+[data-theme] .import-owner-meta { color: var(--muted); font-size: 12px; }
+[data-theme] .import-owner-status { margin: 0; min-height: 1em; font-size: 12.5px; color: var(--muted); }
+[data-theme] .owner-source { font-weight: 400; color: var(--muted); }
+@media (max-width: 640px) { [data-theme] .import-owner-row { grid-template-columns: 22px minmax(0, 1fr); } [data-theme] .import-owner-name, [data-theme] .import-owner-meta { grid-column: 2; } }

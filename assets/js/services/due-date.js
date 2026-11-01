@@ -14,12 +14,37 @@ export function toDateKey(dateLike) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// ── ชื่อวันหยุด ──
+// List HolidayList ของบริษัทมีคอลัมน์ "Title" 2 คอลัมน์: Title ของระบบ (ว่าง) กับคอลัมน์ที่สร้างเองชื่อแสดงว่า "Title"
+// (ชื่อภายในเป็นอย่างอื่น เช่น Title0) ซึ่งเป็นที่เก็บชื่อวันหยุดจริง — อ่านจากคอลัมน์ไหนก็ได้ที่มีค่า
+const SYSTEM_FIELDS = new Set(["id", "Title", "HolidayDate", "ContentType", "Modified", "Created", "Attachments", "Edit",
+  "LinkTitle", "LinkTitleNoMenu", "ItemChildCount", "FolderChildCount", "DocIcon", "AuthorLookupId", "EditorLookupId",
+  "AppAuthorLookupId", "AppEditorLookupId"]);
+const isCustomTextField = (key, value) => !SYSTEM_FIELDS.has(key) && !key.startsWith("_") && !key.startsWith("@")
+  && !/LookupId$|^OData|^Link/i.test(key) && typeof value === "string" && value.trim() && !/^\d{4}-\d{2}-\d{2}T/.test(value);
+
+/** ชื่อคอลัมน์ที่เก็บชื่อวันหยุดจริง (ถ้าไม่ใช่ Title) — ใช้ตอนบันทึกวันหยุดใหม่ให้ลงคอลัมน์เดียวกัน */
+export function holidayNameField(rows = state.masterData?.holidays || []) {
+  const counts = new Map();
+  rows.forEach((row) => Object.entries(row).forEach(([k, v]) => { if (isCustomTextField(k, v)) counts.set(k, (counts.get(k) || 0) + 1); }));
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+}
+
+export function holidayName(row, nameField = holidayNameField()) {
+  const fromTitle = String(row?.Title || "").trim();
+  if (fromTitle) return fromTitle;
+  if (nameField && String(row?.[nameField] || "").trim()) return String(row[nameField]).trim();
+  const any = Object.entries(row || {}).find(([k, v]) => isCustomTextField(k, v));
+  return any ? String(any[1]).trim() : "";
+}
+
 /** Map "YYYY-MM-DD" → ชื่อวันหยุด (จาก List HolidayList) */
 export function holidayMap() {
   const map = new Map();
+  const nameField = holidayNameField();
   (state.masterData?.holidays || []).forEach((h) => {
     const key = toDateKey(h.HolidayDate || h.holidayDate || "");
-    if (key) map.set(key, String(h.Title || h.title || "วันหยุดนักขัตฤกษ์"));
+    if (key) map.set(key, holidayName(h, nameField) || "วันหยุดนักขัตฤกษ์");
   });
   return map;
 }
