@@ -101,7 +101,12 @@
             <a id="sidebar-new-request" class="sidebar-action" href="#/submit" title="ส่งคำร้องใหม่" aria-label="ส่งคำร้องใหม่" hidden><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
             <button id="logout-button" class="sidebar-action sidebar-action-logout" type="button" title="ออกจากระบบ" aria-label="ออกจากระบบ" hidden><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg><span class="sidebar-action-label">ออกจากระบบ</span></button>
           </div>
-          <small id="app-version-label" class="app-version-label"></small>
+          <div class="sidebar-meta">
+            <button class="sync-indicator sync-indicator-side" type="button" hidden data-phase="idle" data-sync-indicator>
+              <span class="sync-dot" aria-hidden="true"></span><span class="sync-label"></span>
+            </button>
+            <small id="app-version-label" class="app-version-label"></small>
+          </div>
         </div>
       </aside>
 
@@ -118,6 +123,9 @@
             <p id="page-kicker">PPG Drawing e-Service</p>
             <h1 id="page-title">ภาพรวมงาน Drawing</h1>
           </div>
+          <button class="sync-indicator sync-indicator-top" type="button" hidden data-phase="idle" data-sync-indicator>
+            <span class="sync-dot" aria-hidden="true"></span><span class="sync-label"></span>
+          </button>
         </header>
 
         <section id="auth-panel" class="auth-screen">

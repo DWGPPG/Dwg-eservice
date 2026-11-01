@@ -20,6 +20,12 @@ export const appConfig = {
       "Chat.ReadWrite",
     ],
   },
+  // ── ไฟล์แนบ ──
+  // ไฟล์ที่ใหญ่กว่า largeFileMB ระบบจะถามก่อนว่าจะอัปโหลดสำเนา หรือแนบเป็นลิงก์จาก SharePoint/OneDrive แทน
+  // (ประหยัดพื้นที่ 1TB ของ SharePoint — ไฟล์ใหญ่ไม่ควรถูกคัดลอกซ้ำหลายที่)
+  files: {
+    largeFileMB: 200,
+  },
   sharePoint: {
     hostname: "primepowertl.sharepoint.com",
     sitePath: "/sites/DrawingDepartment",

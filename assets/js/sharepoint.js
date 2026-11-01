@@ -8,6 +8,7 @@ import {
   listItems,
   updateListItem,
 } from "./graph.js";
+import { cacheGet, cacheSet, userCacheKey } from "./idb-cache.js";
 import { readTeamCache, saveTeamCache } from "./services/team-service.js";
 import { setState, state } from "./state.js";
 
@@ -112,7 +113,14 @@ const unknownFieldsCache = {};
 // ส่งคำสั่งแก้ไขรายการเดียวกันทีละคำสั่ง — คำสั่งที่ซ้อนกัน (เช่นเปลี่ยนสถานะซ้ำเร็วๆ) ทำให้ SharePoint ตอบ 409
 const itemPatchQueues = new Map();
 
+// ตัวกันบันทึกทับจากข้อมูลเก่าในแคช (ลงทะเบียนโดย request-sync.js) — ใช้กับ List คำร้องเท่านั้น
+let requestWriteGuard = null;
+export function setRequestWriteGuard(fn) {
+  requestWriteGuard = fn;
+}
+
 export async function patchItem(listName, itemId, fieldsPayload) {
+  if (requestWriteGuard && listName === lists.requests) await requestWriteGuard(itemId);
   const key = `${listName}:${itemId}`;
   const previous = itemPatchQueues.get(key) || Promise.resolve();
   const run = previous.catch(() => {}).then(() => patchItemNow(listName, itemId, fieldsPayload));
@@ -211,5 +219,18 @@ export async function loadMasterData() {
 
   const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays, teamSource };
   setState({ masterData });
+  if (state.account && teamSource === "sharepoint") cacheSet(masterCacheKey(state.account), masterData);
   return masterData;
+}
+
+function masterCacheKey(account) {
+  return userCacheKey(account, `master@${appConfig.sharePoint.hostname}${appConfig.sharePoint.sitePath}`);
+}
+
+/** ข้อมูลหลัก (ทีม/โครงการ/วันหยุด) จากสำเนาในเครื่อง — ให้เปิดเว็บได้ทันทีก่อนโหลดจริงเสร็จ */
+export async function hydrateMasterFromCache(account) {
+  const data = await cacheGet(masterCacheKey(account));
+  if (!data?.team) return false;
+  setState({ masterData: { ...data, teamSource: data.teamSource || "sharepoint" } });
+  return true;
 }

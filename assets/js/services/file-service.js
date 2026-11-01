@@ -2,6 +2,7 @@ import { appConfig } from "../../../config/config.js";
 import { graphFetch } from "../graph.js";
 import { ensureSite } from "../sharepoint.js";
 import { escapeHtml } from "../utils.js";
+import { parseLinkEntries } from "../components/cloud-picker.js";
 import { requestFolderPath } from "./drawing-service.js";
 
 // ══════════════════════════════════════════════════════════════
@@ -133,7 +134,9 @@ export function requesterFileChips(files, maxLen = 26) {
  */
 export function renderFileGroups(item, { maxLen = 26, showRequester = true } = {}) {
   const dept = drawingDeptFiles(item);
-  const links = extractLinks(item.dataLink);
+  // ลิงก์แนบ: ถ้าเลือกจาก SharePoint/OneDrive จะมีชื่อไฟล์นำหน้า ("ชื่อ | ลิงก์") → แสดงชื่อไฟล์แทน "ลิงก์แนบ"
+  const seenLinks = new Set();
+  const links = parseLinkEntries(item.dataLink).filter((l) => !seenLinks.has(l.url) && seenLinks.add(l.url));
   const cached = requesterFilesCached(item.requestNo);
 
   const requesterSection = showRequester ? `
@@ -141,7 +144,11 @@ export function renderFileGroups(item, { maxLen = 26, showRequester = true } = {
       <div class="file-group-title">📤 จากผู้ส่งคำขอ</div>
       <div class="file-group-items">
         <a href="${escapeHtml(requestFolderUrl(item.requestNo))}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn folder-btn file-chip-named">📁 <span>โฟลเดอร์คำร้อง</span></a>
-        ${links.map((url, i) => `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn file-chip-named" title="${escapeHtml(url)}">🔗 <span>ลิงก์แนบ${links.length > 1 ? ` ${i + 1}` : ""}</span></a>`).join("")}
+        ${links.map((link, i) => {
+          const name = link.name || fileNameFromUrl(link.url, "");
+          if (name) return fileChip({ url: link.url, name }, maxLen).replace("file-chip-named", "file-chip-named file-chip-linked");
+          return `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" class="mgr-file-btn ref-btn file-chip-named" title="${escapeHtml(link.url)}">🔗 <span>ลิงก์แนบ${links.length > 1 ? ` ${i + 1}` : ""}</span></a>`;
+        }).join("")}
         <span class="file-group-async" data-requester-files="${escapeHtml(item.requestNo)}" data-max-len="${maxLen}">${cached
           ? requesterFileChips(cached, maxLen)
           : `<span class="file-group-loading">⏳ กำลังโหลดรายชื่อไฟล์…</span>`}</span>

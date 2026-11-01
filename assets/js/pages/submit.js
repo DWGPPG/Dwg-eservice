@@ -1,3 +1,4 @@
+import { reviewIncomingFiles } from "../components/file-guard.js";
 import { lists } from "../../../config/schema.js";
 import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
@@ -826,22 +827,18 @@ function renderSelectedDrawingQueue(view) {
   target.querySelectorAll("[data-file-drop]").forEach((dropZone) => {
     const input = dropZone.querySelector("input[type='file']");
     const key = dropZone.dataset.fileDrop;
-    const addFiles = (fileListLike) => {
+    const addFiles = async (fileListLike) => {
       if (!drawingDetails[key]) drawingDetails[key] = {};
+      const isFile = (f) => f instanceof File && f.name && typeof f.size === "number";
       const rawExisting = Array.isArray(drawingDetails[key].files) ? drawingDetails[key].files : [];
-      const existing = rawExisting.filter(
-        (f) => f instanceof File && f.name && typeof f.size === "number"
-      );
-      const incoming = Array.from(fileListLike || []).filter(
-        (f) => f instanceof File && f.name && typeof f.size === "number"
-      );
-      // กันไฟล์ซ้ำ (ชื่อ+ขนาดเดียวกัน)
-      const merged = [...existing];
-      incoming.forEach((nf) => {
-        const dup = merged.some((ef) => ef.name === nf.name && ef.size === nf.size);
-        if (!dup) merged.push(nf);
-      });
-      drawingDetails[key].files = merged;
+      const existing = rawExisting.filter(isFile);
+      const elsewhere = Object.entries(drawingDetails)
+        .filter(([k]) => k !== key)
+        .flatMap(([, d]) => (Array.isArray(d?.files) ? d.files.filter(isFile) : []));
+      // กันไฟล์ซ้ำ (ชื่อ+ขนาดเดียวกัน) + ถามก่อนอัปโหลดไฟล์ใหญ่ (แนะนำแนบเป็นลิงก์แทน)
+      const incoming = await reviewIncomingFiles(Array.from(fileListLike || []), { existing, elsewhere });
+      if (!incoming.length) return;
+      drawingDetails[key].files = [...existing, ...incoming];
       renderSelectedDrawingQueue(view);
     };
     input.addEventListener("change", () => {

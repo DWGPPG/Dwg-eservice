@@ -2887,3 +2887,161 @@ html.signing-in #auth-panel > * {
     transition: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ป้ายสถานะซิงค์ข้อมูล (แถบหัว)
+   ══════════════════════════════════════════════════════════════ */
+[data-theme] .sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+[data-theme] .sync-indicator[hidden] { display: none; }
+[data-theme] .sync-indicator:hover { border-color: var(--neon); color: var(--text); }
+[data-theme] .sync-indicator:disabled { cursor: progress; opacity: .7; }
+[data-theme] .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--neon); box-shadow: 0 0 8px var(--neon); flex-shrink: 0; }
+[data-theme] .sync-indicator[data-phase="syncing"] .sync-dot,
+[data-theme] .sync-indicator[data-phase="cached"] .sync-dot { background: #f59e0b; box-shadow: 0 0 8px #f59e0b; animation: sync-pulse 1s ease-in-out infinite; }
+[data-theme] .sync-indicator[data-phase="error"] .sync-dot,
+[data-theme] .sync-indicator[data-phase="offline"] .sync-dot { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+@keyframes sync-pulse { 50% { opacity: .35; } }
+/* แถบเมนูซ้าย: เต็มความกว้าง เหนือเลขเวอร์ชัน — ตอนย่อแถบเหลือแค่จุดสถานะ */
+[data-theme] .sidebar-meta { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
+[data-theme] .sidebar-meta .app-version-label { margin: 0; flex-shrink: 0; }
+[data-theme] .sync-indicator-side { min-width: 0; padding: 2px 6px; border-color: transparent; background: transparent; font-size: 11px; gap: 6px; }
+[data-theme] .sync-indicator-side .sync-dot { width: 7px; height: 7px; }
+[data-theme] .sync-indicator-side .sync-label { overflow: hidden; text-overflow: ellipsis; }
+[data-theme] .sync-indicator-top { margin-left: auto; }
+@media (min-width: 1041px) {
+  [data-theme] body.sidebar-collapsed .sidebar .sidebar-meta { flex-direction: column; gap: 2px; }
+  [data-theme] body.sidebar-collapsed .sidebar:not(:hover):not(:has(:focus-visible)) .sync-indicator-side .sync-label { display: none; }
+}
+/* มือถือ: แถบหัวเรียงแนวตั้ง — วางป้ายมุมขวาบน ไม่ดันหัวข้อให้สูงขึ้น */
+@media (max-width: 720px) {
+  [data-theme] .topbar { position: relative; }
+  [data-theme] .sync-indicator-top { position: absolute; top: 10px; right: 10px; padding: 5px 9px; font-size: 11px; }
+  [data-theme] .sync-indicator-top .sync-label { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+}
+@media print { .sync-indicator { display: none !important; } }
+
+/* ── แบ่งหน้าตาราง ── */
+[data-theme] .pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-muted);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+[data-theme] .pager-controls { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+[data-theme] .pager-page { min-width: 92px; text-align: center; color: var(--text); font-weight: 600; }
+[data-theme] .pager-btn {
+  min-width: 32px; height: 32px; padding: 0 8px;
+  border: 1px solid var(--line-strong); border-radius: 10px;
+  background: var(--surface); color: var(--text); font: inherit; cursor: pointer;
+}
+[data-theme] .pager-btn:hover:not(:disabled) { border-color: var(--neon); color: var(--neon); }
+[data-theme] .pager-btn:disabled { opacity: .35; cursor: default; }
+[data-theme] .pager-size { height: 32px; border-radius: 10px; padding: 0 8px; font: inherit; font-size: 12px; }
+[data-pager-anchor] { display: block; scroll-margin-top: 90px; }
+@media print { .pager { display: none !important; } }
+
+/* ══════════════════════════════════════════════════════════════
+   เลือกไฟล์จาก SharePoint / OneDrive + ตรวจลิงก์ + เตือนไฟล์ใหญ่
+   ══════════════════════════════════════════════════════════════ */
+.cloud-picker-backdrop {
+  position: fixed; inset: 0; z-index: 2000;
+  display: grid; place-items: center; padding: 16px;
+  background: rgba(5, 8, 12, 0.62);
+}
+[data-theme] .cloud-picker {
+  width: min(760px, 100%); max-height: min(86vh, 760px);
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line-strong); border-radius: 20px;
+  background: var(--surface-solid); color: var(--text);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+[data-theme] .cp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px 10px; }
+[data-theme] .cp-head h2 { margin: 0; font-size: 17px; }
+[data-theme] .cp-sources { display: flex; gap: 8px; padding: 0 20px 10px; flex-wrap: wrap; }
+[data-theme] .cp-source {
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line-strong);
+  background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer;
+}
+[data-theme] .cp-source.is-active { border-color: var(--neon); color: var(--text); background: color-mix(in srgb, var(--neon) 14%, transparent); }
+[data-theme] .cp-toolbar { display: flex; gap: 10px; align-items: center; padding: 0 20px 10px; flex-wrap: wrap; }
+[data-theme] .cp-crumbs { flex: 1 1 260px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 13px; min-width: 0; }
+[data-theme] .cp-crumb { border: 0; background: none; color: var(--neon); font: inherit; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+[data-theme] .cp-crumb.is-current { color: var(--text); font-weight: 600; cursor: default; }
+[data-theme] .cp-sep { color: var(--muted); }
+[data-theme] .cp-search { flex: 0 1 220px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--surface-muted); color: var(--text); font: inherit; font-size: 13px; }
+[data-theme] .cp-list { flex: 1; overflow: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); min-height: 220px; }
+[data-theme] .cp-row {
+  width: 100%; display: grid; grid-template-columns: 28px minmax(0, 1fr) 90px 80px; gap: 10px; align-items: center;
+  padding: 9px 20px; border: 0; border-bottom: 1px solid var(--line); background: transparent;
+  color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
+}
+[data-theme] .cp-row:hover { background: var(--surface-muted); }
+[data-theme] .cp-row.is-checked { background: color-mix(in srgb, var(--neon) 12%, transparent); }
+[data-theme] .cp-row.is-folder .cp-name { font-weight: 600; }
+[data-theme] .cp-check { font-size: 16px; text-align: center; }
+[data-theme] .cp-row.is-checked .cp-check { color: var(--neon); }
+[data-theme] .cp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme] .cp-meta { color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
+[data-theme] .cp-empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+[data-theme] .cp-error { color: #ef4444; }
+[data-theme] .cp-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line-strong); border-top-color: var(--neon); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+[data-theme] .cp-note { margin: 0; padding: 10px 20px 0; font-size: 12px; color: var(--muted); }
+[data-theme] .cp-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 16px; flex-wrap: wrap; }
+[data-theme] .cp-selected { font-size: 13px; color: var(--muted); }
+[data-theme] .cp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) {
+  [data-theme] .cp-row { grid-template-columns: 24px minmax(0, 1fr) 70px; padding: 10px 14px; }
+  [data-theme] .cp-date { display: none; }
+  [data-theme] .cp-head, [data-theme] .cp-sources, [data-theme] .cp-toolbar, [data-theme] .cp-foot, [data-theme] .cp-note { padding-left: 14px; padding-right: 14px; }
+  [data-theme] .cp-search { flex: 1 1 100%; }
+}
+
+/* ปุ่ม 📂 + สถานะตรวจลิงก์ใต้ช่องลิงก์ */
+[data-theme] .cloud-link-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; }
+[data-theme] .cloud-pick-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
+  border: 1px dashed var(--neon); border-radius: 999px; background: color-mix(in srgb, var(--neon) 8%, transparent);
+  color: var(--text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+[data-theme] .cloud-pick-btn:hover { background: color-mix(in srgb, var(--neon) 18%, transparent); }
+[data-theme] .cloud-link-status { display: flex; flex-direction: column; gap: 2px; font-size: 11.5px; line-height: 1.5; }
+[data-theme] .cloud-link-status .cl-ok { color: #10b981; }
+[data-theme] .cloud-link-status .cl-bad { color: #ef4444; }
+[data-theme] .cloud-link-status .cl-warn { color: #f59e0b; }
+[data-theme] .cloud-link-status .cl-muted { color: var(--muted); }
+[data-theme] .file-chip-linked::after { content: "🔗"; font-size: 10px; margin-left: 2px; opacity: .7; }
+
+/* เตือนไฟล์ใหญ่ */
+[data-theme] .file-guard { width: min(560px, 100%); }
+[data-theme] .file-guard-body { padding: 0 20px; font-size: 13px; line-height: 1.6; overflow: auto; }
+[data-theme] .file-guard-body p { margin: 8px 0; color: var(--muted); }
+[data-theme] .file-guard-body p b { color: var(--text); }
+[data-theme] .file-guard-list { list-style: none; margin: 0 0 6px; padding: 0; border: 1px solid var(--line); border-radius: 12px; }
+[data-theme] .file-guard-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+[data-theme] .file-guard-list li:last-child { border-bottom: 0; }
+[data-theme] .file-guard-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+[data-theme] .file-guard-list li b { color: #f59e0b; white-space: nowrap; }
+@media print { .cloud-link-tools, .cloud-picker-backdrop { display: none !important; } }

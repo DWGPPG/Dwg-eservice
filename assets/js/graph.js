@@ -2,26 +2,77 @@ import { acquireToken } from "./auth.js";
 
 const GRAPH_ROOT = "https://graph.microsoft.com/v1.0";
 
+// GET ที่โดนจำกัดความถี่ (429) หรือ SharePoint ไม่ว่างชั่วคราว (503/504) → รอตาม Retry-After แล้วลองใหม่
+// (เขียน/แก้ไขข้อมูลมีตัวลองใหม่ของตัวเองใน updateListItem — ที่นี่ลองซ้ำเฉพาะการอ่าน กันยิงคำสั่งซ้ำ)
+const READ_RETRY_DELAYS_MS = [1000, 3000, 8000];
+
 export async function graphFetch(path, options = {}) {
-  const token = await acquireToken();
-  if (!token) throw new Error("Missing Microsoft Graph access token");
+  const method = String(options.method || "GET").toUpperCase();
+  for (let attempt = 0; ; attempt++) {
+    const token = await acquireToken();
+    if (!token) throw new Error("Missing Microsoft Graph access token");
 
-  const response = await fetch(`${GRAPH_ROOT}${path}`, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
-  });
+    const url = path.startsWith("http") ? path : `${GRAPH_ROOT}${path}`;
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+    });
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Graph API error ${response.status}: ${detail}`);
+    if (!response.ok) {
+      const retryable = method === "GET" && [429, 503, 504].includes(response.status);
+      if (retryable && attempt < READ_RETRY_DELAYS_MS.length) {
+        const retryAfter = Number(response.headers.get("Retry-After"));
+        const wait = Number.isFinite(retryAfter) && retryAfter > 0
+          ? Math.min(retryAfter * 1000, 30000)
+          : READ_RETRY_DELAYS_MS[attempt];
+        await new Promise((resolve) => setTimeout(resolve, wait + Math.random() * 300));
+        continue;
+      }
+      const detail = await response.text();
+      const error = new Error(`Graph API error ${response.status}: ${detail}`);
+      error.status = response.status;
+      throw error;
+    }
+
+    if (response.status === 204) return null;
+    return response.json();
   }
+}
 
-  if (response.status === 204) return null;
-  return response.json();
+/**
+ * ส่งคำขอ GET หลายรายการในครั้งเดียว (Graph $batch — สูงสุด 20 ต่อรอบ)
+ * คืนค่า Map<id, {status, body}>
+ */
+export async function graphBatchGet(requests) {
+  const results = new Map();
+  for (let i = 0; i < requests.length; i += 20) {
+    const chunk = requests.slice(i, i + 20);
+    const response = await graphFetch("/$batch", {
+      method: "POST",
+      body: JSON.stringify({ requests: chunk.map((r) => ({ id: String(r.id), method: "GET", url: r.url })) }),
+    });
+    (response?.responses || []).forEach((r) => results.set(String(r.id), { status: r.status, body: r.body }));
+  }
+  return results;
+}
+
+/** อ่านทุกหน้าของผลลัพธ์ที่มี @odata.nextLink — คืน { value, deltaLink } */
+export async function fetchAllPages(path) {
+  let url = path;
+  const value = [];
+  let deltaLink = null;
+  while (url) {
+    const response = await graphFetch(url);
+    value.push(...(response?.value || []));
+    deltaLink = response?.["@odata.deltaLink"] || deltaLink;
+    const next = response?.["@odata.nextLink"];
+    url = next || null;
+  }
+  return { value, deltaLink };
 }
 
 export function getMe() {
@@ -39,8 +90,7 @@ export async function listItems(siteId, listId, query = "?expand=fields&$top=500
   while (url) {
     const response = await graphFetch(url);
     all = all.concat(response.value || []);
-    const next = response["@odata.nextLink"];
-    url = next ? next.replace(GRAPH_ROOT, "") : null;
+    url = response["@odata.nextLink"] || null;
   }
   return { value: all };
 }
