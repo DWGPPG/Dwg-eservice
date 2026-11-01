@@ -3504,3 +3504,18 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .ts-more-link em { font-style: normal; white-space: nowrap; color: var(--muted); font-size: 12px; }
 [data-theme] .ts-more-link em.is-late { color: #ef4444; font-weight: 700; }
 [data-theme] .ts-more-link em.is-today { color: #d97706; font-weight: 700; }
+
+/* การ์ดบุคคล: 2 แถวเล็กชิดด้านล่าง (เหนือลูกศร) — ไม่บังหน้าคนในรูปปก/รูปบุคคลช่วงบน · 8 คนแสดงครบ (เกินนี้เลื่อนในกรอบ) */
+@media (min-width: 1101px) {
+  [data-theme] .team-showcase .ts-cards {
+    top: auto; bottom: 88px; max-height: 262px;
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 120px; grid-auto-flow: row;
+    align-content: end; gap: 10px; overflow-y: auto; overflow-x: hidden; padding: 6px 2px 6px 0;
+  }
+  [data-theme] .team-showcase .ts-card { min-height: 0; height: 120px; max-height: none; border-radius: 14px; }
+  [data-theme] .team-showcase .ts-card-text { padding: 18px 9px 8px; }
+  [data-theme] .team-showcase .ts-card-text small { display: none; }
+  [data-theme] .team-showcase .ts-card-text strong { font-size: 11px; line-height: 1.2; -webkit-line-clamp: 2; }
+  [data-theme] .team-showcase .ts-card-text em { font-size: 10.5px; }
+  [data-theme] .team-showcase .ts-card-photo b { font-size: 26px; }
+}
