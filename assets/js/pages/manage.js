@@ -8,6 +8,7 @@ import { refreshNavBadges } from "../router.js";
 import { writeAudit } from "../services/audit-service.js";
 import { addItem, deleteItem, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
+import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
 
@@ -184,6 +185,7 @@ export function renderManage(view) {
 
   const tabs = [
     { key: "overview", label: "ภาพรวม", icon: "🩺" },
+    { key: "requests", label: "แก้ไขคำร้อง", icon: "✏️", count: state.requests.length },
     ...Object.entries(TABS).map(([key, tab]) => ({ key, label: tab.label, icon: tab.icon, count: activeRows(tab).length })),
     { key: "settings", label: "ตั้งค่าระบบ", icon: "⚙️" },
     { key: "audit", label: "Audit log", icon: "🧾" },
@@ -219,10 +221,13 @@ export function renderManage(view) {
   if (ui.tab === "audit" && !ui.audit && !ui.auditLoading) loadAudit(view);
 }
 
+let rerenderBodyRef = () => {};
+
 function renderBody() {
   if (ui.tab === "overview") return renderOverview();
   if (ui.tab === "audit") return renderAudit();
   if (ui.tab === "settings") return renderSettings();
+  if (ui.tab === "requests") return renderRequestEditor(() => rerenderBodyRef());
   return renderTable(ui.tab);
 }
 
@@ -577,6 +582,13 @@ function bindBody(view) {
   body.querySelectorAll('[data-action="delete"]').forEach((b) => b.addEventListener("click", () => confirmDelete(ui.tab, find(b.dataset.id), rerender)));
 
   bindSettings(body, rerender);
+  // แท็บแก้ไขคำร้อง: วาดเฉพาะเนื้อหาแท็บใหม่ (ไม่วาดแถบแท็บ) — ช่องค้นหาไม่เสียโฟกัส
+  rerenderBodyRef = () => {
+    if (!body.isConnected) return;
+    body.innerHTML = renderBody();
+    bindBody(view);
+  };
+  bindRequestEditor(body, rerenderBodyRef);
 
   body.querySelector('[data-action="audit-reload"]')?.addEventListener("click", () => {
     ui.audit = null;

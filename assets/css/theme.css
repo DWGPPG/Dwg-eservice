@@ -3152,3 +3152,21 @@ html.signing-in #auth-panel > * {
 [data-theme] .manage-setting-card small { color: var(--muted); font-size: 12px; }
 [data-theme] .manage-setting-meta { font-size: 12px; color: var(--muted); }
 [data-theme] .manage-setting-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+/* ── หน้าจัดการข้อมูล: แก้ไขคำร้อง ── */
+[data-theme] .manage-note {
+  margin: 0 0 12px; padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6;
+  border: 1px solid color-mix(in srgb, var(--neon) 35%, transparent);
+  background: color-mix(in srgb, var(--neon) 7%, transparent); color: var(--text);
+}
+[data-theme] .manage-request-form { display: grid; gap: 12px; }
+[data-theme] .manage-request-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+[data-theme] .manage-request-meta b { color: var(--text); }
+[data-theme] .manage-request-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+[data-theme] .manage-request-grid .is-wide { grid-column: 1 / -1; }
+[data-theme] .manage-request-form textarea { width: 100%; resize: vertical; font: inherit; }
+[data-theme] .manage-request-hint { margin: 0; padding: 8px 12px; border-radius: 10px; font-size: 12.5px; line-height: 1.6; color: #b45309; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); }
+[data-theme="dark"] .manage-request-hint { color: #fbbf24; }
+@media (max-width: 640px) {
+  [data-theme] .manage-request-grid { grid-template-columns: minmax(0, 1fr); }
+}

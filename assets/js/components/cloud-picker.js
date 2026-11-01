@@ -308,6 +308,7 @@ export function parseLinkEntries(text = "") {
 
 const LINK_INPUTS = [
   { selector: 'input[data-detail="referenceLink"]', multiple: true },
+  { selector: 'input[data-cloud-link="multi"]', multiple: true },
   { selector: 'input[name="dwgUrl"]', multiple: false, title: "เลือกไฟล์ DWG" },
   { selector: 'input[name="pdfUrl"]', multiple: false, title: "เลือกไฟล์ PDF" },
   { selector: 'input[id^="review-evidence-link-"]', multiple: false, title: "เลือกไฟล์หลักฐาน" },
