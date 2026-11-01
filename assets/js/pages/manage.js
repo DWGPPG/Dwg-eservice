@@ -10,7 +10,7 @@ import { writeAudit } from "../services/audit-service.js";
 import { addItem, deleteItem, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
-import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
+import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, historySuggestions, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
 import { REQUEST_TYPES } from "../constants.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
@@ -176,7 +176,8 @@ const TABS = {
     data: () => state.masterData.projectOwners || [],
     deletable: true,
     projectFilter: true,
-    note: () => `📋 งาน <b>เขียนแบบ Proposal</b> รับผิดชอบโดย <b>${proposalOwnerEmails().map((e) => escapeHtml(personName(e))).join(", ")}</b> เสมอ (แก้ได้ที่แท็บตั้งค่าระบบ)
+    importHistory: true,
+    note: () => `💡 โครงการที่ยังไม่ได้กำหนดในตารางนี้ ระบบใช้ <b>คนที่รับงานโครงการนั้นบ่อยในหน้าติดตามงาน</b> แทนอัตโนมัติ (แสดงว่า “จากประวัติงาน”) — กด <b>📥 นำเข้าจากหน้าติดตามงาน</b> เพื่อบันทึกเป็นข้อมูลจริงแล้วแก้ไขต่อได้<br>📋 งาน <b>เขียนแบบ Proposal</b> รับผิดชอบโดย <b>${proposalOwnerEmails().map((e) => escapeHtml(personName(e))).join(", ")}</b> เสมอ (แก้ได้ที่แท็บตั้งค่าระบบ)
       · การดึงงาน/โอนงานระหว่างบุคคล <b>ไม่เปลี่ยน</b>ผู้รับผิดชอบโครงการ`,
     sort: (a, b) => String(a.ProjectName || "").localeCompare(String(b.ProjectName || ""), "th", { numeric: true }) || String(personName(a.OwnerEmail)).localeCompare(personName(b.OwnerEmail), "th"),
     columns: [
@@ -233,6 +234,88 @@ const TABS = {
     searchText: (r) => `${personName(r.Email)} ${r.Email || ""} ${r.Note || ""} ${r.LeaveStart || ""}`,
   },
 };
+
+// ── นำเข้าผู้รับผิดชอบโครงการจากประวัติงาน (คำร้องในหน้าติดตามงาน) ──
+function openImportOwners(rerender) {
+  const suggestions = historySuggestions();
+  if (!suggestions.length) {
+    showToast("ยังไม่มีคำร้องที่มีผู้รับงาน ให้ดึงข้อมูลได้", "info");
+    return;
+  }
+  const projects = new Set(suggestions.map((s) => s.project)).size;
+  const fmt = (v) => (v ? new Date(v).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—");
+  const rows = suggestions.map((s, i) => `
+    <label class="import-owner-row ${s.exists ? "is-exists" : ""}" data-search="${escapeHtml(`${s.project} ${s.name}`.toLowerCase())}">
+      <input type="checkbox" data-import-index="${i}" ${s.exists ? "disabled" : s.primary ? "checked" : ""} />
+      <span class="import-owner-project">${escapeHtml(s.project)}</span>
+      <span class="import-owner-name">${escapeHtml(s.name)}${s.primary ? ' <em>หลัก</em>' : ""}${s.exists ? ' <em class="is-muted">มีแล้ว</em>' : ""}</span>
+      <span class="import-owner-meta">${s.count}/${s.total} งาน · ล่าสุด ${fmt(s.last)}<br><small>${escapeHtml(s.types.join(", "))}</small></span>
+    </label>`).join("");
+
+  openModal({
+    title: "📥 นำเข้าผู้รับผิดชอบโครงการจากหน้าติดตามงาน",
+    body: `
+      <div class="import-owner">
+        <p class="import-owner-intro">พบ <b>${projects}</b> โครงการ จากคำร้องที่มีผู้รับงานแล้ว (ไม่รวมงาน Proposal) — ติ๊กไว้ให้แล้วเฉพาะคนที่รับงานหลักของแต่ละโครงการ (≥25% ของงาน) ตรวจและแก้ก่อนกดนำเข้า</p>
+        <div class="import-owner-tools">
+          <input type="search" class="manage-search" placeholder="ค้นหาโครงการ หรือชื่อ..." data-import-search />
+          <button type="button" class="small-button" data-import-pick="primary">เลือกเฉพาะคนหลัก</button>
+          <button type="button" class="small-button" data-import-pick="none">ไม่เลือกเลย</button>
+        </div>
+        <label class="manage-check"><input type="checkbox" data-import-types /><span>กำหนด “ประเภทงานที่รับ” ตามที่เคยรับ (ไม่ติ๊ก = รับทุกประเภท)</span></label>
+        <div class="import-owner-list">${rows}</div>
+        <p class="import-owner-status" data-import-status></p>
+      </div>`,
+    actions: [
+      { label: "ยกเลิก" },
+      {
+        label: "นำเข้ารายการที่เลือก",
+        className: "primary-button",
+        onClick: async (close) => {
+          const root = document.querySelector(".import-owner");
+          const picked = [...root.querySelectorAll("[data-import-index]:checked")].map((c) => suggestions[Number(c.dataset.importIndex)]);
+          const withTypes = root.querySelector("[data-import-types]").checked;
+          const status = root.querySelector("[data-import-status]");
+          if (!picked.length) { status.textContent = "ยังไม่ได้เลือกรายการ"; return; }
+          let done = 0;
+          try {
+            await TABS.projectOwners.ensure();
+            for (const s of picked) {
+              status.textContent = `กำลังบันทึก ${done + 1}/${picked.length} — ${s.project}`;
+              await addItem(lists.projectOwners, {
+                Title: `${s.project} · ${s.name}`,
+                ProjectName: s.project,
+                OwnerEmail: s.email,
+                RequestTypes: withTypes ? s.types.join(", ") : "",
+                Note: `นำเข้าจากประวัติงาน (${s.count}/${s.total} งาน)`,
+              });
+              done += 1;
+            }
+            await writeAudit({ action: "จัดการข้อมูล: นำเข้าผู้รับผิดชอบโครงการจากประวัติงาน", detail: `${done} รายการ` });
+            await reloadMasterData();
+            close();
+            showToast(`นำเข้าผู้รับผิดชอบโครงการ ${done} รายการแล้ว`, "success");
+            rerender();
+          } catch (error) {
+            status.textContent = `นำเข้าได้ ${done}/${picked.length} — ${error.message}`;
+            if (done) { await reloadMasterData(); rerender(); }
+          }
+        },
+      },
+    ],
+  });
+
+  const root = document.querySelector(".import-owner");
+  root.querySelector("[data-import-search]").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    root.querySelectorAll(".import-owner-row").forEach((row) => { row.hidden = Boolean(q) && !row.dataset.search.includes(q); });
+  });
+  root.querySelectorAll("[data-import-pick]").forEach((btn) => btn.addEventListener("click", () => {
+    root.querySelectorAll("[data-import-index]:not(:disabled)").forEach((c) => {
+      c.checked = btn.dataset.importPick === "primary" ? suggestions[Number(c.dataset.importIndex)].primary : false;
+    });
+  }));
+}
 
 function leaveRangeText(r) {
   const start = String(r.LeaveStart || "").slice(0, 10);
@@ -348,6 +431,7 @@ function renderTable(key) {
       <button class="secondary-button" type="button" data-action="csv">⬇ CSV</button>
       ${tab.bulkHolidays ? `<button class="secondary-button" type="button" data-action="copy-year" title="ดึงวันหยุดปีก่อนมาเป็นร่างให้ตรวจแก้ก่อนบันทึก">📑 คัดลอกจากปี ${ui.holidayYear + 542}</button>` : ""}
       ${tab.bulkHolidays ? `<button class="secondary-button" type="button" data-action="bulk">📋 เพิ่มหลายวัน</button>` : ""}
+      ${tab.importHistory ? `<button class="secondary-button" type="button" data-action="import-history">📥 นำเข้าจากหน้าติดตามงาน</button>` : ""}
       <button class="primary-button" type="button" data-action="add">+ เพิ่ม${escapeHtml(tab.addLabel || tab.label)}</button>
     </div>
     <p class="manage-count">${tab.yearFilter ? holidaySummary(rows) : `${rows.length} รายการ`}</p>
@@ -660,6 +744,7 @@ function bindBody(view) {
 
   body.querySelector('[data-action="add"]')?.addEventListener("click", () => openForm(ui.tab, null, rerender));
   body.querySelector('[data-action="bulk"]')?.addEventListener("click", () => openBulkHolidays(rerender));
+  body.querySelector('[data-action="import-history"]')?.addEventListener("click", () => openImportOwners(rerender));
   body.querySelector('[data-action="copy-year"]')?.addEventListener("click", () => openBulkHolidays(rerender, copyFromPreviousYear()));
   body.querySelectorAll("[data-holiday-year]").forEach((chip) => chip.addEventListener("click", () => {
     ui.holidayYear = Number(chip.dataset.holidayYear);
