@@ -1,3 +1,4 @@
+import { clearAllCache } from "./idb-cache.js";
 import { appConfig } from "../../config/config.js";
 import { setState, state } from "./state.js";
 import { showToast } from "./components/toast.js";
@@ -137,6 +138,8 @@ export async function login() {
 
 export async function logout() {
   const account = state.account;
+  // ลบสำเนาข้อมูลในเครื่องทุกครั้งที่ออกจากระบบ (กันคนถัดไปที่ใช้เครื่องเดียวกันเห็นข้อมูล)
+  await clearAllCache().catch(() => {});
   setState({ account: null, user: null, accessToken: null, siteId: null, requests: [] });
   if (!account || !msalInstance) return;
   await msalInstance.logoutRedirect({ account, postLogoutRedirectUri: appConfig.azure.redirectUri });

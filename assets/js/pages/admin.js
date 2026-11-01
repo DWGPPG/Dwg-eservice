@@ -1,3 +1,5 @@
+import { parseLinkEntries } from "../components/cloud-picker.js";
+import { paginate } from "../components/pager.js";
 import { STATUS, STATUS_LABELS , CANCEL_SOURCES , getCancelSource } from "../../../config/schema.js";
 import { appConfig } from "../../../config/config.js";
 import { openModal , confirmSameDayDueDate } from "../components/modal.js";
@@ -34,6 +36,11 @@ let activeAdminSection = "all";
 // ── เรียงรายการล่าสุดอยู่บนสุด (ใช้ร่วมทุก Tab: รับงาน / อนุมัติเริ่มงาน / ตรวจสอบส่งมอบ / งานในฝ่าย) ──
 // #app-view อยู่ตลอดทุกหน้า และหน้านี้ถูกวาดใหม่บ่อย (polling 10 วิ, ตัวกรอง, หลังกดอนุมัติ)
 // listener ที่ผูกกับ view ต้องยกเลิกตัวเก่าก่อนทุกครั้ง ไม่งั้นจะซ้อนกันเพิ่มขึ้นเรื่อยๆ จนหน้าค้าง
+/** ลิงก์แรกในช่องลิงก์แนบ (ช่องนี้เก็บได้หลายลิงก์ พร้อมชื่อไฟล์นำหน้า) */
+function firstLinkUrl(text) {
+  return parseLinkEntries(text)[0]?.url || "";
+}
+
 function freshViewSignal(view, key) {
   view[key]?.abort();
   const controller = new AbortController();
@@ -363,6 +370,10 @@ function renderTakeoverSection(items, state) {
   const notMine = sortNewestFirst(
     items.filter((i) => (i.assignedToEmail || "").toLowerCase() !== myEmail)
   );
+  const pg = paginate(notMine, "admin-takeover", {
+    sig: notMine.length > 0 ? "takeover" : "",
+    onChange: () => renderAdmin(document.querySelector("#app-view"), state),
+  });
   return `
     <div class="pickup-section" id="takeover-inner">
       <div class="pickup-section-heading">🔄 ดึงงานจากเพื่อนร่วมทีม
@@ -371,6 +382,7 @@ function renderTakeoverSection(items, state) {
       <p class="pickup-section-sub" style="color:#b45309;">
         ⚠️ ใช้เมื่อเพื่อนไม่อยู่ / ลา / สาย / งานเร่งด่วน — ระบบจะแจ้งเตือนผู้จัดการและเจ้าของงานเดิมทาง Teams
       </p>
+      ${pg.anchor}
       <div class="track-table-wrap">
         <table class="track-sheet pickup-table">
           <thead>
@@ -388,11 +400,12 @@ function renderTakeoverSection(items, state) {
           </thead>
           <tbody>
             ${notMine.length
-              ? notMine.map((item) => renderTakeoverRow(item, state)).join("")
+              ? pg.rows.map((item) => renderTakeoverRow(item, state)).join("")
               : `<tr><td colspan="9" class="track-empty">ไม่มีงานในฝ่ายที่สามารถดึงมาได้</td></tr>`}
           </tbody>
         </table>
       </div>
+      ${pg.html}
     </div>
   `;
 }
@@ -409,7 +422,7 @@ function getHolidaySet(state) {
 function renderTakeoverRow(item, state) {
   const due  = pickupDueLabel(item.dueDate, getHolidaySet(state));
   const folder = getRequestFolderUrl(item.requestNo);
-  const fileLink = item.dwgFileUrl || item.pdfFileUrl || item.dataLink || "";
+  const fileLink = item.dwgFileUrl || item.pdfFileUrl || firstLinkUrl(item.dataLink);
   return `
     <tr data-takeover-row data-project="${escapeHtml(item.projectName||"")}" data-assignee="${escapeHtml(item.assignedToName||"")}" data-type="${escapeHtml(item.requestType||"")}">
       <td data-label="เลขที่คำร้อง" style="white-space:nowrap;">
@@ -754,7 +767,7 @@ function pickupRow(item, isManager = false, state = null) {
       })
     : "—";
   const folder   = getRequestFolderUrl(item.requestNo);
-  const fileLink = item.dataLink || "";
+  const fileLink = firstLinkUrl(item.dataLink);
   return `
     <tr>
       <td class="pickup-select-cell"><input type="checkbox" class="pickup-checkbox" data-pickup-id="${escapeHtml(item.requestNo)}" /></td>
@@ -1098,7 +1111,7 @@ function renderApprovalRow(item, isManager, state) {
   const urgentClass = { "เร่งด่วน": "badge-urgent", "เร่งด่วนมาก": "badge-critical" };
   const due = pickupDueLabel(item.dueDate, getHolidaySet(state));
   const folder   = getRequestFolderUrl(item.requestNo);
-  const fileLink = item.dataLink || "";
+  const fileLink = firstLinkUrl(item.dataLink);
   const requestNo = escapeHtml(item.requestNo);
 
   return `

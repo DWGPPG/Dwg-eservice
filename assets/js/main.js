@@ -4,8 +4,9 @@ import { initRouter, navigate, refreshNavBadges } from "./router.js";
 import {
   VIEW_AS_OPTIONS, canSwitchView, isViewingAsOther, switchViewTo,
 } from "./services/view-as-service.js";
-import { loadMasterData } from "./sharepoint.js";
-import { hydrateRequests } from "./services/request-service.js";
+import { hydrateMasterFromCache, loadMasterData } from "./sharepoint.js";
+import { hydrateRequests, hydrateRequestsFromCache } from "./services/request-service.js";
+import { onSyncStatus, pollIntervalMs, syncInfo } from "./services/request-sync.js";
 import {
   checkAndNotifyManager,
   requestNotificationPermission,
@@ -14,9 +15,11 @@ import {
 import { state, subscribe } from "./state.js";
 import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
+import { startLinkInputEnhancer } from "./components/cloud-picker.js";
 
-const POLL_INTERVAL_MS = 10 * 1000;
+const MAX_BACKOFF_MS = 2 * 60 * 1000;
 let pollTimer = null;
+let pollingStarted = false;
 let lastRequestsHash = "";
 
 /** hash ง่ายๆ จาก requests array เพื่อเช็คว่าข้อมูลเปลี่ยนหรือไม่ */
@@ -29,6 +32,8 @@ const NO_POLL_RENDER_ROUTES = new Set(["/submit", "/manage"]);
 
 /** ตรวจสอบว่ามี modal เปิดอยู่หรือไม่ */
 function isModalOpen() {
+  // หน้าต่างเลือกไฟล์ SharePoint/OneDrive เปิดอยู่ก็นับเป็น modal — ห้ามวาดหน้าใหม่ทับช่องที่กำลังจะเติมลิงก์
+  if (document.body.classList.contains("picker-open")) return true;
   return document.querySelector("#modal-root")?.children?.length > 0;
 }
 
@@ -93,6 +98,7 @@ async function boot() {
   }
 
   bindChrome();
+  startLinkInputEnhancer();
   subscribe(updateShell);
   subscribe(onRequestsChanged);
   updateShell(state);
@@ -148,29 +154,74 @@ function hideSigninOverlay() {
 
 async function afterSignedIn() {
   try {
-    // โหลดข้อมูลหลัก (ทีม/โครงการ/วันหยุด) กับคำร้องพร้อมกัน — เดิมรอทีละอย่าง
+    // ── มีสำเนาข้อมูลในเครื่อง → แสดงแอปทันที แล้วซิงค์กับ SharePoint เบื้องหลัง ──
+    const [hasMaster, hasRequests] = await Promise.all([
+      hydrateMasterFromCache(state.account).catch(() => false),
+      hydrateRequestsFromCache(state.account).catch(() => false),
+    ]);
+    if (hasMaster && hasRequests) {
+      refreshUserRole();
+      enterApp();
+      hideSigninOverlay();
+      const roleBefore = state.user?.role;
+      Promise.all([loadMasterData(), hydrateRequests()])
+        .then(() => {
+          refreshUserRole();
+          lastRequestsHash = hashRequests(state.requests);
+          // สิทธิ์เปลี่ยน (เช่นถูกเพิ่ม/ลบจากทีม) → ต้องวาดใหม่แม้ผู้ใช้กำลังพิมพ์ เพื่อไม่ให้เห็นเมนูที่ไม่มีสิทธิ์
+          if (state.user?.role !== roleBefore || shouldRender()) navigate();
+        })
+        .catch((error) => handleSyncFailure(error, true));
+      afterAppReady();
+      return;
+    }
+
+    // ── ครั้งแรกบนเครื่องนี้ (หรือแคชหมดอายุ) → โหลดจริงก่อนแสดง ──
     await Promise.all([loadMasterData(), hydrateRequests()]);
     refreshUserRole();
-    // กลับไปหน้าที่อยู่ตอนกดล็อกอิน (MSAL ไม่โหลดหน้าซ้ำเพื่อพากลับแล้ว)
-    const returnRoute = consumeReturnRoute();
-    if (returnRoute && returnRoute !== location.hash && !returnRoute.includes("code=")) {
-      history.replaceState(null, "", `${location.pathname}${location.search}${returnRoute}`);
-    }
-    // แสดง app shell ก่อนเสมอ — ต้อง unhide ก่อน navigate() จะได้ layout ถูกต้อง
-    showAuthPanel(false);
-    navigate();
-
-    if (state.user?.role === "manager") {
-      await requestNotificationPermission();
-    }
-    startPolling();
+    enterApp();
+    afterAppReady();
   } catch (error) {
-    console.error("Failed to load SharePoint data:", error);
-    showToast("เซสชันหมดอายุหรือเชื่อมต่อ SharePoint ไม่สำเร็จ — กรุณาเข้าสู่ระบบใหม่", "error");
-    await logout();
-    resetNotificationBaseline();
-    showAuthPanel(true);
+    await handleSyncFailure(error, false);
   }
+}
+
+function enterApp() {
+  // กลับไปหน้าที่อยู่ตอนกดล็อกอิน (MSAL ไม่โหลดหน้าซ้ำเพื่อพากลับแล้ว)
+  const returnRoute = consumeReturnRoute();
+  if (returnRoute && returnRoute !== location.hash && !returnRoute.includes("code=")) {
+    history.replaceState(null, "", `${location.pathname}${location.search}${returnRoute}`);
+  }
+  // แสดง app shell ก่อนเสมอ — ต้อง unhide ก่อน navigate() จะได้ layout ถูกต้อง
+  showAuthPanel(false);
+  navigate();
+  lastRequestsHash = hashRequests(state.requests);
+}
+
+async function afterAppReady() {
+  if (state.user?.role === "manager") {
+    await requestNotificationPermission();
+  }
+  startPolling();
+}
+
+function isAuthFailure(error) {
+  const msg = String(error?.message || "");
+  return error?.status === 401 || msg.includes("Missing Microsoft Graph access token") || msg.includes("Graph API error 401");
+}
+
+/** โหลดไม่สำเร็จ: ถ้าเป็นเรื่องสิทธิ์/เซสชัน → ออกจากระบบแบบเดิม, ถ้าแค่เน็ตหลุดและมีสำเนาในเครื่อง → ใช้สำเนาต่อ */
+async function handleSyncFailure(error, hasCachedView) {
+  if (hasCachedView && !isAuthFailure(error)) {
+    console.warn("Background sync failed — showing cached data:", error.message);
+    showToast("เชื่อมต่อ SharePoint ไม่สำเร็จ — กำลังแสดงข้อมูลที่บันทึกไว้ในเครื่อง ระบบจะลองใหม่อัตโนมัติ", "warning");
+    return;
+  }
+  console.error("Failed to load SharePoint data:", error);
+  showToast("เซสชันหมดอายุหรือเชื่อมต่อ SharePoint ไม่สำเร็จ — กรุณาเข้าสู่ระบบใหม่", "error");
+  await logout();
+  resetNotificationBaseline();
+  showAuthPanel(true);
 }
 
 /**
@@ -179,12 +230,15 @@ async function afterSignedIn() {
  * รีเฟรชหน้าเอง ช่องทางแจ้งเตือนหลักของระบบยังคงเป็น Teams 1:1 chat ที่ทำงานได้แม้ปิดแอปสนิท
  */
 function startPolling() {
-  if (pollTimer) clearInterval(pollTimer);
+  if (pollingStarted) return;
+  pollingStarted = true;
+  let failures = 0;
 
-  const refreshData = async (forceRender = false) => {
+  const refreshData = async (forceRender = false, full = false) => {
     if (!state.account || document.hidden) return;
     try {
-      await hydrateRequests();
+      await hydrateRequests({ full });
+      failures = 0;
 
       const newHash = hashRequests(state.requests);
       const changed = newHash !== lastRequestsHash;
@@ -196,11 +250,23 @@ function startPolling() {
         if (state.currentRoute) navigate();
       }
     } catch (error) {
+      failures += 1;
       console.warn("Polling refresh failed (non-critical):", error.message);
     }
   };
 
-  pollTimer = setInterval(() => refreshData(false), POLL_INTERVAL_MS);
+  // รอบถัดไปนับจากรอบก่อน "จบ" (ไม่ใช่ setInterval) → ไม่มีวันยิงซ้อนกันแม้ SharePoint ตอบช้า
+  // ล้มเหลวติดกัน → เว้นห่างขึ้นเรื่อยๆ (สูงสุด 2 นาที) ไม่ไปกระหน่ำตอนระบบ Microsoft มีปัญหา
+  const scheduleNext = () => {
+    clearTimeout(pollTimer);
+    const base = pollIntervalMs();
+    const delay = failures ? Math.min(base * 2 ** failures, MAX_BACKOFF_MS) : base;
+    pollTimer = setTimeout(async () => {
+      await refreshData(false);
+      scheduleNext();
+    }, delay);
+  };
+  scheduleNext();
 
   // Refresh ทันทีเมื่อกลับมาที่แท็บหรือ focus หน้าต่าง
   let lastRefresh = Date.now();
@@ -215,6 +281,49 @@ function startPolling() {
     if (!document.hidden) refreshIfStale();
   });
   window.addEventListener("focus", refreshIfStale);
+
+  // ปุ่มป้ายสถานะซิงค์ → โหลดข้อมูลใหม่ทั้งหมด
+  manualFullSync = async () => {
+    await refreshData(true, true);
+    if (syncInfo.phase === "ok") showToast(`โหลดข้อมูลใหม่ทั้งหมดแล้ว (${syncInfo.count.toLocaleString("th-TH")} คำร้อง)`, "success");
+  };
+}
+
+let manualFullSync = null;
+
+// ── ป้ายสถานะซิงค์บนแถบหัว: "กำลังซิงค์…" / "อัปเดตล่าสุด 10:32" / "ออฟไลน์" ──
+function bindSyncIndicator() {
+  // มี 2 จุด: แถบเมนูซ้าย (จอคอม) และแถบหัว (มือถือ — แถบเมนูเป็นลิ้นชักที่ซ่อนอยู่)
+  const buttons = [...document.querySelectorAll("[data-sync-indicator]")];
+  if (!buttons.length) return;
+  const fmt = (ts) => (ts ? new Date(ts).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) : "");
+  const render = (info) => {
+    let text = "";
+    if (info.phase === "syncing") text = info.source === "none" ? "กำลังโหลดข้อมูล…" : "กำลังซิงค์…";
+    else if (info.phase === "cached") text = "ข้อมูลในเครื่อง · กำลังซิงค์…";
+    else if (info.phase === "ok") text = `อัปเดตล่าสุด ${fmt(info.lastSyncAt)}`;
+    else if (info.phase === "offline") text = `ออฟไลน์ · ข้อมูลเมื่อ ${fmt(info.lastSyncAt) || "-"}`;
+    else if (info.phase === "error") text = `ซิงค์ไม่สำเร็จ · ข้อมูลเมื่อ ${fmt(info.lastSyncAt) || "-"}`;
+    // ป้ายแถบหัว (มือถือ) พื้นที่น้อย — ใช้ข้อความสั้น
+    const shortText = { syncing: "ซิงค์…", cached: "ซิงค์…", ok: fmt(info.lastSyncAt), offline: "ออฟไลน์", error: "ซิงค์ไม่ได้" }[info.phase] || "";
+    const modeText = info.mode === "delta" ? "โหลดเฉพาะรายการที่เปลี่ยน" : info.mode === "full" ? "โหลดทั้งหมดทุกรอบ" : "";
+    const title = `${text}${info.count ? ` · ${info.count.toLocaleString("th-TH")} คำร้อง` : ""}${modeText ? ` · ${modeText}` : ""}\nคลิกเพื่อโหลดข้อมูลใหม่ทั้งหมด`;
+    buttons.forEach((button) => {
+      button.hidden = !state.account || info.phase === "idle";
+      button.dataset.phase = info.phase;
+      const label = button.querySelector(".sync-label");
+      if (label) label.textContent = button.classList.contains("sync-indicator-top") ? shortText : text;
+      button.title = title;
+      button.setAttribute("aria-label", title);
+    });
+  };
+  onSyncStatus(render);
+  subscribe(() => render(syncInfo));
+  buttons.forEach((button) => button.addEventListener("click", async () => {
+    if (!manualFullSync || buttons.some((b) => b.disabled)) return;
+    buttons.forEach((b) => { b.disabled = true; });
+    try { await manualFullSync(); } finally { buttons.forEach((b) => { b.disabled = false; }); }
+  }));
 }
 
 function bindChrome() {
@@ -252,6 +361,7 @@ function bindChrome() {
 
   qs("#theme-toggle").addEventListener("click", toggleTheme);
   bindSidebarCollapse();
+  bindSyncIndicator();
   qs("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("nav-open"));
   qs("#sidebar-backdrop")?.addEventListener("click", () => document.body.classList.remove("nav-open"));
 }

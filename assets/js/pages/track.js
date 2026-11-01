@@ -1,3 +1,5 @@
+import { reviewIncomingFiles } from "../components/file-guard.js";
+import { paginate } from "../components/pager.js";
 import { STATUS, STATUS_LABELS, CLOSED_STATUSES , CANCEL_SOURCES, getCancelSource } from "../../../config/schema.js";
 import { appConfig } from "../../../config/config.js";
 import { openModal, confirmSameDayDueDate } from "../components/modal.js";
@@ -218,6 +220,10 @@ function renderWorkbookTrack(view, state) {
   });
 
   const currentCount = baseList.filter((i) => !CLOSED_STATUSES.includes(i.status)).length;
+  const wbPage = paginate(rows, "track-workbook", {
+    sig: [scopeTab, statusTab, searchQuery, projectFilter, assigneeFilter, trackDateFrom, trackDateTo, drawingFilter, columnStatusFilter].join("|"),
+    onChange: () => renderWorkbookTrack(view, state),
+  });
   const hasActiveFilter = assigneeFilter || trackDateFrom || trackDateTo;
 
   view.innerHTML = `
@@ -344,6 +350,7 @@ function renderWorkbookTrack(view, state) {
             </div>`
         }
       ` : `
+      ${wbPage.anchor}
       <div class="track-table-wrap">
         <table class="track-sheet">
           <thead>
@@ -375,11 +382,12 @@ function renderWorkbookTrack(view, state) {
           </thead>
           <tbody>
             ${rows.length
-              ? rows.map((item) => renderWorkbookRow(item, state, holidaySet)).join("")
+              ? wbPage.rows.map((item) => renderWorkbookRow(item, state, holidaySet)).join("")
               : `<tr><td colspan="8" class="track-empty">ไม่พบงานในหมวดนี้</td></tr>`}
           </tbody>
         </table>
       </div>
+      ${wbPage.html}
       `}
     </section>
   `;
@@ -951,15 +959,12 @@ function openSendworkModal(view, state, request) {
     });
   };
 
-  const addFiles = (fileListLike) => {
-    const incoming = Array.from(fileListLike || []).filter(
-      (f) => f instanceof File && f.name && typeof f.size === "number"
-    );
-    incoming.forEach((nf) => {
-      const dup = pendingFiles.some((ef) => ef.name === nf.name && ef.size === nf.size);
-      if (!dup) pendingFiles.push(nf);
-    });
+  const addFiles = async (fileListLike) => {
+    const list = Array.from(fileListLike || []);
     input.value = "";
+    const incoming = await reviewIncomingFiles(list, { existing: pendingFiles });
+    if (!incoming.length || !chipsContainer.isConnected) return;
+    pendingFiles.push(...incoming);
     renderChips();
   };
 
@@ -1090,15 +1095,25 @@ function renderRequesterTrack(view, state) {
       ${escapeHtml(label)}${count ? `<span class="requester-tab-badge requester-tab-badge-gray">${count}</span>` : ""}
     </button>`;
 
-  const myTable = (list, emptyMsg) => `
+  const myTable = (list, emptyMsg) => {
+    const pg = paginate(list, "track-req-mine", { sig: reqMyTab, onChange: () => renderRequesterTrack(view, state) });
+    return `
+    ${pg.anchor}
     <div class="track-table-wrap">
       <table class="track-sheet requester-track-table">
         <thead>
           <tr><th>เลขที่คำร้อง</th><th>โครงการ</th><th>Drawing</th><th>กำหนดส่ง</th><th>สถานะ</th><th>ไฟล์งาน</th></tr>
         </thead>
-        <tbody>${list.length ? list.map((item) => renderRequesterRow(item)).join("") : `<tr><td colspan="6" class="track-empty">${emptyMsg}</td></tr>`}</tbody>
+        <tbody>${list.length ? pg.rows.map((item) => renderRequesterRow(item)).join("") : `<tr><td colspan="6" class="track-empty">${emptyMsg}</td></tr>`}</tbody>
       </table>
-    </div>`;
+    </div>
+    ${pg.html}`;
+  };
+
+  const deptPage = paginate(deptRows, "track-req-dept", {
+    sig: [reqDeptType, reqDeptSearch, reqDeptProject, reqDeptStatus].join("|"),
+    onChange: () => renderRequesterTrack(view, state),
+  });
 
   view.innerHTML = `
     <section class="content-section requester-track">
@@ -1171,6 +1186,7 @@ function renderRequesterTrack(view, state) {
           <button id="req-dept-clear" class="secondary-button" type="button">ล้าง</button>
         </div>
 
+        ${deptPage.anchor}
         <div class="track-table-wrap">
           <table class="track-sheet">
             <thead>
@@ -1188,11 +1204,12 @@ function renderRequesterTrack(view, state) {
             </thead>
             <tbody>
               ${deptRows.length
-                ? deptRows.map((item) => renderDeptRow(item)).join("")
+                ? deptPage.rows.map((item) => renderDeptRow(item)).join("")
                 : `<tr><td colspan="9" class="track-empty">ไม่พบคำร้องในประเภทนี้</td></tr>`}
             </tbody>
           </table>
         </div>
+        ${deptPage.html}
       `}
     </section>
   `;
@@ -1642,18 +1659,20 @@ function toggleReviewBox(view, requestNo, mode) {
 
 function renderPublicTrack(view, state) {
   const rows = [...state.requests].sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+  const pubPage = paginate(rows, "track-public", { onChange: () => renderPublicTrack(view, state) });
   view.innerHTML = `
     <section class="content-section track-workbook public-track">
       <div class="section-header">
         <h2>ติดตามงานทั้งหมด <span class="requester-result-count">งานทั้งหมด ${rows.length} รายการ</span></h2>
       </div>
+      ${pubPage.anchor}
       <div class="track-table-wrap">
         <table class="track-sheet">
           <thead>
             <tr><th>เลขที่คำร้อง</th><th>โครงการ</th><th>Drawing</th><th>กำหนดส่ง</th><th>สถานะ</th></tr>
           </thead>
           <tbody>
-            ${rows.length ? rows.map((item) => `
+            ${rows.length ? pubPage.rows.map((item) => `
               <tr>
                 <td><button class="track-request-link" data-request-detail="${escapeHtml(item.requestNo)}" type="button">${escapeHtml(item.requestNo)}</button></td>
                 <td><strong>${escapeHtml(item.projectName || "-")}</strong></td>
@@ -1665,6 +1684,7 @@ function renderPublicTrack(view, state) {
           </tbody>
         </table>
       </div>
+      ${pubPage.html}
     </section>
   `;
   // ยกเลิก listener ของรอบก่อน — #app-view อยู่ตลอดทุกหน้า ถ้าไม่ยกเลิกจะซ้อนกันทุกครั้งที่หน้าวาดใหม่

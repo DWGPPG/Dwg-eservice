@@ -1,11 +1,15 @@
 import { appConfig } from "../../../config/config.js";
 import { fields, lists, STATUS } from "../../../config/schema.js";
 import { sendMail, sendTeams1on1, sendTeamsWebhook, sendNewRequestWebhook, sendGroupWebhook } from "../graph.js";
-import { addItem, deleteItem, ensureSite, getListItems, patchItem } from "../sharepoint.js";
+import { addItem, deleteItem, ensureSite, patchItem } from "../sharepoint.js";
 import { setRequests, state, updateRequest } from "../state.js";
 import { writeAudit } from "./audit-service.js";
 import { ensureRequestFolder, uploadRequestFiles, uploadSendworkFiles } from "./drawing-service.js";
 import { getAllManagerEmails, getDrawingTeamMembers } from "./team-service.js";
+import { initRequestCache, syncRequests, syncRequestsNow } from "./request-sync.js";
+import { parseLinkEntries } from "../components/cloud-picker.js";
+
+const escapeAttr = (v) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 import { acquireToken } from "../auth.js";
 import { showToast } from "../components/toast.js";
 
@@ -130,7 +134,10 @@ export async function generateRequestNo(requestType, projectCode = "") {
     const prefix = typePrefix(requestType, projectCode);
     let items;
     try {
-      items = await getListItems(lists.requests);
+      // ซิงค์ให้สด ณ ตอนนี้ (delta — เบา) แทนการโหลดคำร้องทั้งหมดทุกครั้งที่กดส่ง
+      const synced = await syncRequestsNow();
+      items = synced.items;
+      if (synced.mutated) setRequests(items.map(fromSharePoint));
     } catch (error) {
       // ถ้าอ่าน SharePoint ไม่ได้ ห้ามเดาเลขเอง (เสี่ยงออกเลขซ้ำ) — ให้ fail ชัดเจน
       throw new Error(`ไม่สามารถออกเลขคำร้องได้ (อ่านข้อมูลจาก SharePoint ไม่สำเร็จ) กรุณาลองใหม่อีกครั้ง: ${error.message}`);
@@ -288,8 +295,18 @@ function toSharePoint(request) {
 
 let autoApproveRunning = false;
 
-export async function hydrateRequests() {
-  const items = await getListItems(lists.requests);
+/** แสดงคำร้องจากสำเนาในเครื่องทันที (ถ้ามี) — คืน true ถ้ามีแคช */
+export async function hydrateRequestsFromCache(account) {
+  const items = await initRequestCache(account);
+  if (!items) return false;
+  setRequests(items.map(fromSharePoint));
+  return true;
+}
+
+export async function hydrateRequests({ full = false } = {}) {
+  const { mutated, items } = await syncRequests({ full });
+  // ไม่มีอะไรเปลี่ยน → ไม่แตะ state (หน้าไม่ render ใหม่ และไม่ทับค่าที่เพิ่งอัปเดตแบบ optimistic)
+  if (!mutated && state.requests.length) return;
   const requests = items.map(fromSharePoint);
   setRequests(requests);
   // เช็ค auto-approve หลังโหลดข้อมูลทุกครั้ง (ระบบไม่มี server แยก จึงเช็คได้แค่ตอนมีคนเปิดแอป)
@@ -322,9 +339,9 @@ async function checkAndAutoApproveOverdue(requests) {
       console.warn(`Auto-approve failed for ${item.requestNo} (non-critical):`, error.message);
     }
   }
-  // โหลดข้อมูลใหม่อีกครั้งหลัง auto-approve เพื่อให้ state ตรงกับ SharePoint ล่าสุด
-  const refreshed = await getListItems(lists.requests);
-  setRequests(refreshed.map(fromSharePoint));
+  // ซิงค์อีกครั้งหลัง auto-approve เพื่อให้ state ตรงกับ SharePoint ล่าสุด
+  const refreshed = await syncRequestsNow();
+  if (refreshed.mutated) setRequests(refreshed.items.map(fromSharePoint));
 }
 
 async function autoApproveOverdueRequest(request) {
@@ -667,7 +684,7 @@ async function notifyAssignee(request, assignee, note, level) {
     `📁 <b>โครงการ:</b> ${request.projectName || "—"}`,
     `🎯 <b>ผู้อนุมัติ:</b> ${state.user?.name || ""} (${level})`,
     request.description ? `💬 <b>รายละเอียดคำขอ:</b> ${request.description}` : "",
-    request.dataLink ? `🔗 <b>ลิงก์แนบ:</b> <a href="${request.dataLink}">${request.dataLink}</a>` : "",
+    request.dataLink ? `🔗 <b>ลิงก์แนบ:</b> ${parseLinkEntries(request.dataLink).map((l) => `<a href="${escapeAttr(l.url)}">${escapeAttr(l.name || l.url)}</a>`).join(" · ") || escapeAttr(request.dataLink)}` : "",
     note ? `📌 <b>หมายเหตุ:</b> ${note}` : "",
   ].filter(Boolean);
   await sendTeams1on1(assignee.email, lines.join("<br>"));
