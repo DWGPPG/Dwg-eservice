@@ -10,7 +10,7 @@ import { STATUS_LABELS } from "../../../config/schema.js";
 import { openModal } from "../components/modal.js";
 import { paginate } from "../components/pager.js";
 import { showToast } from "../components/toast.js";
-import { PRIORITIES, REQUEST_TYPES } from "../constants.js";
+import { COMPANY_GROUPS, PRIORITIES, REQUEST_TYPES } from "../constants.js";
 import { sendTeams1on1 } from "../graph.js";
 import { writeAudit } from "../services/audit-service.js";
 import { patchRequest } from "../services/request-service.js";
@@ -38,6 +38,7 @@ const dateTimeLocal = (value) => {
 // ช่องที่แก้ได้ — key = ชื่อ field ฝั่งแอป (ตรงกับ fields.requests)
 const EDIT_FIELDS = [
   { key: "requestType", label: "ประเภทคำร้อง", type: "select", options: () => REQUEST_TYPES, required: true },
+  { key: "department", label: "กลุ่มบริษัท", type: "select", options: () => COMPANY_GROUPS, optional: true },
   { key: "projectName", label: "โครงการ", type: "text", list: "mr-projects", required: true },
   { key: "drawingNo", label: "เลข Drawing", type: "text", list: "mr-drawing-nos" },
   { key: "drawingName", label: "ชื่อ Drawing", type: "text", list: "mr-drawing-names" },
