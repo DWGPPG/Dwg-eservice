@@ -2376,9 +2376,340 @@ html[data-theme] {
 }
 
 /* ══════════════ Responsive ══════════════ */
+/* ══════════════ แถบเมนูซ้าย v2: การ์ดลอย + ย่อเป็นแถบไอคอน (body.sidebar-collapsed) ══════════════
+   ระยะคำนวณให้ไอคอนทุกตัว (โลโก้/อักษรย่อ/เมนู/ปุ่มล่าง) อยู่กึ่งกลางแถบ 84px พอดี
+   ตอนย่อ: เอาเมาส์ชี้/โฟกัสแล้วขยายทับเนื้อหาชั่วคราว (ไม่ดันหน้า) */
+[data-theme] .sidebar {
+  gap: 14px;
+  padding: 16px 12px 14px;
+  overflow: hidden;
+}
+
+[data-theme] .sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+[data-theme] .sidebar-head .brand {
+  min-width: 0;
+  padding: 0 0 0 10px;
+  border-bottom: 0;
+}
+
+[data-theme] .brand-mark {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+
+[data-theme] .brand-text {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+[data-theme] .sidebar-pin {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  transition: color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-smooth);
+}
+
+[data-theme] .sidebar-pin:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+[data-theme] .sidebar-pin .ico {
+  width: 16px;
+  height: 16px;
+}
+
+[data-theme] body.sidebar-collapsed .sidebar-pin {
+  transform: rotate(180deg);
+}
+
+/* การ์ดผู้ใช้ */
+[data-theme] .sidebar-user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-muted);
+}
+
+[data-theme] .sidebar-user-card[hidden] {
+  display: none;
+}
+
+[data-theme] .sidebar-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--neon), #2f7bff);
+  color: #04140d;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 14px -2px rgba(0, 223, 143, 0.6);
+}
+
+[data-theme] .sidebar-user-card .sidebar-user-info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+[data-theme] .sidebar-user-card .sidebar-user-name {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme] .sidebar-user-card .user-role-chip {
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* เมนู */
+[data-theme] .sidebar .nav-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+}
+
+[data-theme] .sidebar .nav-link {
+  gap: 14px;
+  padding: 0 12px 0 20px;
+  white-space: nowrap;
+}
+
+[data-theme] .sidebar .nav-link:hover {
+  transform: none;
+}
+
+[data-theme] .nav-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  opacity: 0.85;
+}
+
+[data-theme] .nav-link.is-active .nav-icon,
+[data-theme] .nav-link:hover .nav-icon {
+  opacity: 1;
+}
+
+[data-theme] .nav-link.is-active::before {
+  left: -12px;
+}
+
+[data-theme] .nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-theme] .sidebar .nav-badge {
+  margin-left: auto;
+}
+
+/* ปุ่มไอคอนด้านล่าง */
+/* grid ของส่วนท้ายต้องไม่ถูกยืดตามข้อความยาว (เช่นเลขเวอร์ชัน) ไม่งั้นปุ่มตอนย่อไม่อยู่กลางแถบ */
+[data-theme] .sidebar-footer {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-theme] .sidebar .app-version-label {
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+[data-theme] .sidebar-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+[data-theme] .sidebar-action {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  transition: color var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast), background var(--transition-fast);
+}
+
+[data-theme] .sidebar-action[hidden] {
+  display: none;
+}
+
+[data-theme] .sidebar-action:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  box-shadow: 0 0 14px -4px rgba(0, 223, 143, 0.6);
+}
+
+[data-theme] .sidebar-action-logout:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: 0 0 14px -4px color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+[data-theme] .sidebar-action-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+[data-theme="dark"] .theme-ico-light,
+[data-theme="light"] .theme-ico-dark {
+  display: none;
+}
+
+[data-theme] .sidebar .app-version-label {
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
 @media (min-width: 1041px) {
+  [data-theme] body {
+    --sidebar-col: 272px;
+  }
+
+  [data-theme] body.sidebar-collapsed {
+    --sidebar-col: 96px;
+  }
+
   [data-theme] .app-shell {
-    grid-template-columns: 248px minmax(0, 1fr);
+    grid-template-columns: var(--sidebar-col) minmax(0, 1fr);
+    transition: grid-template-columns 0.4s var(--ease-lux);
+  }
+
+  /* การ์ดลอย */
+  [data-theme] .sidebar {
+    position: relative;
+    z-index: 30;
+    width: calc(var(--sidebar-col) - 12px);
+    height: calc(100% - 24px);
+    margin: 12px 0 12px 12px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    box-shadow: var(--soft-shadow);
+    transition: width 0.4s var(--ease-lux), box-shadow 0.3s ease;
+  }
+
+  /* แถบไอคอน — ซ่อนข้อความ (จางหาย) แต่ไม่เปลี่ยน layout ไอคอนจึงไม่กระโดด */
+  [data-theme] body.sidebar-collapsed .sidebar:not(:hover):not(:has(:focus-visible)) :is(.brand-text, .sidebar-user-info, .nav-label, .view-as-switcher, .sidebar-auth-note, .app-version-label, .sidebar-pin) {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  [data-theme] .sidebar :is(.brand-text, .sidebar-user-info, .nav-label, .view-as-switcher, .app-version-label, .sidebar-pin) {
+    transition: opacity 0.25s ease;
+  }
+
+  [data-theme] body.sidebar-collapsed .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-pin {
+    display: none;
+  }
+
+  /* สลับมุมมองใช้ตอนขยายแถบเต็มเท่านั้น — ถ้าโผล่ตอนชี้ จะดันเมนูจนรายการล่างถูกบัง */
+  [data-theme] body.sidebar-collapsed .sidebar .view-as-switcher {
+    display: none;
+  }
+
+  [data-theme] body.sidebar-collapsed .sidebar:not(:hover):not(:has(:focus-visible)) .nav-badge {
+    position: absolute;
+    left: 34px;
+    top: 4px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 9.5px;
+  }
+
+  /* ปุ่มล่างตอนย่อ: เรียงแนวตั้งตำแหน่งเดิมเสมอ (ทั้งตอนชี้และไม่ชี้) — ไม่ให้ปุ่มกระโดดหนีเมาส์ตอนแถบขยาย */
+  [data-theme] body.sidebar-collapsed .sidebar .sidebar-actions {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0 0 0 8px;
+  }
+
+  [data-theme] body.sidebar-collapsed .sidebar .sidebar-action {
+    width: 44px;
+    flex: none;
+  }
+
+  [data-theme] body.sidebar-collapsed .sidebar:not(:hover):not(:has(:focus-visible)) .sidebar-user-card {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  /* ย่ออยู่ + เอาเมาส์ชี้ → ขยายทับเนื้อหา */
+  [data-theme] body.sidebar-collapsed .sidebar:is(:hover, :has(:focus-visible)) {
+    width: 260px;
+    box-shadow: var(--shadow), 0 0 0 1px var(--line-strong);
+    background: color-mix(in srgb, var(--surface) 96%, transparent);
+  }
+}
+
+@media (max-width: 1040px) {
+  [data-theme] .sidebar-pin {
+    display: none;
+  }
+
+  /* มือถือ/แท็บเล็ต: แถบเลื่อนจากซ้ายเป็นการ์ดลอยมุมโค้ง */
+  [data-theme] .sidebar {
+    inset: 10px auto 10px 10px;
+    height: auto;
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    transform: translateX(calc(-100% - 20px));
+  }
+
+  [data-theme] body.nav-open .sidebar {
+    transform: translateX(0);
+  }
+
+  /* จอเตี้ย: เลื่อนทั้งแถบ (ไม่ใช่เฉพาะรายการเมนู) ไม่ให้ลิงก์ล่างๆ ถูกซ่อนไว้ในกล่องเลื่อน */
+  [data-theme] .sidebar {
+    overflow-y: auto;
+  }
+
+  [data-theme] .sidebar .nav-list {
+    flex: none;
+    overflow: visible;
   }
 }
 

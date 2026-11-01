@@ -1,4 +1,5 @@
 import { EXTERNAL_LINKS, NAV_ITEMS, PAGE_TITLES } from "./constants.js";
+import { icon } from "./icons.js";
 import { state } from "./state.js";
 import { qs, qsa } from "./utils.js";
 import { renderDashboard } from "./pages/dashboard.js";
@@ -78,9 +79,9 @@ function renderNav() {
     const count = badgeCounts[item.route] || 0;
     const badge = count > 0 ? `<span class="nav-badge">${count > 99 ? "99+" : count}</span>` : "";
     return `
-      <a class="nav-link" href="#${item.route}" data-route="${item.route}">
-        <span class="nav-icon" aria-hidden="true">${item.icon}</span>
-        <span>${item.label}</span>
+      <a class="nav-link ${item.route === state.currentRoute ? "is-active" : ""}" href="#${item.route}" data-route="${item.route}" title="${item.label}">
+        <span class="nav-icon" aria-hidden="true">${icon(item.svg)}</span>
+        <span class="nav-label">${item.label}</span>
         ${badge}
       </a>
     `;
@@ -90,8 +91,8 @@ function renderNav() {
     <div class="nav-divider" role="separator"></div>
     ${EXTERNAL_LINKS.map((link) => `
       <a class="nav-link nav-link-external" href="${link.url}" target="_blank" rel="noopener noreferrer" title="${link.label} (เปิดในแท็บใหม่)">
-        <span class="nav-icon" aria-hidden="true">${link.icon}</span>
-        <span>${link.label}</span>
+        <span class="nav-icon" aria-hidden="true">${icon(link.svg)}</span>
+        <span class="nav-label">${link.label}</span>
       </a>
     `).join("")}` : "";
 

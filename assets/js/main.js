@@ -229,6 +229,7 @@ function bindChrome() {
   }
 
   qs("#theme-toggle").addEventListener("click", toggleTheme);
+  bindSidebarCollapse();
   qs("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("nav-open"));
   qs("#sidebar-backdrop")?.addEventListener("click", () => document.body.classList.remove("nav-open"));
 }
@@ -262,6 +263,28 @@ function showAuthPanel(show) {
   document.body.classList.toggle("auth-mode", show);
 }
 
+// ── ย่อ/ขยายแถบเมนู (จอคอม) — จำค่าไว้ในเครื่อง ──
+function bindSidebarCollapse() {
+  // ประกาศในฟังก์ชัน: boot() ถูกเรียกตอนโมดูลยังประเมินไม่จบ ค่าคงที่ระดับโมดูลที่อยู่ด้านล่างยังใช้ไม่ได้ (TDZ)
+  const SIDEBAR_KEY = "ppg-sidebar-collapsed";
+  const pin = qs("#sidebar-pin");
+  if (!pin) return;
+  const apply = (collapsed) => {
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    pin.setAttribute("aria-pressed", String(collapsed));
+    pin.title = collapsed ? "ขยายเมนู" : "ย่อเมนู";
+  };
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(SIDEBAR_KEY) === "1"; } catch { /* storage ปิดอยู่ */ }
+  apply(collapsed);
+  pin.addEventListener("click", () => {
+    collapsed = !document.body.classList.contains("sidebar-collapsed");
+    apply(collapsed);
+    if (collapsed) pin.blur(); // ไม่ให้โฟกัสค้างที่ปุ่ม (แถบจะขยายค้างตอนมีโฟกัสจากคีย์บอร์ด)
+    try { localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
+  });
+}
+
 function toggleTheme() {
   const theme = state.theme === "light" ? "dark" : "light";
   localStorage.setItem("ppg-theme-v2", theme);
@@ -269,11 +292,24 @@ function toggleTheme() {
   state.theme = theme;
 }
 
+/** อักษรย่อ 2 ตัวจากชื่อ (ข้ามคำนำหน้า นาย/นางสาว/Mr.) — "Narakorn Pankord" → "NP" */
+function initialsOf(name) {
+  const words = String(name).replace(/^(?:นางสาว|นาง|นาย|mrs?\.?|ms\.?)\s+/i, "").split(/[\s@._]+/).filter(Boolean);
+  return words.slice(0, 2).map((w) => [...w][0]).join("").toUpperCase();
+}
+
 function updateShell(nextState) {
   const roleChip = qs("#user-role-chip");
   if (roleChip) roleChip.textContent = nextState.user?.roleLabel || "";
   const userName = qs("#sidebar-user-name");
   if (userName) userName.textContent = nextState.user?.name || "";
+  // การ์ดผู้ใช้ในแถบเมนู: วงกลมอักษรย่อ (ไม่มีรูปโปรไฟล์จาก M365 ในระบบนี้)
+  const userCard = qs("#sidebar-user-card");
+  if (userCard) userCard.hidden = !nextState.account;
+  const avatar = qs("#sidebar-avatar");
+  if (avatar) avatar.textContent = initialsOf(nextState.user?.name || nextState.user?.email || "");
+  const newRequest = qs("#sidebar-new-request");
+  if (newRequest) newRequest.hidden = !nextState.account || nextState.user?.role === "viewer";
   const logoutButton = qs("#logout-button");
   if (logoutButton) logoutButton.hidden = !nextState.account;
   const loginButton = qs("#login-button");
