@@ -32,6 +32,20 @@
     <meta name="apple-mobile-web-app-title" content="PPG Drawing" />
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
 
+    <!-- ตรวจก่อนวาดหน้า: เพิ่งกลับจาก Microsoft หรือมีบัญชีค้างในเครื่อง → ซ่อนการ์ด login ไว้ก่อน
+         (main.js จะแสดงหน้า "กำลังเข้าสู่ระบบ" ต่อ) ไม่ให้การ์ด login แวบขึ้นมาก่อน JS โหลดเสร็จ -->
+    <script>
+      (function () {
+        try {
+          var h = location.href, s = h.indexOf("code=") > -1 || h.indexOf("error=") > -1 || !!sessionStorage.getItem("msal.interaction.status");
+          for (var i = 0; !s && i < localStorage.length; i++) {
+            var v = localStorage.getItem(localStorage.key(i)) || "";
+            s = v.charAt(0) === "{" && v.indexOf("homeAccountId") > -1 && v.indexOf("authorityType") > -1 && v.indexOf("username") > -1;
+          }
+          if (s) document.documentElement.classList.add("signing-in");
+        } catch (e) {}
+      })();
+    </script>
     <link rel="stylesheet" href="./assets/css/variables.css" />
     <link rel="stylesheet" href="./assets/css/base.css" />
     <link rel="stylesheet" href="./assets/css/layout.css" />
@@ -50,30 +64,44 @@
     <div class="fx-aurora" aria-hidden="true"><i></i><i></i><i></i></div>
     <div id="app-shell" class="app-shell">
       <aside class="sidebar" aria-label="Main navigation">
-        <a class="brand" href="#/dashboard" aria-label="PPG Drawing e-Service home">
-          <img src="./PPG%20logo%20for%20Web.png" alt="" class="brand-mark" />
-          <span>
-            <strong>PPG Drawing</strong>
-            <small>e-Service</small>
-          </span>
-        </a>
+        <div class="sidebar-head">
+          <a class="brand" href="#/dashboard" aria-label="PPG Drawing e-Service home">
+            <img src="./PPG%20logo%20for%20Web.png" alt="" class="brand-mark" />
+            <span class="brand-text">
+              <strong>PPG Drawing</strong>
+              <small>e-Service</small>
+            </span>
+          </a>
+          <!-- ย่อ/ขยายแถบเมนู (จอคอม) — ย่อแล้วเหลือแถบไอคอน เอาเมาส์ชี้เพื่อขยายชั่วคราว -->
+          <button id="sidebar-pin" class="sidebar-pin" type="button" title="ย่อเมนู" aria-label="ย่อ/ขยายเมนู" aria-pressed="false"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>
+        </div>
+
+        <div class="sidebar-user-card" id="sidebar-user-card" hidden>
+          <span id="sidebar-avatar" class="sidebar-avatar" aria-hidden="true"></span>
+          <div class="sidebar-user-info">
+            <span id="sidebar-user-name" class="sidebar-user-name"></span>
+            <span id="user-role-chip" class="user-role-chip"></span>
+          </div>
+        </div>
+
         <nav id="main-nav" class="nav-list"></nav>
+
         <div class="sidebar-footer">
           <div class="sidebar-auth">
-            <div class="sidebar-user-info">
-              <span id="sidebar-user-name" class="sidebar-user-name"></span>
-              <span id="user-role-chip" class="user-role-chip"></span>
-            </div>
-
             <!-- สลับมุมมอง — แสดงเฉพาะผู้จัดการ (เติมเนื้อหาโดย main.js) -->
             <div id="view-as-switcher" class="view-as-switcher" hidden></div>
 
             <button id="login-button" class="secondary-button auth-button" type="button" hidden>เข้าสู่ระบบ</button>
             <small id="sidebar-auth-note" class="sidebar-auth-note" hidden>เฉพาะอีเมล @primepower.co.th เท่านั้น</small>
-            <button id="logout-button" class="secondary-button auth-button" type="button" hidden>ออกจากระบบ</button>
-            <small id="app-version-label" class="app-version-label"></small>
           </div>
-          <button id="theme-toggle" class="icon-button" type="button" title="Toggle theme" aria-label="Toggle theme">◐</button>
+          <div class="sidebar-actions">
+            <button id="theme-toggle" class="sidebar-action" type="button" title="สลับธีมสว่าง/มืด" aria-label="สลับธีมสว่าง/มืด">
+              <span class="theme-ico-dark"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span><span class="theme-ico-light"><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></span>
+            </button>
+            <a id="sidebar-new-request" class="sidebar-action" href="#/submit" title="ส่งคำร้องใหม่" aria-label="ส่งคำร้องใหม่" hidden><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></a>
+            <button id="logout-button" class="sidebar-action sidebar-action-logout" type="button" title="ออกจากระบบ" aria-label="ออกจากระบบ" hidden><svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg><span class="sidebar-action-label">ออกจากระบบ</span></button>
+          </div>
+          <small id="app-version-label" class="app-version-label"></small>
         </div>
       </aside>
 

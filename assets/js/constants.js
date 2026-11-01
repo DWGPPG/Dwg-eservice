@@ -14,18 +14,18 @@ export const PRIORITIES = ["ปกติ", "เร่งด่วน", "เร�
 // role model จริง: viewer (ยังไม่ login) / requester (ทุกคนใน primepower.co.th) /
 // designer (อยู่ใน DrawingTeam = ทำหน้าที่ Lv.1 ได้) / manager (3 อีเมล Lv.2)
 export const NAV_ITEMS = [
-  { route: "/dashboard", label: "ภาพรวม", icon: "01", roles: ["manager", "requester", "designer", "viewer"] },
-  { route: "/submit", label: "ส่งคำร้อง", icon: "02", roles: ["requester", "designer", "manager"] },
-  { route: "/track", label: "ติดตามงาน", icon: "03", roles: ["manager", "requester", "designer", "viewer"] },
-  { route: "/admin", label: "รับงาน / อนุมัติ", icon: "04", roles: ["manager", "designer"] },
-  { route: "/report", label: "รายงาน", icon: "05", roles: ["manager"] },
-  { route: "/manage", label: "จัดการข้อมูล", icon: "06", roles: ["manager"] },
-  { route: "/guide", label: "คู่มือ", icon: "07", roles: ["manager", "requester", "designer"] },
+  { route: "/dashboard", label: "ภาพรวม", icon: "01", svg: "dashboard", roles: ["manager", "requester", "designer", "viewer"] },
+  { route: "/submit", label: "ส่งคำร้อง", icon: "02", svg: "submit", roles: ["requester", "designer", "manager"] },
+  { route: "/track", label: "ติดตามงาน", icon: "03", svg: "track", roles: ["manager", "requester", "designer", "viewer"] },
+  { route: "/admin", label: "รับงาน / อนุมัติ", icon: "04", svg: "admin", roles: ["manager", "designer"] },
+  { route: "/report", label: "รายงาน", icon: "05", svg: "report", roles: ["manager"] },
+  { route: "/manage", label: "จัดการข้อมูล", icon: "06", svg: "manage", roles: ["manager"] },
+  { route: "/guide", label: "คู่มือ", icon: "07", svg: "guide", roles: ["manager", "requester", "designer"] },
 ];
 
 // ลิงก์ไประบบอื่นของบริษัท — แสดงใต้เมนูหลักในแถบซ้าย เปิดในแท็บใหม่ (ทุกคนที่ login เห็น)
 export const EXTERNAL_LINKS = [
-  { label: "Intranet Prime Power Group", url: "https://ppg2014.github.io/prime-power-intranet/", icon: "↗" },
+  { label: "Intranet Prime Power Group", url: "https://ppg2014.github.io/prime-power-intranet/", icon: "↗", svg: "external" },
 ];
 
 export const PAGE_TITLES = {

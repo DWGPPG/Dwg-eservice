@@ -20,6 +20,40 @@ export function isMobileDevice() {
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
+const RETURN_ROUTE_KEY = "ppg-return-route";
+
+/** หน้าที่ผู้ใช้อยู่ตอนกดล็อกอิน — ใช้ครั้งเดียวหลังกลับจาก Microsoft */
+export function consumeReturnRoute() {
+  try {
+    const route = sessionStorage.getItem(RETURN_ROUTE_KEY);
+    sessionStorage.removeItem(RETURN_ROUTE_KEY);
+    return route || "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * รู้ได้ทันทีตอนเปิดหน้า (ก่อนโหลด MSAL) ว่าน่าจะเข้าระบบอยู่แล้ว — เพิ่งกลับจาก Microsoft หรือมีบัญชีค้างในเครื่อง
+ * ใช้ตัดสินว่าจะแสดงหน้า "กำลังเข้าสู่ระบบ" แทนหน้า login ไม่ให้ผู้ใช้เห็นปุ่ม Sign in ระหว่างระบบโหลดข้อมูล
+ */
+export function hasPendingOrCachedLogin() {
+  const href = window.location.href;
+  if (href.includes("code=") || href.includes("error=")) return true;
+  try {
+    if (sessionStorage.getItem("msal.interaction.status")) return true;
+    for (let i = 0; i < localStorage.length; i++) {
+      const value = localStorage.getItem(localStorage.key(i));
+      if (!value || value[0] !== "{" || !value.includes("homeAccountId")) continue;
+      const entity = JSON.parse(value);
+      if (entity.homeAccountId && entity.username && entity.authorityType) return true; // MSAL account entity
+    }
+  } catch {
+    // storage ปิด/ข้อมูลเสีย — แสดงหน้า login ตามปกติ
+  }
+  return false;
+}
+
 export async function initAuth() {
   await ensureMsal();
   if (!window.msal) {
@@ -33,6 +67,9 @@ export async function initAuth() {
       authority: appConfig.azure.authority,
       redirectUri: appConfig.azure.redirectUri,
       knownAuthorities: ["login.microsoftonline.com"],
+      // ค่าเริ่มต้นของ MSAL จะโหลดหน้าซ้ำอีกรอบเพื่อพากลับ URL เดิมหลังล็อกอิน (ช้า + ระหว่างนั้นเห็นหน้า login)
+      // ปิดไว้แล้วพากลับหน้าเดิมเองด้วย consumeReturnRoute()
+      navigateToLoginRequestUrl: false,
     },
     cache: {
       cacheLocation: "localStorage",
@@ -87,6 +124,7 @@ export async function login() {
   if (!msalInstance) throw new Error("ระบบ Microsoft 365 ยังไม่พร้อมใช้งาน");
   signingIn = true;
   try {
+    try { sessionStorage.setItem(RETURN_ROUTE_KEY, location.hash || ""); } catch { /* storage ปิดอยู่ */ }
     await msalInstance.loginRedirect({
       scopes: appConfig.azure.scopes,
       prompt: "select_account",

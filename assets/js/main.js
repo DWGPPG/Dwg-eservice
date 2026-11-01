@@ -1,5 +1,5 @@
 import { appConfig } from "../../config/config.js";
-import { initAuth, login, logout, refreshUserRole } from "./auth.js";
+import { consumeReturnRoute, hasPendingOrCachedLogin, initAuth, login, logout, refreshUserRole } from "./auth.js";
 import { initRouter, navigate, refreshNavBadges } from "./router.js";
 import {
   VIEW_AS_OPTIONS, canSwitchView, isViewingAsOther, switchViewTo,
@@ -82,25 +82,13 @@ async function boot() {
     tryLoad(0);
   }
 
-  // ถ้ากำลัง redirect กลับจาก Microsoft ให้แสดง loading overlay แทน auth panel
+  // เพิ่งกลับจาก Microsoft หรือมีบัญชีค้างในเครื่อง → แสดงหน้า "กำลังเข้าสู่ระบบ" จนกว่าแอปจะพร้อมจริง
+  // (เดิมแสดงหน้า login ระหว่างโหลดข้อมูล ผู้ใช้เห็นปุ่ม Sign in ค้างหลายวินาทีทั้งที่ล็อกอินแล้ว)
   const isRedirectCallback = window.location.href.includes("code=") || window.location.href.includes("error=");
-
-  if (isRedirectCallback) {
-    // แสดง loading screen แทน auth panel ระหว่างรอ MSAL handle token
-    document.body.insertAdjacentHTML("beforeend", `
-      <div id="redirect-loading" style="
-        position:fixed;inset:0;z-index:9999;
-        background:linear-gradient(135deg,#002952 0%,#001a38 50%,#003d20 100%);
-        display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;">
-        <img src="./PPG%20logo%20for%20Web.png" style="height:48px;opacity:0.9;" onerror="this.style.display='none'">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:20px;height:20px;border:2px solid rgba(255,255,255,0.3);border-top-color:#0DB14B;border-radius:50%;animation:spin 0.7s linear infinite;"></div>
-          <span style="color:#fff;font-size:14px;font-weight:500;">กำลังเข้าสู่ระบบ...</span>
-        </div>
-        <p style="color:rgba(255,255,255,0.45);font-size:12px;">กรุณารอสักครู่</p>
-      </div>
-    `);
+  if (hasPendingOrCachedLogin()) {
+    showSigninOverlay("กำลังยืนยันตัวตนกับ Microsoft 365…");
   } else {
+    document.documentElement.classList.remove("signing-in");
     showAuthPanel(true);
   }
 
@@ -112,28 +100,62 @@ async function boot() {
 
   try {
     await initAuth();
-    document.getElementById("redirect-loading")?.remove();
     if (state.account) {
+      setSigninStatus("กำลังโหลดข้อมูลคำร้อง…");
       await afterSignedIn();
+      hideSigninOverlay();
       return;
     }
   } catch (error) {
     console.error("initAuth failed:", error);
-    document.getElementById("redirect-loading")?.remove();
     if (!isRedirectCallback) {
       showToast("เริ่มต้นระบบ Microsoft 365 ไม่สำเร็จ — ลองรีเฟรชหน้าเว็บ", "error");
     }
   }
 
-  document.getElementById("redirect-loading")?.remove();
+  hideSigninOverlay();
   showAuthPanel(true);
+}
+
+// ── หน้า "กำลังเข้าสู่ระบบ" — อยู่จนกว่าแอปพร้อม (หรือรู้ว่ายังไม่ได้ล็อกอิน) ──
+function showSigninOverlay(message) {
+  if (document.getElementById("signin-overlay")) return setSigninStatus(message);
+  document.body.insertAdjacentHTML("beforeend", `
+    <div id="signin-overlay" class="signin-overlay" role="status" aria-live="polite">
+      <div class="signin-card">
+        <img src="./PPG%20logo%20for%20Web.png" alt="" class="signin-logo" onerror="this.style.display='none'">
+        <strong class="signin-title">PPG Drawing<span>.</span></strong>
+        <div class="signin-spinner" aria-hidden="true"></div>
+        <p class="signin-status" id="signin-status">${message}</p>
+        <small>ลงชื่อเข้าใช้ด้วยบัญชี Microsoft 365 แล้ว — กรุณารอสักครู่</small>
+      </div>
+    </div>
+  `);
+}
+
+function setSigninStatus(message) {
+  const el = document.getElementById("signin-status");
+  if (el) el.textContent = message;
+}
+
+function hideSigninOverlay() {
+  document.documentElement.classList.remove("signing-in");
+  const overlay = document.getElementById("signin-overlay");
+  if (!overlay) return;
+  overlay.classList.add("is-leaving");
+  setTimeout(() => overlay.remove(), 350);
 }
 
 async function afterSignedIn() {
   try {
-    await loadMasterData();
+    // โหลดข้อมูลหลัก (ทีม/โครงการ/วันหยุด) กับคำร้องพร้อมกัน — เดิมรอทีละอย่าง
+    await Promise.all([loadMasterData(), hydrateRequests()]);
     refreshUserRole();
-    await hydrateRequests();
+    // กลับไปหน้าที่อยู่ตอนกดล็อกอิน (MSAL ไม่โหลดหน้าซ้ำเพื่อพากลับแล้ว)
+    const returnRoute = consumeReturnRoute();
+    if (returnRoute && returnRoute !== location.hash && !returnRoute.includes("code=")) {
+      history.replaceState(null, "", `${location.pathname}${location.search}${returnRoute}`);
+    }
     // แสดง app shell ก่อนเสมอ — ต้อง unhide ก่อน navigate() จะได้ layout ถูกต้อง
     showAuthPanel(false);
     navigate();
@@ -229,6 +251,7 @@ function bindChrome() {
   }
 
   qs("#theme-toggle").addEventListener("click", toggleTheme);
+  bindSidebarCollapse();
   qs("#menu-toggle").addEventListener("click", () => document.body.classList.toggle("nav-open"));
   qs("#sidebar-backdrop")?.addEventListener("click", () => document.body.classList.remove("nav-open"));
 }
@@ -262,6 +285,28 @@ function showAuthPanel(show) {
   document.body.classList.toggle("auth-mode", show);
 }
 
+// ── ย่อ/ขยายแถบเมนู (จอคอม) — จำค่าไว้ในเครื่อง ──
+function bindSidebarCollapse() {
+  // ประกาศในฟังก์ชัน: boot() ถูกเรียกตอนโมดูลยังประเมินไม่จบ ค่าคงที่ระดับโมดูลที่อยู่ด้านล่างยังใช้ไม่ได้ (TDZ)
+  const SIDEBAR_KEY = "ppg-sidebar-collapsed";
+  const pin = qs("#sidebar-pin");
+  if (!pin) return;
+  const apply = (collapsed) => {
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    pin.setAttribute("aria-pressed", String(collapsed));
+    pin.title = collapsed ? "ขยายเมนู" : "ย่อเมนู";
+  };
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(SIDEBAR_KEY) === "1"; } catch { /* storage ปิดอยู่ */ }
+  apply(collapsed);
+  pin.addEventListener("click", () => {
+    collapsed = !document.body.classList.contains("sidebar-collapsed");
+    apply(collapsed);
+    if (collapsed) pin.blur(); // ไม่ให้โฟกัสค้างที่ปุ่ม (แถบจะขยายค้างตอนมีโฟกัสจากคีย์บอร์ด)
+    try { localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0"); } catch { /* ignore */ }
+  });
+}
+
 function toggleTheme() {
   const theme = state.theme === "light" ? "dark" : "light";
   localStorage.setItem("ppg-theme-v2", theme);
@@ -269,11 +314,24 @@ function toggleTheme() {
   state.theme = theme;
 }
 
+/** อักษรย่อ 2 ตัวจากชื่อ (ข้ามคำนำหน้า นาย/นางสาว/Mr.) — "Narakorn Pankord" → "NP" */
+function initialsOf(name) {
+  const words = String(name).replace(/^(?:นางสาว|นาง|นาย|mrs?\.?|ms\.?)\s+/i, "").split(/[\s@._]+/).filter(Boolean);
+  return words.slice(0, 2).map((w) => [...w][0]).join("").toUpperCase();
+}
+
 function updateShell(nextState) {
   const roleChip = qs("#user-role-chip");
   if (roleChip) roleChip.textContent = nextState.user?.roleLabel || "";
   const userName = qs("#sidebar-user-name");
   if (userName) userName.textContent = nextState.user?.name || "";
+  // การ์ดผู้ใช้ในแถบเมนู: วงกลมอักษรย่อ (ไม่มีรูปโปรไฟล์จาก M365 ในระบบนี้)
+  const userCard = qs("#sidebar-user-card");
+  if (userCard) userCard.hidden = !nextState.account;
+  const avatar = qs("#sidebar-avatar");
+  if (avatar) avatar.textContent = initialsOf(nextState.user?.name || nextState.user?.email || "");
+  const newRequest = qs("#sidebar-new-request");
+  if (newRequest) newRequest.hidden = !nextState.account || nextState.user?.role === "viewer";
   const logoutButton = qs("#logout-button");
   if (logoutButton) logoutButton.hidden = !nextState.account;
   const loginButton = qs("#login-button");
