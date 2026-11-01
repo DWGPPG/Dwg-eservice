@@ -92,23 +92,28 @@
   const syncRouteClass = () => document.body.classList.toggle("route-dashboard", isDashboard() && !view.hidden);
   window.addEventListener("hashchange", syncRouteClass);
 
+  let refreshNext = false;
   new MutationObserver((mutations) => {
-    const pageRendered = mutations.some((m) => m.target === view);
+    // สไลด์ทีมงานเปลี่ยนเนื้อหาเองทุกไม่กี่วินาที — ไม่ใช่การวาดหน้าใหม่ ไม่ต้องประมวลผลเอฟเฟกต์
+    const relevant = mutations.filter((m) => m.target === view || !m.target.closest?.(".team-showcase"));
+    if (!relevant.length) return;
+    const pageRendered = relevant.some((m) => m.target === view);
     if (pageRendered) {
       const route = location.hash || "#/dashboard";
       const refresh = route === lastRoute;
       view.classList.toggle("is-refresh", refresh);
       lastRoute = route;
-      animateNext = !refresh;
+      refreshNext = refresh;
     } else {
-      animateNext = true; // เปลี่ยนแค่บางส่วนในหน้า (เช่นเปลี่ยนตัวกรอง KPI) = ผู้ใช้กดเอง → เล่นเอฟเฟกต์
+      refreshNext = false; // เปลี่ยนแค่บางส่วนในหน้า (เช่นเปลี่ยนตัวกรอง KPI) = ผู้ใช้กดเอง → เล่นเอฟเฟกต์เต็ม
     }
+    animateNext = true;
     syncRouteClass();
     if (!pending && isDashboard()) {
       pending = true;
       requestAnimationFrame(() => {
         pending = false;
-        enhanceDashboard(animateNext && !reduceMotion);
+        enhanceDashboard(animateNext && !reduceMotion, refreshNext);
       });
     }
   }).observe(view, { childList: true, subtree: true });
@@ -116,9 +121,16 @@
   // ══════════════ หน้าภาพรวม: การ์ดกระจก / blur-in / ตัวเลขนับขึ้น / แท่งโต / กราฟวาดเส้น ══════════════
   let revealObserver = null;
 
-  function enhanceDashboard(animate) {
+  // อยู่ในจอตอนนี้ไหม (ใช้ตอนข้อมูลอัปเดตแล้วหน้าวาดใหม่: ส่วนที่เห็นอยู่ไม่เล่นซ้ำ กันกระพริบ
+  // ส่วนที่ยังไม่ได้เลื่อนลงไปดู ยังเล่นเอฟเฟกต์ตอนเลื่อนมาถึงตามปกติ)
+  const onScreen = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < window.innerHeight && r.height > 0;
+  };
+
+  function enhanceDashboard(animate, refresh = false) {
     if (!isDashboard()) return;
-    const fresh = new Set([...view.querySelectorAll("*")].filter((el) => !el.dataset.fx));
+    const fresh = new Set([...view.querySelectorAll("*")].filter((el) => !el.dataset.fx && !el.closest(".team-showcase")));
     if (!fresh.size) return;
     fresh.forEach((el) => { el.dataset.fx = "1"; });
 
@@ -132,21 +144,43 @@
 
     if (!animate) return;
     const outerCards = cards.filter((el) => el.classList.contains("fx-glass"));
-    const revealTargets = [...view.querySelectorAll(".dash-hero-head, .dash-hero-tile"), ...outerCards]
+    let revealTargets = [...view.querySelectorAll(".dash-hero-head, .dash-hero-tile"), ...outerCards]
       .filter((el) => fresh.has(el));
+    const skipNow = refresh ? new Set([...revealTargets, ...view.querySelectorAll(".dash-hero")].filter(onScreen)) : new Set();
+    revealTargets = revealTargets.filter((el) => !skipNow.has(el));
     reveal(revealTargets);
 
-    // ตัวเลขนับขึ้น + แท่ง/กราฟ เริ่มเมื่อเลื่อนมาเห็น
-    const watch = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        watch.unobserve(entry.target);
-        playInside(entry.target);
-      });
-    }, { threshold: 0.15 });
-    const roots = outerCards.length ? [...outerCards, ...view.querySelectorAll(".dash-hero")] : [view];
-    roots.forEach((root) => { if (fresh.has(root) || root === view) watch.observe(root); });
+    // ตัวเลขนับขึ้น + แท่ง/กราฟ — เล่น "ทีละชิ้น" เมื่อชิ้นนั้นเลื่อนมาเห็น
+    // (เดิมผูกกับทั้งการ์ด: การ์ดใหญ่ที่โผล่ขอบบนในจอตอนข้อมูลอัปเดต ทำให้ตัวเลขทั้งการ์ดไม่วิ่งเลย)
+    const candidates = [...fresh].filter(isAnimatable);
+    candidates.forEach((el) => {
+      if (refresh && onScreen(el)) { el.dataset.fxPlayed = "1"; return; } // เห็นอยู่แล้ว → ไม่นับใหม่ กันกระพริบ
+      playObserver.observe(el);
+    });
   }
+
+  // ชิ้นที่เล่นเอฟเฟกต์ได้: ตัวเลขล้วน / แถบ progress (inline width:%) / กราฟ SVG
+  function isAnimatable(el) {
+    if (el.dataset.fxPlayed) return false;
+    if (el.closest(".team-showcase, button, select, option, th")) return false;
+    if (el.tagName === "svg") return true;
+    if (el.closest("svg")) return false;
+    if (!el.children.length && NUMBER_RE.test(el.textContent.trim())) return true;
+    const style = el.getAttribute("style") || "";
+    return /(?:^|;)\s*width:\s*[\d.]+%/.test(style) && /background/.test(style);
+  }
+
+  const playObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      playObserver.unobserve(entry.target);
+      const el = entry.target;
+      if (el.dataset.fxPlayed) return;
+      if (el.tagName === "svg") drawSvg(el);
+      else if (!el.children.length && countUp(el)) { /* นับขึ้นแล้ว */ }
+      else growBar(el);
+    });
+  }, { threshold: 0.2, rootMargin: "0px 0px -30px 0px" });
 
   function isCardLike(el) {
     if (el.closest(".dash-hero") || el.matches("button, a, input, select, textarea, option, svg *, table *, .badge")) return false;
@@ -175,14 +209,7 @@
     });
   }
 
-  function playInside(root) {
-    root.querySelectorAll("*").forEach((el) => {
-      if (el.dataset.fxPlayed) return;
-      if (!el.children.length && countUp(el)) return;
-      if (growBar(el)) return;
-    });
-    root.querySelectorAll("svg").forEach(drawSvg);
-  }
+
 
   // ── ตัวเลขนับขึ้นจาก 0 (คงรูปแบบเดิม: คอมมา ทศนิยม %) ──
   const NUMBER_RE = /^([+-]?)(\d[\d,]*)(\.\d+)?(%?)$/;
