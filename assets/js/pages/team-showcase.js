@@ -12,6 +12,7 @@ import { getDrawingTeamMembers } from "../services/team-service.js";
 import { COVER_KEY, listTeamPhotos, photoUrlSync, preloadPhoto } from "../services/team-photo-service.js";
 import { escapeHtml } from "../utils.js";
 import { openRequestDetail } from "./track.js";
+import { openModal } from "../components/modal.js";
 
 const NO_WORKLOAD = [STATUS.MGR_REVIEW, STATUS.DELIVERED, STATUS.DONE, STATUS.CANCELLED, STATUS.REJECTED];
 const DELIVERED = [STATUS.DELIVERED, STATUS.DONE];
@@ -83,6 +84,7 @@ function metricsFor(rows, periodKey, teamActive) {
 
   return {
     active: active.length,
+    total: rows.filter((r) => inPeriod(r.submittedAt)).length,
     dueToday,
     overdueNow,
     delivered: delivered.length,
@@ -143,7 +145,7 @@ function slideBody(slide) {
     <h2 class="ts-title">${escapeHtml(slide.title)}</h2>
     <p class="ts-sub">${escapeHtml(slide.sub)}</p>
     <div class="ts-kpis">
-      ${kpi("Workload รายวัน", m.active, m.active ? "is-neon" : "")}
+      ${kpi("งานทั้งหมด", m.total.toLocaleString("th-TH"), m.total ? "is-neon" : "")}
       ${kpi("ภาระงานวันนี้ (ครบกำหนด)", m.dueToday, m.dueToday ? "is-amber" : "")}
       ${kpi("Drawing Quality Score", `${m.quality}%`, m.quality >= 80 ? "is-neon" : "is-red")}
       ${kpi("งานเกินกำหนด", m.lateTotal, m.lateTotal ? "is-red" : "")}
@@ -159,7 +161,7 @@ function slideBody(slide) {
         <h3>📁 โครงการ <small>${m.projects.length}</small></h3>
         <div class="ts-chips">
           ${m.projects.slice(0, 8).map(([name, n]) => `<span class="ts-chip">${escapeHtml(name)} <b>${n}</b></span>`).join("") || `<span class="ts-empty">—</span>`}
-          ${m.projects.length > 8 ? `<span class="ts-chip is-more">+${m.projects.length - 8}</span>` : ""}
+          ${m.projects.length > 8 ? `<button type="button" class="ts-chip is-more" data-ts-more="projects" title="ดูโครงการทั้งหมด">+${m.projects.length - 8} ดูทั้งหมด</button>` : ""}
         </div>
       </div>
       <div class="ts-list">
@@ -172,7 +174,7 @@ function slideBody(slide) {
               <b>${escapeHtml(r.drawingNo || r.requestNo)}</b><span>${escapeHtml(r.drawingName || r.projectName || "")}</span>
               <em>${r.dueDate ? new Date(r.dueDate).toLocaleDateString("th-TH", { day: "numeric", month: "short" }) : "—"}</em></button></li>`;
           }).join("") || `<li class="ts-empty">ไม่มีงานค้าง 🎉</li>`}
-          ${m.drawings.length > 4 ? `<li class="ts-more">และอีก ${m.drawings.length - 4} งาน</li>` : ""}
+          ${m.drawings.length > 4 ? `<li><button type="button" class="ts-more" data-ts-more="drawings">และอีก ${m.drawings.length - 4} งาน · ดูทั้งหมด ›</button></li>` : ""}
         </ul>
       </div>
     </div>`;
@@ -194,6 +196,53 @@ function cardHtml(slide, index) {
         <em>${slide.m.active} งาน</em>
       </span>
     </button>`;
+}
+
+/** รายการทั้งหมด (โครงการ / งานที่กำลังทำ) ของสไลด์ปัจจุบัน — เปิดเป็นหน้าต่าง ค้นหาได้ */
+function openMoreList(slide, kind, requests) {
+  const { m } = slide;
+  const today = dayKey(new Date());
+  const isProjects = kind === "projects";
+  const rows = isProjects
+    ? m.projects.map(([name, n]) => `
+        <li class="ts-more-row" data-search="${escapeHtml(name.toLowerCase())}">
+          <span class="ts-more-main">${escapeHtml(name)}</span><b>${n} งาน</b>
+        </li>`).join("")
+    : m.drawings.map((r) => {
+        const due = dayKey(r.dueDate);
+        const cls = due && due < today ? "is-late" : due === today ? "is-today" : "";
+        const search = `${r.requestNo} ${r.drawingNo || ""} ${r.drawingName || ""} ${r.projectName || ""}`.toLowerCase();
+        return `
+        <li class="ts-more-row" data-search="${escapeHtml(search)}">
+          <button type="button" class="ts-more-link" data-more-detail="${escapeHtml(r.requestNo)}">
+            <span class="ts-more-main"><b>${escapeHtml(r.drawingNo || r.requestNo)}</b> ${escapeHtml(r.drawingName || "")}<small>${escapeHtml(r.projectName || "")} · ${escapeHtml(r.requestNo)}${slide.isTeam && r.assignedToName ? ` · ${escapeHtml(r.assignedToName)}` : ""}</small></span>
+            <em class="${cls}">${r.dueDate ? new Date(r.dueDate).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "2-digit" }) : "—"}</em>
+          </button>
+        </li>`;
+      }).join("");
+  const count = isProjects ? m.projects.length : m.drawings.length;
+  const close = openModal({
+    title: `${isProjects ? "📁 โครงการ" : "📐 Drawing ที่กำลังทำ"} — ${slide.title} (${count.toLocaleString("th-TH")})`,
+    body: `
+      <div class="ts-more-panel">
+        <input type="search" class="manage-search" placeholder="ค้นหา${isProjects ? "โครงการ" : "เลข Drawing / ชื่อ / โครงการ"}..." data-more-search />
+        <ul class="ts-more-list">${rows}</ul>
+      </div>`,
+    actions: [{ label: "ปิด" }],
+  });
+  const panel = document.querySelector(".ts-more-panel");
+  if (!panel) return;
+  panel.querySelector("[data-more-search]").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    panel.querySelectorAll(".ts-more-row").forEach((row) => { row.hidden = Boolean(q) && !row.dataset.search.includes(q); });
+  });
+  panel.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-more-detail]");
+    if (!btn) return;
+    const request = requests.find((r) => r.requestNo === btn.dataset.moreDetail);
+    close();
+    if (request) openRequestDetail(request);
+  });
 }
 
 const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -344,6 +393,8 @@ export function renderTeamShowcase(state) {
       if (request) openRequestDetail(request);
       return;
     }
+    const more = event.target.closest("[data-ts-more]");
+    if (more) { openMoreList(slides[ui.index], more.dataset.tsMore, requests); return; }
     const step = event.target.closest("[data-ts-step]");
     if (step) { go(ui.index + Number(step.dataset.tsStep)); restart(); return; }
     const card = event.target.closest("[data-ts-go]");
