@@ -201,7 +201,8 @@ export function renderTeamShowcase(state) {
     ui.index = ((ui.index % slides.length) + slides.length) % slides.length;
     const current = slides[ui.index];
     const nextCards = [];
-    for (let i = 1; i < Math.min(slides.length, 6); i++) nextCards.push((ui.index + i) % slides.length);
+    // แสดงการ์ดของทุกคน (ไม่รวมสไลด์ที่เปิดอยู่) เรียงต่อจากคนปัจจุบัน
+    for (let i = 1; i < slides.length; i++) nextCards.push((ui.index + i) % slides.length);
 
     section.innerHTML = `
       <div class="ts-bg" data-team-photo="${escapeHtml(current.key)}">
