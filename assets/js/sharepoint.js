@@ -74,6 +74,7 @@ export async function addItem(listName, fieldsPayload) {
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
       const response = await createListItem(siteId, listId, payload);
+      notifyRequestWrite(listName);
       return { id: response.id, ...response.fields };
     } catch (err) {
       const msg = err.message || "";
@@ -118,12 +119,19 @@ let requestWriteGuard = null;
 export function setRequestWriteGuard(fn) {
   requestWriteGuard = fn;
 }
+// แจ้ง request-sync ทุกครั้งที่เขียนคำร้องสำเร็จ — รอบซิงค์ที่เริ่มก่อนบันทึกเสร็จจะได้ไม่เอาข้อมูลเก่ามาทับ
+let requestWriteNotifier = null;
+export function setRequestWriteNotifier(fn) {
+  requestWriteNotifier = fn;
+}
+const notifyRequestWrite = (listName) => { if (listName === lists.requests) requestWriteNotifier?.(); };
 
 export async function patchItem(listName, itemId, fieldsPayload) {
   if (requestWriteGuard && listName === lists.requests) await requestWriteGuard(itemId);
   const key = `${listName}:${itemId}`;
   const previous = itemPatchQueues.get(key) || Promise.resolve();
-  const run = previous.catch(() => {}).then(() => patchItemNow(listName, itemId, fieldsPayload));
+  const run = previous.catch(() => {}).then(() => patchItemNow(listName, itemId, fieldsPayload))
+    .then((result) => { notifyRequestWrite(listName); return result; });
   itemPatchQueues.set(key, run);
   try {
     return await run;

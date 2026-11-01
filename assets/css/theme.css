@@ -3223,3 +3223,7 @@ body.cursor-fx-on .cursor-ring.is-text { opacity: 0.25; }
 }
 
 @media print { .cursor-glow, .cursor-ring { display: none !important; } }
+
+/* รูปโปรไฟล์ Microsoft 365 ในการ์ดผู้ใช้ */
+[data-theme] .sidebar-avatar.has-photo { background: var(--surface-muted); padding: 0; overflow: hidden; box-shadow: 0 0 0 2px color-mix(in srgb, var(--neon) 55%, transparent); }
+[data-theme] .sidebar-avatar.has-photo img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }

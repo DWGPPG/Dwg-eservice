@@ -15,7 +15,7 @@ import { appConfig } from "../../../config/config.js";
 import { fields, lists } from "../../../config/schema.js";
 import { fetchAllPages, graphBatchGet } from "../graph.js";
 import { cacheGet, cacheSet, userCacheKey } from "../idb-cache.js";
-import { ensureListId, ensureSite, setRequestWriteGuard } from "../sharepoint.js";
+import { ensureListId, ensureSite, setRequestWriteGuard, setRequestWriteNotifier } from "../sharepoint.js";
 
 const FULL_RESYNC_MS = 6 * 60 * 60 * 1000;
 const MAX_DELTA_CHANGES = 400;     // เปลี่ยนเกินนี้ในรอบเดียว → โหลดทั้งหมดเร็วกว่ายิงทีละรายการ
@@ -30,6 +30,7 @@ let inflight = null;
 let cacheKey = null;
 let saveTimer = null;
 
+let writeSeq = 0;                  // นับครั้งที่เครื่องนี้บันทึกคำร้องสำเร็จ
 let isFresh = false;               // ซิงค์กับ SharePoint สำเร็จแล้วอย่างน้อย 1 ครั้งในรอบการเปิดเว็บนี้
 let resolveFresh;
 let freshPromise = new Promise((resolve) => { resolveFresh = resolve; });
@@ -184,20 +185,25 @@ export function syncRequests({ full = false } = {}) {
   inflight = (async () => {
     emit({ phase: "syncing", error: "" });
     try {
-      let mutated;
-      const needFull = full || !deltaLink || deltaSupported === false || Date.now() - lastFullAt > FULL_RESYNC_MS;
-      if (needFull) {
-        await fullLoad();
-        mutated = true;
-      } else {
-        try {
-          mutated = await deltaPoll();
-        } catch (error) {
-          // token หมดอายุ (410 resyncRequired) หรือ token ใช้ไม่ได้ → เริ่มใหม่
-          if (![400, 404, 410].includes(error.status) && !/resync/i.test(error.message || "")) throw error;
+      let mutated = false;
+      // ถ้าระหว่างซิงค์มีการบันทึกคำร้องจากเครื่องนี้ ผลรอบนี้อาจเป็นข้อมูลก่อนบันทึก → ถามซ้ำอีกรอบ (สูงสุด 2 รอบ)
+      for (let round = 0; round < 3; round++) {
+        const seqAtStart = writeSeq;
+        const needFull = (full && round === 0) || !deltaLink || deltaSupported === false || Date.now() - lastFullAt > FULL_RESYNC_MS;
+        if (needFull) {
           await fullLoad();
           mutated = true;
+        } else {
+          try {
+            mutated = (await deltaPoll()) || mutated;
+          } catch (error) {
+            // token หมดอายุ (410 resyncRequired) หรือ token ใช้ไม่ได้ → เริ่มใหม่
+            if (![400, 404, 410].includes(error.status) && !/resync/i.test(error.message || "")) throw error;
+            await fullLoad();
+            mutated = true;
+          }
         }
+        if (writeSeq === seqAtStart) break;
       }
       markFresh();
       emit({ phase: "ok", lastSyncAt: Date.now(), source: "network", mode: deltaSupported ? "delta" : "full" });
@@ -284,3 +290,4 @@ async function guardStaleWrite(itemId) {
 }
 
 setRequestWriteGuard(guardStaleWrite);
+setRequestWriteNotifier(() => { writeSeq += 1; });
