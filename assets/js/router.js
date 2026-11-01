@@ -43,6 +43,7 @@ export function navigate() {
   const view = qs("#app-view");
   const renderer = routes[route] || routes["/dashboard"];
 
+  state.previousRoute = state.currentRoute;
   state.currentRoute = route;
   qs("#page-title").textContent = PAGE_TITLES[route] || "Dashboard";
   qsa(".nav-link").forEach((link) => link.classList.toggle("is-active", link.dataset.route === route));
