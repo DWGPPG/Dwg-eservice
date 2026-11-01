@@ -1,3 +1,5 @@
+import { isProposalType, ownerSummaryText } from "../services/owner-service.js";
+import { checkOffDay, offDayText } from "../services/due-date.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { paginate } from "../components/pager.js";
 import { STATUS, STATUS_LABELS, CLOSED_STATUSES , CANCEL_SOURCES, getCancelSource } from "../../../config/schema.js";
@@ -1334,7 +1336,7 @@ function renderReviewCard(item) {
           <span style="font-size:12px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;">
             📅 กำหนดส่งใหม่ <b style="color:#EF4444;">*</b>
           </span>
-          <input id="review-due-${escapeHtml(item.requestNo)}" type="date" data-priority="${escapeHtml(item.priority || "ปกติ")}"
+          <input id="review-due-${escapeHtml(item.requestNo)}" type="date" data-due-guard data-priority="${escapeHtml(item.priority || "ปกติ")}"
             style="width:100%;border:1.5px solid #FCD34D;background:#FFFBEB;border-radius:8px;padding:8px;font-size:13px;" />
           <small style="display:block;margin-top:4px;color:#64748B;font-size:11px;">${item.priority === SAME_DAY_PRIORITY
             ? "คำร้องนี้ “เร่งด่วนมาก” — กำหนดส่งเป็นวันนี้ได้"
@@ -1534,6 +1536,8 @@ function bindReviewInteractions(view, state) {
         if (!note)          { showToast("กรุณาระบุรายละเอียดที่ต้องแก้ไข", "warning"); return; }
         if (!files.length)  { showToast("กรุณาแนบไฟล์ประกอบอย่างน้อย 1 ไฟล์", "warning"); return; }
         if (!newDue)        { showToast("กรุณากรอกกำหนดส่งใหม่", "warning"); return; }
+        const offDay = checkOffDay(newDue);
+        if (offDay) { showToast(`⛔ ${offDayText(offDay)} — กรุณาเลือกวันใหม่`, "warning"); return; }
         if (newDue < minDueDateKey(request.priority)) {
           showToast(request.priority === SAME_DAY_PRIORITY
             ? "กำหนดส่งใหม่เป็นวันที่ผ่านมาแล้ว — กรุณาเลือกใหม่"
@@ -1743,6 +1747,7 @@ export function openRequestDetail(request) {
             ${detailItem("ผู้ส่งคำร้อง (ชื่อ)", request.requesterName)}
             ${detailItem("ผู้ส่งคำร้อง (อีเมล)", request.requesterEmail)}
             ${detailItem("ผู้รับผิดชอบ (เขียนแบบ)", assigneeName(request))}
+            ${ownerSummaryText(request.projectName, request.requestType) ? detailItem(isProposalType(request.requestType) ? "ผู้รับผิดชอบงาน Proposal" : "ผู้รับผิดชอบโครงการ", ownerSummaryText(request.projectName, request.requestType)) : ""}
             ${detailItem("กำหนดส่ง", formatDateOnly(request.dueDate))}
             ${detailItem("ความเร่งด่วน", request.priority)}
             ${detailItem("วันที่ส่งคำร้อง", formatDate(request.submittedAt))}

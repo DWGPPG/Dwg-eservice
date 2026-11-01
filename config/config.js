@@ -20,6 +20,13 @@ export const appConfig = {
       "Chat.ReadWrite",
     ],
   },
+  // ── งาน "📋 เขียนแบบ Proposal" รับผิดชอบโดย 2 คนนี้เสมอ (ไม่ขึ้นกับผู้รับผิดชอบโครงการ) ──
+  proposalOwners: [
+    "narakorn.pa@primepower.co.th",
+    "janjira.ph@primepower.co.th",
+  ],
+  // ── ช่องทางติดต่อฝ่ายเขียนแบบ (แสดงตอนผู้รับผิดชอบลา) ──
+  drawingContact: "ห้องฝ่ายเขียนแบบ หรือโทร 203, 206, 207",
   // ── ไฟล์แนบ ──
   // ไฟล์ที่ใหญ่กว่า largeFileMB ระบบจะถามก่อนว่าจะอัปโหลดสำเนา หรือแนบเป็นลิงก์จาก SharePoint/OneDrive แทน
   // (ประหยัดพื้นที่ 1TB ของ SharePoint — ไฟล์ใหญ่ไม่ควรถูกคัดลอกซ้ำหลายที่)

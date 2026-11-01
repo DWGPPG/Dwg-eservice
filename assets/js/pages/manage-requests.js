@@ -16,6 +16,7 @@ import { writeAudit } from "../services/audit-service.js";
 import { patchRequest } from "../services/request-service.js";
 import { state } from "../state.js";
 import { escapeHtml, formatDate, formatDateOnly } from "../utils.js";
+import { checkOffDay, offDayText } from "../services/due-date.js";
 
 const DRAWING_CATEGORIES = ["General Drawing", "Architectural Drawing", "Structural Drawing", "Electrical Drawing", "Mechanical Drawing"];
 
@@ -164,7 +165,7 @@ function fieldHtml(f, request) {
     return `<label class="${cls}">${label}<textarea name="${f.key}" rows="3">${escapeHtml(value)}</textarea></label>`;
   }
   return `<label class="${cls}">${label}
-    <input type="${f.type}" name="${f.key}" value="${escapeHtml(value)}" ${f.list ? `list="${f.list}"` : ""} ${f.cloudLink ? 'data-cloud-link="multi"' : ""} autocomplete="off" /></label>`;
+    <input type="${f.type}" name="${f.key}" value="${escapeHtml(value)}" ${f.key === "dueDate" ? "data-due-guard" : ""} ${f.list ? `list="${f.list}"` : ""} ${f.cloudLink ? 'data-cloud-link="multi"' : ""} autocomplete="off" /></label>`;
 }
 
 function openRequestEditForm(request, rerenderBody) {
@@ -272,6 +273,10 @@ function collectChanges(form, request) {
   const sub = form.querySelector('[name="submittedAt"]').value.slice(0, 10);
   const due = form.querySelector('[name="dueDate"]').value;
   if (sub && due && due < sub) return { error: "กำหนดส่งต้องไม่อยู่ก่อนวันที่ส่งคำร้อง" };
+  if (due && patch.dueDate !== undefined) {
+    const off = checkOffDay(due);
+    if (off) return { error: offDayText(off) };
+  }
   return { patch, changes };
 }
 

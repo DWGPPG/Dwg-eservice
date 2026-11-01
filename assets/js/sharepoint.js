@@ -205,7 +205,7 @@ async function patchItemNow(listName, itemId, fieldsPayload) {
 }
 
 export async function loadMasterData() {
-  let [projects, drawingNumbers, drawingNames, kwp, team, holidays, settingRows] = await Promise.all([
+  let [projects, drawingNumbers, drawingNames, kwp, team, holidays, settingRows, projectOwners, staffLeave] = await Promise.all([
     getListItems(lists.projects).catch(() => []),
     getListItems(lists.drawingNumbers).catch(() => []),
     getListItems(lists.drawingNames).catch(() => []),
@@ -213,6 +213,8 @@ export async function loadMasterData() {
     getListItems(lists.team).catch(() => []),
     getListItems(lists.holidays).catch(() => []),
     getListItems(lists.settings).catch(() => []),
+    getListItems(lists.projectOwners).catch(() => []),
+    getListItems(lists.staffLeave).catch(() => []),
   ]);
 
   // ทีมโหลดไม่ได้ (เน็ต/สิทธิ์ SharePoint มีปัญหาชั่วคราว) → ใช้รายชื่อชุดล่าสุดที่เคยโหลดสำเร็จแทน
@@ -227,7 +229,7 @@ export async function loadMasterData() {
   }
 
   const settings = settingsFromRows(settingRows);
-  const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays, teamSource, settings, settingRows };
+  const masterData = { projects, drawingNumbers, drawingNames, kwp, team, holidays, teamSource, settings, settingRows, projectOwners, staffLeave };
   setState({ masterData });
   if (state.account && teamSource === "sharepoint") cacheSet(masterCacheKey(state.account), masterData);
   return masterData;
@@ -243,23 +245,29 @@ function settingsFromRows(rows = []) {
   return Object.fromEntries(rows.filter((r) => r.Title).map((r) => [r.Title, r[SETTING_VALUE_FIELD] ?? ""]));
 }
 
-/** สร้าง List "AppSettings" ถ้ายังไม่มี — ใช้สิทธิ์ Sites.ReadWrite.All ที่ระบบมีอยู่แล้ว */
-async function ensureSettingsList() {
-  const existing = await ensureListId(lists.settings);
+/**
+ * สร้าง List ถ้ายังไม่มี (ใช้สิทธิ์ Sites.ReadWrite.All ที่ระบบมีอยู่แล้ว) — คืน listId
+ * @param {string} listName
+ * @param {string[]} textColumns ชื่อคอลัมน์ข้อความ (Title มีอยู่แล้วทุก List)
+ */
+export async function ensureList(listName, textColumns = []) {
+  const existing = await ensureListId(listName);
   if (existing) return existing;
   const siteId = await ensureSite();
   await graphFetch(`/sites/${siteId}/lists`, {
     method: "POST",
     body: JSON.stringify({
-      displayName: lists.settings,
-      columns: [{ name: SETTING_VALUE_FIELD, text: { allowMultipleLines: true } }],
+      displayName: listName,
+      columns: textColumns.map((name) => ({ name, text: { allowMultipleLines: true } })),
       list: { template: "genericList" },
     }),
   });
-  const created = await ensureListId(lists.settings);
-  if (!created) throw new Error(`สร้าง List "${lists.settings}" ไม่สำเร็จ`);
+  const created = await ensureListId(listName);
+  if (!created) throw new Error(`สร้าง List "${listName}" ไม่สำเร็จ`);
   return created;
 }
+
+const ensureSettingsList = () => ensureList(lists.settings, [SETTING_VALUE_FIELD]);
 
 /** บันทึกค่าตั้งค่า 1 รายการ (สร้าง List/รายการให้อัตโนมัติถ้ายังไม่มี) */
 export async function saveSetting(key, value) {

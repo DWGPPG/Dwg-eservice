@@ -10,6 +10,9 @@ export const lists = {
   holidays: "HolidayList",
   // การตั้งค่าระบบที่แก้จากหน้า "จัดการข้อมูล" (เช่น เวอร์ชันเว็บ) — ระบบสร้าง List นี้ให้เองตอนบันทึกครั้งแรก
   settings: "AppSettings",
+  // ผู้รับผิดชอบโครงการ / วันลาของบุคลากร — ระบบสร้าง List ให้เองตอนบันทึกครั้งแรกในหน้าจัดการข้อมูล
+  projectOwners: "ProjectOwners",
+  staffLeave: "StaffLeave",
 };
 
 // ── Field mapping: local key (ใช้ในโค้ด JS) → SharePoint internal field name จริง ──

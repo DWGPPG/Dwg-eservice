@@ -17,6 +17,7 @@ import { qs } from "./utils.js";
 import { showToast } from "./components/toast.js";
 import { startLinkInputEnhancer } from "./components/cloud-picker.js";
 import { startResponsiveTables } from "./components/responsive-tables.js";
+import { startDueGuardEnhancer } from "./services/due-date.js";
 import { displayVersion } from "./services/app-settings.js";
 import { autoMigrateBootstrap } from "./services/admin-migration.js";
 import { getMyPhoto } from "./services/profile-photo.js";
@@ -103,6 +104,7 @@ async function boot() {
   bindChrome();
   startLinkInputEnhancer();
   startResponsiveTables();
+  startDueGuardEnhancer();
   subscribe(updateShell);
   subscribe(onRequestsChanged);
   updateShell(state);
