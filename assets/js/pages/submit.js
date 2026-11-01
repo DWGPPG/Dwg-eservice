@@ -1,3 +1,4 @@
+import { holidayName } from "../services/due-date.js";
 import { ownerNoticeHtml, ownerSummaryText } from "../services/owner-service.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { lists } from "../../../config/schema.js";
@@ -53,7 +54,7 @@ function getHolidayMap() {
     if (!raw) return;
     const key = toDateKey(raw);
     if (!key) return;
-    map.set(key, String(h.Title || h.title || "วันหยุดนักขัตฤกษ์"));
+    map.set(key, holidayName(h) || "วันหยุดนักขัตฤกษ์");
   });
   return map;
 }

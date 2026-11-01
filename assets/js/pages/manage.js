@@ -12,6 +12,7 @@ import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-s
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, historySuggestions, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
 import { REQUEST_TYPES } from "../constants.js";
+import { holidayName, holidayNameField } from "../services/due-date.js";
 import { state } from "../state.js";
 import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
 
@@ -157,15 +158,15 @@ const TABS = {
     columns: [
       { label: "วันที่", value: (r) => formatDateOnly(r.HolidayDate), strong: true },
       { label: "วัน", html: (r) => weekdayCell(r.HolidayDate), value: (r) => THAI_WEEKDAYS[new Date(r.HolidayDate).getDay()] || "" },
-      { label: "ชื่อวันหยุด", value: (r) => r.Title },
+      { label: "ชื่อวันหยุด", value: (r) => holidayName(r) },
     ],
     form: [
       { key: "HolidayDate", label: "วันที่", required: true, type: "date", read: (r) => toDateInput(r.HolidayDate) },
-      { key: "Title", label: "ชื่อวันหยุด", required: true, placeholder: "เช่น วันสงกรานต์" },
+      { key: "Title", label: "ชื่อวันหยุด", required: true, placeholder: "เช่น วันสงกรานต์", read: (r) => holidayName(r) },
     ],
-    toPayload: (v) => ({ Title: v.Title, HolidayDate: new Date(`${v.HolidayDate}T00:00:00`).toISOString() }),
+    toPayload: (v) => holidayPayload(v.Title, v.HolidayDate),
     duplicateKey: (v) => toDateInput(v.HolidayDate),
-    searchText: (r) => `${r.Title} ${formatDateOnly(r.HolidayDate)}`,
+    searchText: (r) => `${holidayName(r)} ${formatDateOnly(r.HolidayDate)}`,
   },
   projectOwners: {
     label: "ผู้รับผิดชอบโครงการ",
@@ -315,6 +316,14 @@ function openImportOwners(rerender) {
       c.checked = btn.dataset.importPick === "primary" ? suggestions[Number(c.dataset.importIndex)].primary : false;
     });
   }));
+}
+
+/** บันทึกชื่อวันหยุดทั้งคอลัมน์ Title และคอลัมน์ชื่อวันหยุดที่บริษัทสร้างเอง (ถ้ามี) — SharePoint จะแสดงชื่อครบทั้ง 2 ที่ */
+function holidayPayload(name, dateKey) {
+  const payload = { Title: name, HolidayDate: new Date(`${dateKey}T00:00:00`).toISOString() };
+  const nameField = holidayNameField();
+  if (nameField) payload[nameField] = name;
+  return payload;
 }
 
 function leaveRangeText(r) {
@@ -1289,7 +1298,7 @@ function copyFromPreviousYear() {
     .sort((a, b) => new Date(a.HolidayDate) - new Date(b.HolidayDate))
     .map((row) => {
       const d = new Date(row.HolidayDate);
-      return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${be} ${row.Title}`;
+      return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${be} ${holidayName(row)}`;
     })
     .join("\n");
 }
