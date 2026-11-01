@@ -6,14 +6,14 @@ export function renderTable({ columns, rows, empty = "No data" }) {
   }
   return `
     <div class="table-wrap">
-      <table>
+      <table class="m-card-table">
         <thead>
           <tr>${columns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join("")}</tr>
         </thead>
         <tbody>
           ${rows.map((row) => `
             <tr>
-              ${columns.map((column) => `<td>${column.render ? column.render(row) : escapeHtml(row[column.key] ?? "-")}</td>`).join("")}
+              ${columns.map((column) => `<td data-label="${escapeHtml(column.label)}">${column.render ? column.render(row) : escapeHtml(row[column.key] ?? "-")}</td>`).join("")}
             </tr>
           `).join("")}
         </tbody>
