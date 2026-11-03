@@ -12,6 +12,7 @@ import { getDrawingTeamMembers } from "../services/team-service.js";
 import { COVER_KEY, listTeamPhotos, photoUrlSync, preloadPhoto } from "../services/team-photo-service.js";
 import { escapeHtml } from "../utils.js";
 import { legacyRequests, loadLegacy, onLegacyChange } from "../services/legacy-service.js";
+import { leaveOf } from "../services/owner-service.js";
 import { openRequestDetail } from "./track.js";
 import { openModal } from "../components/modal.js";
 
@@ -210,7 +211,7 @@ function slideBody(slide) {
   return `
     <p class="ts-kicker"><i aria-hidden="true"></i>${escapeHtml(slide.kicker)}</p>
     <h2 class="ts-title">${escapeHtml(slide.title)}</h2>
-    <p class="ts-sub">${escapeHtml(slide.sub)}</p>
+    <p class="ts-sub">${escapeHtml(slide.sub)}${leaveBadge(slide, "is-inline")}</p>
     <div class="ts-kpis">
       ${kpi("งานทั้งหมด", m.total.toLocaleString("th-TH"), m.total ? "is-neon" : "")}
       ${kpi("ภาระงานวันนี้ (ครบกำหนด)", m.dueToday, m.dueToday ? "is-amber" : "")}
@@ -268,11 +269,28 @@ const photoStyle = (key) => {
   return url ? ` style="background-image:url(&quot;${url.replace(/"/g, "%22")}&quot;)"` : "";
 };
 
+/** ป้ายวันลาของวันนี้ (StaffLeave) — "ลาเต็มวัน" / "ลาครึ่งวันเช้า" / "ลา 13:00–15:00" */
+function leaveLabel(slide) {
+  if (slide.isTeam) return "";
+  const leave = leaveOf(slide.key);
+  if (!leave) return "";
+  const period = String(leave.Period || "เต็มวัน").trim();
+  return /^ครึ่งวัน|^เต็มวัน/.test(period) ? `ลา${period}` : `ลา ${period}`;
+}
+
+function leaveBadge(slide, extraClass = "") {
+  const text = leaveLabel(slide);
+  if (!text) return "";
+  const note = leaveOf(slide.key)?.Note;
+  return `<span class="ts-leave ${extraClass}" title="${escapeHtml(note ? `${text} · ${note}` : text)}">🏖️ ${escapeHtml(text)}</span>`;
+}
+
 function cardHtml(slide, index) {
   const has = Boolean(photoUrlSync(slide.key));
   return `
     <button type="button" class="ts-card" data-ts-go="${index}" aria-label="ดู ${escapeHtml(slide.title)}">
       <span class="ts-card-photo ${has ? "has-photo" : ""}" data-photo-key="${escapeHtml(slide.key)}"${photoStyle(slide.key)}><b>${escapeHtml(slide.isTeam ? "DWG" : initials(slide.title))}</b></span>
+      ${leaveBadge(slide)}
       <span class="ts-card-text">
         <small>${escapeHtml(slide.kicker)}</small>
         <strong>${escapeHtml(slide.title)}</strong>
