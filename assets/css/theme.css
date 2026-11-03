@@ -3646,3 +3646,15 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 }
 [data-theme] .ts-range input[type="date"]:focus { outline: none; border-color: var(--neon, #00df8f); box-shadow: 0 0 0 3px rgba(0, 223, 143, 0.18); }
 @media (max-width: 720px) { [data-theme] .ts-range { justify-content: flex-start; flex-wrap: wrap; } }
+
+/* บทสรุปผู้บริหาร: เลือกช่วงวันที่เอง */
+[data-theme] .exec-controls { flex-wrap: wrap; justify-content: flex-end; }
+[data-theme] .exec-range { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
+[data-theme] .exec-range label { display: inline-flex; align-items: center; gap: 6px; }
+[data-theme] .exec-range input[type="date"] {
+  height: 34px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-strong);
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 12.5px;
+}
+[data-theme="dark"] .exec-range input[type="date"] { color-scheme: dark; }
+[data-theme] .exec-range input[type="date"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent); }
+@media (max-width: 720px) { [data-theme] .exec-range { flex-wrap: wrap; } }
