@@ -3614,3 +3614,22 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 .legacy-files li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
 .legacy-files small { color: var(--muted); margin-left: 6px; }
 .legacy-files a { text-decoration: none; }
+
+/* บทสรุปผู้บริหาร: ตารางสรุปแยกประเภท Drawing */
+[data-theme] .exec-types { margin: 0 0 18px; padding: 16px; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--primary, #0DB14B) 4%, transparent); }
+[data-theme] .exec-types > h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+[data-theme] .exec-types > h3 small { font-weight: 500; color: var(--muted); font-size: 11.5px; }
+[data-theme] .exec-types-wrap { overflow-x: auto; }
+[data-theme] .exec-types table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 560px; }
+[data-theme] .exec-types th, [data-theme] .exec-types td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); background: transparent; }
+[data-theme] .exec-types thead th { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+[data-theme] .exec-types th:first-child { text-align: left; }
+[data-theme] .exec-types tbody th { font-weight: 600; }
+[data-theme] .exec-types td { font-variant-numeric: tabular-nums; }
+[data-theme] .exec-types td.is-strong { font-weight: 800; }
+[data-theme] .exec-types td.is-amber { color: #d97706; font-weight: 700; }
+[data-theme] .exec-types td.is-red { color: #dc2626; font-weight: 700; }
+[data-theme="dark"] .exec-types td.is-amber { color: #fbbf24; }
+[data-theme="dark"] .exec-types td.is-red { color: #ff7a7a; }
+[data-theme] .exec-types tfoot th, [data-theme] .exec-types tfoot td { font-weight: 800; border-bottom: 0; }
+[data-theme] .exec-types .exec-foot { margin: 8px 0 0; }
