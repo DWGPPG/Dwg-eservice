@@ -20,6 +20,7 @@ const PERIODS = {
   quarter: { label: "ไตรมาสนี้", prevLabel: "ไตรมาสก่อน" },
   year: { label: "ปีนี้", prevLabel: "ปีก่อน" },
   all: { label: "ทั้งหมด", prevLabel: "" }, // ตั้งแต่เริ่มเก็บข้อมูล (รวมงานก่อนเริ่มระบบ) — ไม่มีช่วงเทียบ
+  custom: { label: "ช่วงที่เลือก", button: "📅 เลือกช่วง", prevLabel: "ช่วงก่อนหน้า" }, // เทียบกับช่วงยาวเท่ากันก่อนหน้า
 };
 
 // ประเภท Drawing สำหรับตารางสรุปแยกประเภท
@@ -46,6 +47,20 @@ const REVISION_SOURCES = {
 };
 
 let selectedPeriod = "month";
+const customDates = { from: "", to: "" }; // YYYY-MM-DD
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const parseYmd = (v) => {
+  const [y, m, d] = String(v || "").split("-").map(Number);
+  return y && m && d ? new Date(y, m - 1, d) : null;
+};
+function ensureCustomDates() {
+  const now = new Date();
+  if (!customDates.from) customDates.from = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+  if (!customDates.to) customDates.to = ymd(now);
+  if (customDates.from > customDates.to) [customDates.from, customDates.to] = [customDates.to, customDates.from];
+}
 
 // ── ช่วงเวลา ──
 function periodRange(key, offset = 0) {
@@ -53,6 +68,17 @@ function periodRange(key, offset = 0) {
   const y = now.getFullYear();
   const m = now.getMonth();
   if (key === "all") return offset ? { from: new Date(0), to: new Date(0) } : { from: new Date(2000, 0, 1), to: new Date(2100, 0, 1) };
+  if (key === "custom") {
+    ensureCustomDates();
+    const from = parseYmd(customDates.from);
+    const last = parseYmd(customDates.to);
+    const to = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+    const days = Math.round((to - from) / 86400000);
+    // ช่วงก่อนหน้า = ยาวเท่ากัน ต่อท้ายก่อนวันเริ่ม
+    return offset
+      ? { from: new Date(from.getFullYear(), from.getMonth(), from.getDate() - days), to: from }
+      : { from, to };
+  }
   if (key === "year") return { from: new Date(y - offset, 0, 1), to: new Date(y - offset + 1, 0, 1) };
   if (key === "quarter") {
     const q = Math.floor(m / 3) - offset;
@@ -63,6 +89,11 @@ function periodRange(key, offset = 0) {
 
 function periodName(key, range) {
   if (key === "all") return "ทั้งหมด (รวมงานก่อนเริ่มระบบ)";
+  if (key === "custom") {
+    const f = (d) => new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric" }).format(d);
+    const last = new Date(range.to.getFullYear(), range.to.getMonth(), range.to.getDate() - 1);
+    return ymd(range.from) === ymd(last) ? f(range.from) : `${f(range.from)} – ${f(last)}`;
+  }
   const fmt = (opts) => new Intl.DateTimeFormat("th-TH", opts).format(range.from);
   if (key === "year") return `ปี ${fmt({ year: "numeric" }).replace(/\D+/g, "")}`;
   if (key === "quarter") return `ไตรมาส ${Math.floor(range.from.getMonth() / 3) + 1}/${fmt({ year: "numeric" }).replace(/\D+/g, "")}`;
@@ -371,8 +402,14 @@ export function renderExecutiveSummary(state) {
       </div>
       <div class="exec-controls">
         <div class="exec-period" role="tablist">
-          ${Object.entries(PERIODS).map(([key, v]) => `<button type="button" data-exec-period="${key}" class="${key === s.periodKey ? "is-active" : ""}">${v.label}</button>`).join("")}
+          ${Object.entries(PERIODS).map(([key, v]) => `<button type="button" data-exec-period="${key}" class="${key === s.periodKey ? "is-active" : ""}">${v.button || v.label}</button>`).join("")}
         </div>
+        ${s.periodKey === "custom" ? `
+          <div class="exec-range">
+            <label><span>ตั้งแต่</span><input type="date" data-exec-range="from" value="${customDates.from}" /></label>
+            <span aria-hidden="true">–</span>
+            <label><span>ถึง</span><input type="date" data-exec-range="to" value="${customDates.to}" /></label>
+          </div>` : ""}
         <button type="button" class="secondary-button exec-copy" data-exec-copy>📋 คัดลอกเป็นวาระประชุม</button>
       </div>
     </header>
@@ -429,6 +466,11 @@ ${renderCostBlock(s)}
 
   section.querySelectorAll("[data-exec-period]").forEach((btn) => btn.addEventListener("click", () => {
     selectedPeriod = btn.dataset.execPeriod;
+    section.replaceWith(renderExecutiveSummary(state));
+  }));
+  section.querySelectorAll("[data-exec-range]").forEach((input) => input.addEventListener("change", () => {
+    if (!input.value) return;
+    customDates[input.dataset.execRange] = input.value;
     section.replaceWith(renderExecutiveSummary(state));
   }));
   section.querySelector("[data-exec-copy]").addEventListener("click", () => copyAgenda(s, watch));
