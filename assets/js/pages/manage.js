@@ -233,7 +233,7 @@ const TABS = {
       { key: "Email", label: "บุคลากร", required: true, type: "select", options: teamOptions },
       { key: "LeaveStart", label: "ลาตั้งแต่วันที่", required: true, type: "date", default: () => todayKey() },
       { key: "LeaveEnd", label: "ถึงวันที่ (เว้นว่าง = วันเดียว)", type: "date" },
-      { key: "Period", label: "ช่วงเวลา", type: "select", options: () => LEAVE_PERIODS, required: true, default: () => LEAVE_PERIODS[0] },
+      { key: "Period", label: "ช่วงเวลา (เลือก \"อื่นๆ\" เพื่อพิมพ์เวลาเอง เช่น 13:00–15:00)", type: "select", options: () => LEAVE_PERIODS, allowCustom: true, required: true, default: () => LEAVE_PERIODS[0] },
       { key: "Note", label: "หมายเหตุ (ไม่บังคับ)", placeholder: "เช่น ลาป่วย / ไปหน้างาน" },
     ],
     validate: (v) => (v.LeaveEnd && v.LeaveEnd < v.LeaveStart ? "วันสิ้นสุดต้องไม่อยู่ก่อนวันเริ่มลา" : ""),

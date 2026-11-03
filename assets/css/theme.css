@@ -3671,3 +3671,12 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
   }
   [data-theme] .team-showcase .ts-card { height: var(--ts-row-h, 120px); }
 }
+
+/* สไลด์ทีมงาน: ป้ายวันลาวันนี้ (มุมขวาบนของการ์ด + ข้างชื่อในสไลด์) */
+[data-theme] .ts-leave {
+  position: absolute; top: 7px; right: 7px; z-index: 2; max-width: calc(100% - 14px);
+  padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; line-height: 1.3;
+  color: #3b1d00; background: #fbbf24; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.35) inset;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+}
+[data-theme] .ts-leave.is-inline { position: static; display: inline-block; margin-left: 10px; vertical-align: middle; font-size: 12px; padding: 3px 10px; pointer-events: auto; }
