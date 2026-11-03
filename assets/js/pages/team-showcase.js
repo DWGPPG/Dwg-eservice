@@ -42,7 +42,7 @@ const typeRowOf = (type) => {
 };
 
 // คงค่าไว้ข้ามการวาดใหม่ (polling วาดหน้าภาพรวมใหม่เมื่อข้อมูลเปลี่ยน)
-const ui = { index: 0, period: "year", timer: null };
+const ui = { index: 0, period: "all", timer: null };
 
 const pad = (n) => String(n).padStart(2, "0");
 const dayKey = (v) => {
