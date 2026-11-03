@@ -26,6 +26,7 @@ const PERIODS = {
   month: "เดือนนี้",
   year: "ปีนี้",
   all: "ทั้งหมด",
+  custom: "📅 เลือกช่วง",
 };
 
 // ประเภทงานสำหรับตารางแยกประเภท (ตามลำดับในหน้าส่งคำขอ)
@@ -42,7 +43,7 @@ const typeRowOf = (type) => {
 };
 
 // คงค่าไว้ข้ามการวาดใหม่ (polling วาดหน้าภาพรวมใหม่เมื่อข้อมูลเปลี่ยน)
-const ui = { index: 0, period: "all", timer: null };
+const ui = { index: 0, period: "all", timer: null, from: "", to: "" };
 
 const pad = (n) => String(n).padStart(2, "0");
 const dayKey = (v) => {
@@ -51,6 +52,27 @@ const dayKey = (v) => {
 };
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : null);
 const norm = (v) => String(v || "").trim().toLowerCase();
+
+const parseDay = (key) => {
+  const [y, m, d] = String(key || "").split("-").map(Number);
+  return y && m && d ? new Date(y, m - 1, d) : null;
+};
+
+/** ช่วงที่เลือกเอง (YYYY-MM-DD) — ไม่ได้กรอกใช้ค่าเริ่มต้น: ต้นเดือนนี้ → วันนี้ */
+function customRange() {
+  const now = new Date();
+  if (!ui.from) ui.from = dayKey(new Date(now.getFullYear(), now.getMonth(), 1));
+  if (!ui.to) ui.to = dayKey(now);
+  if (ui.from > ui.to) [ui.from, ui.to] = [ui.to, ui.from];
+  const to = parseDay(ui.to);
+  return { from: parseDay(ui.from), to: to ? new Date(to.getFullYear(), to.getMonth(), to.getDate() + 1) : null };
+}
+
+/** ขอบเขตช่วงเวลา { from, to } (to = ไม่รวม) — null = ไม่จำกัด */
+function periodBounds(key) {
+  if (key === "custom") return customRange();
+  return { from: periodStart(key), to: null };
+}
 
 function periodStart(key) {
   const now = new Date();
@@ -67,11 +89,11 @@ function periodStart(key) {
 /** ตัวชี้วัดของชุดคำร้อง (คนเดียว หรือทั้งฝ่าย) — นิยามเดียวกับรายงาน/บทสรุปผู้บริหาร
  *  รวมข้อมูลคำขอก่อนเริ่มระบบ (legacy) ในสถิติย้อนหลัง แต่ไม่นับเป็นภาระงานปัจจุบัน */
 function metricsFor(rows, periodKey, teamActive) {
-  const from = periodStart(periodKey);
+  const { from, to } = periodBounds(periodKey);
   const inPeriod = (v) => {
-    if (!from) return true;
+    if (!from && !to) return true;
     const d = new Date(v);
-    return !Number.isNaN(d.getTime()) && d >= from;
+    return !Number.isNaN(d.getTime()) && (!from || d >= from) && (!to || d < to);
   };
   const today = dayKey(new Date());
   const live = rows.filter((r) => !r.legacy);
@@ -317,7 +339,7 @@ export function renderTeamShowcase(state) {
   // เข้าหน้าภาพรวมจากหน้าอื่น → เริ่มที่สไลด์ "ฝ่ายเขียนแบบ" เสมอ
   // (ถ้าแค่ข้อมูลอัปเดตแล้วหน้าวาดใหม่ระหว่างดูอยู่ คงสไลด์เดิมไว้ ไม่เด้งกลับ)
   // และช่วงเวลากลับเป็น "ทั้งหมด" (คงช่วงที่เลือกไว้เฉพาะตอนอยู่หน้าภาพรวมต่อเนื่อง)
-  if (state.previousRoute !== "/dashboard") { ui.index = 0; ui.period = "all"; }
+  if (state.previousRoute !== "/dashboard") { ui.index = 0; ui.period = "all"; ui.from = ""; ui.to = ""; }
   let slides = buildSlides(requests, ui.period);
   ui.index = ((ui.index % slides.length) + slides.length) % slides.length;
 
@@ -330,6 +352,11 @@ export function renderTeamShowcase(state) {
       <span class="ts-brand">👥 ทีมงานฝ่ายเขียนแบบ</span>
       <div class="ts-periods" role="tablist">
         ${Object.entries(PERIODS).map(([k, label]) => `<button type="button" class="ts-period ${ui.period === k ? "is-active" : ""}" data-ts-period="${k}">${label}</button>`).join("")}
+      </div>
+      <div class="ts-range" ${ui.period === "custom" ? "" : "hidden"}>
+        <label><span>ตั้งแต่</span><input type="date" data-ts-range="from" /></label>
+        <span aria-hidden="true">–</span>
+        <label><span>ถึง</span><input type="date" data-ts-range="to" /></label>
       </div>
     </div>
     <div class="ts-body"></div>
@@ -465,11 +492,33 @@ export function renderTeamShowcase(state) {
     if (period) {
       ui.period = period.dataset.tsPeriod;
       section.querySelectorAll("[data-ts-period]").forEach((b) => b.classList.toggle("is-active", b === period));
-      slides = buildSlides(requests, ui.period);
-      body.innerHTML = slideBody(slides[ui.index]);
-      renderCards();
+      syncRange();
+      recompute();
     }
   });
+
+  // ── เลือกช่วงวันที่เอง ──
+  const rangeBox = section.querySelector(".ts-range");
+  const syncRange = () => {
+    rangeBox.hidden = ui.period !== "custom";
+    if (ui.period !== "custom") return;
+    customRange();
+    rangeBox.querySelector('[data-ts-range="from"]').value = ui.from;
+    rangeBox.querySelector('[data-ts-range="to"]').value = ui.to;
+  };
+  const recompute = () => {
+    slides = buildSlides(requests, ui.period);
+    body.innerHTML = slideBody(slides[ui.index]);
+    renderCards();
+  };
+  rangeBox.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-ts-range]");
+    if (!input || !input.value) return;
+    ui[input.dataset.tsRange] = input.value;
+    syncRange(); // สลับให้ถ้าเลือกวันเริ่มหลังวันสิ้นสุด
+    recompute();
+  });
+  syncRange();
 
   // เลื่อนอัตโนมัติ — timer เดียวทั้งหน้า (หน้าถูกวาดใหม่บ่อยจาก polling)
   let hovering = false;

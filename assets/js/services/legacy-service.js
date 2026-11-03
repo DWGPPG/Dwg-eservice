@@ -118,7 +118,27 @@ export function buildLegacyPayload(rows, sourceName) {
 // บันทึก / โหลดจาก SharePoint
 // ══════════════════════════════════════════════════════════════
 
-/** อัปโหลด Excel → แปลง → เก็บ JSON + สำรองไฟล์ต้นฉบับใน SharePoint */
+const stamp = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+};
+const isLocked = (error) => /\b423\b|resourceLocked|locked/i.test(String(error?.message || ""));
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** อัปโหลด — ไฟล์ถูกล็อก (423: เปิดค้างใน Excel / SharePoint กำลังประมวลผล) → รอแล้วลองใหม่ */
+async function uploadWithRetry(siteId, file, tries = 3) {
+  for (let i = 0; ; i += 1) {
+    try { return await uploadDriveFile(siteId, LEGACY_FOLDER, file); } catch (error) {
+      if (!isLocked(error) || i >= tries - 1) throw error;
+      await wait(2000 * (i + 1));
+    }
+  }
+}
+
+/** อัปโหลด Excel → แปลง → เก็บ JSON + สำรองไฟล์ต้นฉบับใน SharePoint
+ *  - JSON (ข้อมูลที่ใช้จริง) บันทึกก่อน · ถ้าไฟล์เดิมถูกล็อก บันทึกเป็นชื่อใหม่ (ระบบอ่านไฟล์ล่าสุดเสมอ)
+ *  - ไฟล์ต้นฉบับตั้งชื่อตามวันเวลา ไม่ทับไฟล์เดิมที่อาจเปิดค้างอยู่ · สำรองไม่สำเร็จไม่ทำให้นำเข้าล้ม */
 export async function importLegacyFile(file) {
   if (!/\.xlsx$/i.test(file?.name || "")) throw new Error("กรุณาเลือกไฟล์ Excel (.xlsx)");
   const rows = await readFirstSheet(file);
@@ -126,15 +146,30 @@ export async function importLegacyFile(file) {
   if (!next.records.length) throw new Error("ไม่พบรายการในไฟล์");
   const siteId = await ensureSite();
   await ensureDriveFolder(siteId, LEGACY_FOLDER);
-  await uploadDriveFile(siteId, LEGACY_FOLDER, new File([file], file.name.replace(/[\\/:*?"<>|#%]+/g, "_"), { type: file.type }));
-  const json = new File([JSON.stringify(next)], LEGACY_JSON, { type: "application/json" });
-  await uploadDriveFile(siteId, LEGACY_FOLDER, json);
+
+  const body = JSON.stringify(next);
+  try {
+    await uploadWithRetry(siteId, new File([body], LEGACY_JSON, { type: "application/json" }));
+  } catch (error) {
+    if (!isLocked(error)) throw error;
+    await uploadWithRetry(siteId, new File([body], LEGACY_JSON.replace(/\.json$/, `-${stamp()}.json`), { type: "application/json" }), 1);
+  }
+
+  const base = file.name.replace(/\.xlsx$/i, "").replace(/[\\/:*?"<>|#%]+/g, "_").slice(0, 80);
+  next.backupOk = true;
+  try {
+    await uploadWithRetry(siteId, new File([file], `${base} (สำรอง ${stamp()}).xlsx`, { type: file.type }), 2);
+  } catch (error) {
+    console.warn("สำรองไฟล์ต้นฉบับไม่สำเร็จ:", error.message);
+    next.backupOk = false;
+  }
+
   setPayload(next);
   cacheSet(CACHE_KEY, { etag: "", payload: next }).catch(() => {});
   return next;
 }
 
-/** โหลดข้อมูล (แคชในเครื่องก่อน แล้วเช็คไฟล์ใน SharePoint ว่ามีเวอร์ชันใหม่ไหม) */
+/** โหลดข้อมูล (แคชในเครื่องก่อน แล้วเช็คไฟล์ล่าสุดใน SharePoint ว่ามีเวอร์ชันใหม่ไหม) */
 export function loadLegacy(force = false) {
   if (loading && !force) return loading;
   loading = (async () => {
@@ -142,14 +177,19 @@ export function loadLegacy(force = false) {
     if (cached?.payload && !payload) setPayload(cached.payload);
     try {
       const siteId = await ensureSite();
-      const item = await graphFetch(`/sites/${siteId}/drive/root:/${LEGACY_FOLDER}/${LEGACY_JSON}`);
-      const etag = item?.eTag || item?.lastModifiedDateTime || "";
+      // ไฟล์ข้อมูลล่าสุดในโฟลเดอร์ (legacy-requests.json หรือชื่อสำรองกรณีไฟล์เดิมถูกล็อก)
+      const res = await graphFetch(`/sites/${siteId}/drive/root:/${LEGACY_FOLDER}:/children?$top=200`);
+      const item = (res?.value || [])
+        .filter((f) => f.file && /^legacy-requests.*\.json$/i.test(f.name))
+        .sort((a, b) => String(b.lastModifiedDateTime).localeCompare(String(a.lastModifiedDateTime)))[0];
+      if (!item) return payload;
+      const etag = `${item.id}|${item.eTag || item.lastModifiedDateTime || ""}`;
       if (!force && cached?.payload && cached.etag && cached.etag === etag) return payload;
-      const url = item?.["@microsoft.graph.downloadUrl"];
+      const url = item["@microsoft.graph.downloadUrl"];
       if (!url) return payload;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const next = await res.json();
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const next = await resp.json();
       if (Array.isArray(next?.records)) {
         setPayload(next);
         cacheSet(CACHE_KEY, { etag, payload: next }).catch(() => {});
@@ -178,7 +218,8 @@ export async function legacyBackupFiles() {
 function setPayload(next) {
   payload = next;
   cachedRequests = null;
-  listeners.forEach((fn) => { try { fn(); } catch (_) { /* ignore */ } });
+  // วนจากสำเนา — ผู้ฟังที่วาดหน้าใหม่จะลงทะเบียนผู้ฟังตัวใหม่ระหว่างวน (ไม่ให้เรียกซ้ำไม่รู้จบจนหน้าค้าง)
+  [...listeners].forEach((fn) => { try { fn(); } catch (_) { /* ignore */ } });
 }
 
 // ══════════════════════════════════════════════════════════════

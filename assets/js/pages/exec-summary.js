@@ -2,6 +2,7 @@ import { CLOSED_STATUSES, getCancelSource, STATUS } from "../../../config/schema
 import { showToast } from "../components/toast.js";
 import { COST_RATES, computeCosts, stageDurations } from "../services/cost-service.js";
 import { escapeHtml, workingDaysUntil } from "../utils.js";
+import { legacyRequests, loadLegacy, onLegacyChange } from "../services/legacy-service.js";
 
 // ══════════════════════════════════════════════════════════════
 // บทสรุปผู้บริหาร (หน้าภาพรวม) — อ่านจุดเดียวเข้าใจทั้งหมด + คัดลอกไปใช้เป็นวาระประชุมได้
@@ -18,6 +19,21 @@ const PERIODS = {
   month: { label: "เดือนนี้", prevLabel: "เดือนก่อน" },
   quarter: { label: "ไตรมาสนี้", prevLabel: "ไตรมาสก่อน" },
   year: { label: "ปีนี้", prevLabel: "ปีก่อน" },
+  all: { label: "ทั้งหมด", prevLabel: "" }, // ตั้งแต่เริ่มเก็บข้อมูล (รวมงานก่อนเริ่มระบบ) — ไม่มีช่วงเทียบ
+};
+
+// ประเภท Drawing สำหรับตารางสรุปแยกประเภท
+const TYPE_ROWS = [
+  { key: "Proposal", label: "📋 เขียนแบบ Proposal" },
+  { key: "ขออนุญาต", label: "🏛️ ขออนุญาตก่อสร้าง" },
+  { key: "เขียนแบบก่อสร้าง", label: "🏗️ เขียนแบบก่อสร้าง" },
+  { key: "As-Built", label: "🏁 As-Built Drawing" },
+  { key: "", label: "📁 อื่นๆ" },
+];
+const typeIndex = (type) => {
+  const t = String(type || "");
+  const i = TYPE_ROWS.findIndex((row) => row.key && t.includes(row.key));
+  return i < 0 ? TYPE_ROWS.length - 1 : i;
 };
 
 const DEPT_FINISHED = [STATUS.MGR_REVIEW, STATUS.DELIVERED, STATUS.DONE];
@@ -36,6 +52,7 @@ function periodRange(key, offset = 0) {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
+  if (key === "all") return offset ? { from: new Date(0), to: new Date(0) } : { from: new Date(2000, 0, 1), to: new Date(2100, 0, 1) };
   if (key === "year") return { from: new Date(y - offset, 0, 1), to: new Date(y - offset + 1, 0, 1) };
   if (key === "quarter") {
     const q = Math.floor(m / 3) - offset;
@@ -45,6 +62,7 @@ function periodRange(key, offset = 0) {
 }
 
 function periodName(key, range) {
+  if (key === "all") return "ทั้งหมด (รวมงานก่อนเริ่มระบบ)";
   const fmt = (opts) => new Intl.DateTimeFormat("th-TH", opts).format(range.from);
   if (key === "year") return `ปี ${fmt({ year: "numeric" }).replace(/\D+/g, "")}`;
   if (key === "quarter") return `ไตรมาส ${Math.floor(range.from.getMonth() / 3) + 1}/${fmt({ year: "numeric" }).replace(/\D+/g, "")}`;
@@ -67,34 +85,56 @@ const pct = (n, d) => (d ? Math.round((n / d) * 100) : null);
 // คำนวณ
 // ══════════════════════════════════════════════════════════════
 
-function periodStats(requests, range) {
+/** ตัวเลขของช่วงเวลา — legacy = คำขอก่อนเริ่มระบบ (นับจำนวนรับ/ส่งมอบ/ยกเลิก แต่ไม่มีวันส่งมอบจริง
+ *  จึงไม่ใช้คำนวณ % ตรงเวลา / FTR / เวลาเฉลี่ย) */
+function periodStats(requests, range, legacy = []) {
   const submitted = requests.filter((r) => inRange(r.submittedAt, range));
   const delivered = requests.filter((r) => DELIVERED.includes(r.status) && inRange(r.deliveredAt, range));
   const withDue = delivered.filter((r) => r.dueDate);
-  const onTime = withDue.filter((r) => dayKey(r.deliveredAt) <= dayKey(r.dueDate)).length;
+  const isLate = (r) => dayKey(r.deliveredAt) > dayKey(r.dueDate);
+  const onTime = withDue.filter((r) => !isLate(r)).length;
   const ftr = delivered.filter((r) => !r.isRevision && !r.revisionReason).length;
   const cycle = delivered.filter((r) => r.submittedAt);
   const avgCycleDays = cycle.length
     ? Math.round((cycle.reduce((s, r) => s + (new Date(r.deliveredAt) - new Date(r.submittedAt)) / 86400000, 0) / cycle.length) * 10) / 10
     : null;
-  const cancelled = requests.filter((r) => r.status === STATUS.CANCELLED && inRange(r.cancelledAt || r.submittedAt, range));
+  const isCancelled = (r) => r.status === STATUS.CANCELLED && inRange(r.cancelledAt || r.submittedAt, range);
+  const cancelled = [...requests.filter(isCancelled), ...legacy.filter(isCancelled)];
   const revisions = submitted.filter((r) => r.isRevision);
+
+  const legacyIn = legacy.filter((r) => inRange(r.submittedAt, range));
+  const legacyDone = legacyIn.filter((r) => r.status === STATUS.DONE);
+  const legacyOverdue = legacyIn.filter((r) => r.legacyOverdue > 0);
+
+  // แยกประเภท Drawing
+  const byType = TYPE_ROWS.map((row) => ({ ...row, submitted: 0, delivered: 0, late: 0, withDue: 0, cancelled: 0, overdue: 0 }));
+  const at = (r) => byType[typeIndex(r.requestType)];
+  [...submitted, ...legacyIn].forEach((r) => { at(r).submitted += 1; });
+  [...delivered, ...legacyDone].forEach((r) => { at(r).delivered += 1; });
+  withDue.forEach((r) => { at(r).withDue += 1; if (isLate(r)) at(r).late += 1; });
+  cancelled.forEach((r) => { at(r).cancelled += 1; });
+  legacyOverdue.forEach((r) => { at(r).overdue += 1; });
+
   return {
-    submitted: submitted.length,
-    delivered: delivered.length,
+    submitted: submitted.length + legacyIn.length,
+    delivered: delivered.length + legacyDone.length,
     onTimeRate: pct(onTime, withDue.length),
     ftrRate: pct(ftr, delivered.length),
     avgCycleDays,
     cancelled,
     revisions,
+    legacyCount: legacyIn.length,
+    legacyOverdue: legacyOverdue.length,
+    byType,
   };
 }
 
 export function buildExecutiveSummary(requests, holidaySet, periodKey = selectedPeriod) {
   const range = periodRange(periodKey, 0);
   const prevRange = periodRange(periodKey, 1);
-  const cur = periodStats(requests, range);
-  const prev = periodStats(requests, prevRange);
+  const legacy = legacyRequests();
+  const cur = periodStats(requests, range, legacy);
+  const prev = periodStats(requests, prevRange, legacy);
   const today = new Date();
 
   // ── สถานะ ณ ตอนนี้ (ไม่ขึ้นกับช่วงเวลา) ──
@@ -103,6 +143,8 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
     .filter((r) => !DEPT_FINISHED.includes(r.status) && r.dueDate && dayKey(r.dueDate) < dayKey(today))
     .map((r) => ({ r, days: Math.abs(workingDaysUntil(today, r.dueDate, holidaySet) ?? 0) }))
     .sort((a, b) => b.days - a.days);
+
+  overdue.forEach(({ r }) => { cur.byType[typeIndex(r.requestType)].overdue += 1; });
 
   const waitingLv2 = requests.filter((r) => r.status === STATUS.INPROGRESS_LV1)
     .map((r) => ({ r, days: workingDaysUntil(r.submittedAt, today, holidaySet) ?? 0 }));
@@ -141,11 +183,11 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
 
   // ── โครงการที่ใช้กำลังคนมากสุด ──
   const projectMap = new Map();
-  curRows.forEach((r) => {
+  [...curRows, ...legacy.filter((r) => inRange(r.submittedAt, range))].forEach((r) => {
     const name = r.projectName || "ไม่ระบุโครงการ";
     projectMap.set(name, (projectMap.get(name) || 0) + 1);
   });
-  const topProjects = [...projectMap.entries()].map(([name, count]) => ({ name, count, share: pct(count, curRows.length) }))
+  const topProjects = [...projectMap.entries()].map(([name, count]) => ({ name, count, share: pct(count, cur.submitted) }))
     .sort((a, b) => b.count - a.count).slice(0, 3);
 
   // ── โอกาสลดต้นทุน (เรียงตามมูลค่า) ──
@@ -242,7 +284,7 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
       action: deptRevisions ? "ทบทวน checklist ตรวจแบบก่อนส่ง (สาเหตุ 1.1 นับเป็น KPI ฝ่าย)" : "ติดตามสาเหตุการแก้ไขจากผู้ร้องขอ/ลูกค้า",
     });
   }
-  const growth = prev.submitted ? Math.round(((cur.submitted - prev.submitted) / prev.submitted) * 100) : null;
+  const growth = periodKey !== "all" && prev.submitted ? Math.round(((cur.submitted - prev.submitted) / prev.submitted) * 100) : null;
   if (growth !== null && growth >= 20) {
     agenda.push({
       tone: "blue",
@@ -262,6 +304,7 @@ export function buildExecutiveSummary(requests, holidaySet, periodKey = selected
 
   return {
     periodKey,
+    noCompare: periodKey === "all",
     periodName: periodName(periodKey, range),
     prevName: periodName(periodKey, prevRange),
     cur, prev, growth,
@@ -294,7 +337,8 @@ function headline(s) {
   const p = PERIODS[s.periodKey];
   const growthText = s.growth === null ? "" : ` (${s.growth >= 0 ? "เพิ่มขึ้น" : "ลดลง"} ${Math.abs(s.growth)}% จาก${p.prevLabel})`;
   const onTime = s.cur.onTimeRate === null ? "" : ` ตรงเวลา ${s.cur.onTimeRate}%`;
-  return `${s.periodName} รับคำร้องใหม่ ${s.cur.submitted} รายการ${growthText} ส่งมอบแล้ว ${s.cur.delivered} รายการ${onTime}`
+  const legacyText = s.cur.legacyCount ? ` (รวมงานก่อนเริ่มระบบ ${s.cur.legacyCount.toLocaleString("th-TH")} รายการ)` : "";
+  return `${s.periodName} รับคำร้องใหม่ ${s.cur.submitted.toLocaleString("th-TH")} รายการ${legacyText}${growthText} ส่งมอบแล้ว ${s.cur.delivered.toLocaleString("th-TH")} รายการ${onTime}`
     + ` · ปัจจุบันมีงานค้าง ${s.open} รายการ เกินกำหนด ${s.overdue.length} รายการ`;
 }
 
@@ -342,13 +386,15 @@ export function renderExecutiveSummary(state) {
     </div>
 
     <div class="exec-kpis">
-      <div class="exec-kpi"><span>คำร้องใหม่</span><strong>${s.cur.submitted}</strong>${trend(s.cur.submitted, s.prev.submitted)}<small>${p.prevLabel} ${s.prev.submitted}</small></div>
-      <div class="exec-kpi"><span>ส่งมอบแล้ว</span><strong>${s.cur.delivered}</strong>${trend(s.cur.delivered, s.prev.delivered)}<small>${p.prevLabel} ${s.prev.delivered}</small></div>
-      <div class="exec-kpi"><span>ส่งตรงเวลา</span><strong>${s.cur.onTimeRate ?? "—"}${s.cur.onTimeRate !== null ? "%" : ""}</strong>${trend(s.cur.onTimeRate, s.prev.onTimeRate, { unit: "%" })}<small>เป้า ${TARGET_ON_TIME}%</small></div>
-      <div class="exec-kpi"><span>ผ่านครั้งแรก (FTR)</span><strong>${s.cur.ftrRate ?? "—"}${s.cur.ftrRate !== null ? "%" : ""}</strong>${trend(s.cur.ftrRate, s.prev.ftrRate, { unit: "%" })}<small>เป้า ${TARGET_FTR}%</small></div>
+      <div class="exec-kpi"><span>คำร้องใหม่</span><strong>${s.cur.submitted.toLocaleString("th-TH")}</strong>${cmp(s, trend(s.cur.submitted, s.prev.submitted))}<small>${s.noCompare ? (s.cur.legacyCount ? `ก่อนเริ่มระบบ ${s.cur.legacyCount.toLocaleString("th-TH")}` : "ตั้งแต่เริ่มเก็บข้อมูล") : `${p.prevLabel} ${s.prev.submitted}`}</small></div>
+      <div class="exec-kpi"><span>ส่งมอบแล้ว</span><strong>${s.cur.delivered.toLocaleString("th-TH")}</strong>${cmp(s, trend(s.cur.delivered, s.prev.delivered))}<small>${s.noCompare ? "รวมงานก่อนเริ่มระบบ" : `${p.prevLabel} ${s.prev.delivered}`}</small></div>
+      <div class="exec-kpi"><span>ส่งตรงเวลา</span><strong>${s.cur.onTimeRate ?? "—"}${s.cur.onTimeRate !== null ? "%" : ""}</strong>${cmp(s, trend(s.cur.onTimeRate, s.prev.onTimeRate, { unit: "%" }))}<small>เป้า ${TARGET_ON_TIME}%</small></div>
+      <div class="exec-kpi"><span>ผ่านครั้งแรก (FTR)</span><strong>${s.cur.ftrRate ?? "—"}${s.cur.ftrRate !== null ? "%" : ""}</strong>${cmp(s, trend(s.cur.ftrRate, s.prev.ftrRate, { unit: "%" }))}<small>เป้า ${TARGET_FTR}%</small></div>
       <div class="exec-kpi ${s.overdue.length ? "is-alert" : ""}"><span>เกินกำหนด (ตอนนี้)</span><strong>${s.overdue.length}</strong><small>จากงานค้าง ${s.open} รายการ</small></div>
-      <div class="exec-kpi"><span>เวลาเฉลี่ย รับ→ส่งมอบ</span><strong>${s.cur.avgCycleDays ?? "—"}</strong>${trend(s.cur.avgCycleDays, s.prev.avgCycleDays, { invert: true })}<small>วัน (ปฏิทิน)</small></div>
+      <div class="exec-kpi"><span>เวลาเฉลี่ย รับ→ส่งมอบ</span><strong>${s.cur.avgCycleDays ?? "—"}</strong>${cmp(s, trend(s.cur.avgCycleDays, s.prev.avgCycleDays, { invert: true }))}<small>วัน (ปฏิทิน)</small></div>
     </div>
+
+${renderTypeTable(s)}
 
 ${renderCostBlock(s)}
 
@@ -371,8 +417,15 @@ ${renderCostBlock(s)}
           : `<p class="exec-empty">✅ ไม่มีประเด็นเร่งด่วน — งานเป็นไปตามเป้าหมาย</p>`}
       </div>
     </div>
-    <p class="exec-foot">ตัวเลข${p.label}นับจากวันส่งคำร้อง/วันส่งมอบในช่วง ${escapeHtml(s.periodName)} เทียบ ${escapeHtml(s.prevName)} · งานค้าง/เกินกำหนด/รออนุมัติ เป็นสถานะ ณ ตอนนี้ · นิยามเดียวกับส่วน KPI ด้านล่าง</p>
+    <p class="exec-foot">ตัวเลข${p.label}นับจากวันส่งคำร้อง/วันส่งมอบในช่วง ${escapeHtml(s.periodName)}${s.noCompare ? "" : ` เทียบ ${escapeHtml(s.prevName)}`} · รวมงานก่อนเริ่มระบบ (นำเข้าจากฟอร์มเดิม — นับจำนวนรับ/ส่งมอบ/ยกเลิกตามวันส่งคำขอ แต่ไม่มีวันส่งมอบจริงจึงไม่นับใน % ตรงเวลา / FTR / เวลาเฉลี่ย / ต้นทุน) · งานค้าง/เกินกำหนด/รออนุมัติ เป็นสถานะ ณ ตอนนี้ · นิยามเดียวกับส่วน KPI ด้านล่าง</p>
   `;
+
+  // ข้อมูลงานก่อนเริ่มระบบโหลดเสร็จ/อัปเดต → วาดสรุปใหม่
+  const offLegacy = onLegacyChange(() => {
+    offLegacy();
+    if (section.isConnected) section.replaceWith(renderExecutiveSummary(state));
+  });
+  loadLegacy();
 
   section.querySelectorAll("[data-exec-period]").forEach((btn) => btn.addEventListener("click", () => {
     selectedPeriod = btn.dataset.execPeriod;
@@ -383,6 +436,31 @@ ${renderCostBlock(s)}
 }
 
 const baht = (n) => `${Math.round(n || 0).toLocaleString("th-TH")} ฿`;
+const cmp = (s, html) => (s.noCompare ? "" : html);
+
+/** ตารางสรุปแยกประเภท Drawing */
+function renderTypeTable(s) {
+  const rows = s.cur.byType.filter((r) => r.submitted || r.delivered || r.cancelled || r.overdue);
+  const n = (v, tone = "") => `<td class="${v && tone ? tone : ""}">${v ? v.toLocaleString("th-TH") : "–"}</td>`;
+  const sum = (k) => rows.reduce((t, r) => t + r[k], 0);
+  const onTime = (r) => (r.withDue ? `${Math.round(((r.withDue - r.late) / r.withDue) * 100)}%` : "—");
+  const total = { withDue: sum("withDue"), late: sum("late") };
+  return `
+    <div class="exec-types">
+      <h3>📐 สรุปแยกประเภท Drawing <small>(${escapeHtml(s.periodName)})</small></h3>
+      <div class="exec-types-wrap">
+        <table>
+          <thead><tr><th>ประเภท</th><th>คำร้อง</th><th>ส่งมอบแล้ว</th><th>ส่งช้า</th><th>ตรงเวลา</th><th>ยกเลิก</th><th>เกินกำหนด</th></tr></thead>
+          <tbody>
+            ${rows.map((r) => `<tr><th>${escapeHtml(r.label)}</th>${n(r.submitted, "is-strong")}${n(r.delivered)}${n(r.late, "is-amber")}<td>${onTime(r)}</td>${n(r.cancelled)}${n(r.overdue, "is-red")}</tr>`).join("")
+              || `<tr><td colspan="7" class="exec-empty">ไม่มีคำร้องในช่วงนี้</td></tr>`}
+          </tbody>
+          ${rows.length > 1 ? `<tfoot><tr><th>รวม</th>${n(sum("submitted"), "is-strong")}${n(sum("delivered"))}${n(sum("late"), "is-amber")}<td>${onTime(total)}</td>${n(sum("cancelled"))}${n(sum("overdue"), "is-red")}</tr></tfoot>` : ""}
+        </table>
+      </div>
+      <p class="exec-foot">ส่งช้า/ตรงเวลา = งานที่ส่งมอบในระบบ · เกินกำหนด = งานที่ค้างเกินกำหนดตอนนี้ + งานก่อนเริ่มระบบที่เคยเกินกำหนดในช่วงนี้</p>
+    </div>`;
+}
 
 function renderCostBlock(s) {
   const c = s.costs;
@@ -392,7 +470,7 @@ function renderCostBlock(s) {
     <div class="exec-cost">
       <h3>💰 ต้นทุนที่ควบคุมได้ <small>(ประมาณการ · คำร้องที่เข้ามา${p.label})</small></h3>
       <div class="exec-cost-tiles">
-        <div class="exec-kpi exec-cost-total"><span>รวม</span><strong>${baht(c.total)}</strong>${trend(c.total, s.prevCosts.total, { invert: true, money: true })}<small>${p.prevLabel} ${baht(s.prevCosts.total)}</small></div>
+        <div class="exec-kpi exec-cost-total"><span>รวม</span><strong>${baht(c.total)}</strong>${cmp(s, trend(c.total, s.prevCosts.total, { invert: true, money: true }))}<small>${s.noCompare ? "งานในระบบ" : `${p.prevLabel} ${baht(s.prevCosts.total)}`}</small></div>
         <div class="exec-kpi"><span>⏰ งานล่าช้า (OT)</span><strong>${baht(c.late.cost)}</strong><small>${c.late.count} งาน · ช้าเฉลี่ย ${c.late.avgLateDays} วันทำงาน</small></div>
         <div class="exec-kpi"><span>✏️ งานแก้ไข (Rework)</span><strong>${baht(c.rework.cost)}</strong><small>${c.rework.count} ครั้ง · ควบคุมได้เอง ${baht(c.rework.internalCost)}</small></div>
         <div class="exec-kpi"><span>🗑️ งานที่ถูกยกเลิก</span><strong>${baht(c.wasted.cost)}</strong><small>${c.wasted.count} งาน · ${c.wasted.hours} ชม.</small></div>
@@ -438,15 +516,19 @@ function agendaText(s) {
     headline(s),
     "",
     "ตัวเลขหลัก",
-    `• คำร้องใหม่ ${s.cur.submitted} รายการ (${p.prevLabel} ${s.prev.submitted})`,
-    `• ส่งมอบแล้ว ${s.cur.delivered} รายการ (${p.prevLabel} ${s.prev.delivered})`,
+    `• คำร้องใหม่ ${s.cur.submitted} รายการ${s.noCompare ? "" : ` (${p.prevLabel} ${s.prev.submitted})`}${s.cur.legacyCount ? ` — รวมงานก่อนเริ่มระบบ ${s.cur.legacyCount} รายการ` : ""}`,
+    `• ส่งมอบแล้ว ${s.cur.delivered} รายการ${s.noCompare ? "" : ` (${p.prevLabel} ${s.prev.delivered})`}`,
     `• ส่งมอบตรงเวลา ${s.cur.onTimeRate ?? "—"}${s.cur.onTimeRate !== null ? "%" : ""} (เป้า ${TARGET_ON_TIME}%)`,
     `• ผ่านครั้งแรก (FTR) ${s.cur.ftrRate ?? "—"}${s.cur.ftrRate !== null ? "%" : ""} (เป้า ${TARGET_FTR}%)`,
     `• เวลาเฉลี่ยรับ→ส่งมอบ ${s.cur.avgCycleDays ?? "—"} วัน`,
     `• งานค้าง ${s.open} รายการ · เกินกำหนด ${s.overdue.length} รายการ · รออนุมัติเริ่มงาน ${s.waitingLv2.length} · รอตรวจส่งมอบ ${s.waitingReview.length} · รอผู้ร้องขอตรวจรับ ${s.waitingRequester.length}`,
     "",
+    "สรุปแยกประเภท Drawing (คำร้อง / ส่งมอบ / ส่งช้า / ยกเลิก / เกินกำหนด)",
+    ...s.cur.byType.filter((r) => r.submitted || r.delivered || r.cancelled || r.overdue)
+      .map((r) => `• ${r.label}: ${r.submitted} / ${r.delivered} / ${r.late} / ${r.cancelled} / ${r.overdue}`),
+    "",
     "ต้นทุนที่ควบคุมได้ (ประมาณการ)",
-    `• รวม ${baht(s.costs.total)} (${p.prevLabel} ${baht(s.prevCosts.total)})`,
+    `• รวม ${baht(s.costs.total)}${s.noCompare ? "" : ` (${p.prevLabel} ${baht(s.prevCosts.total)})`}`,
     `• งานล่าช้า (OT) ${baht(s.costs.late.cost)} — ${s.costs.late.count} งาน ช้าเฉลี่ย ${s.costs.late.avgLateDays} วันทำงาน`,
     `• งานแก้ไข ${baht(s.costs.rework.cost)} — ${s.costs.rework.count} ครั้ง (ควบคุมได้เอง ${baht(s.costs.rework.internalCost)})`,
     `• งานที่ถูกยกเลิกหลังลงมือ ${baht(s.costs.wasted.cost)} — ${s.costs.wasted.count} งาน`,

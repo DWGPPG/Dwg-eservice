@@ -110,10 +110,14 @@ export function bindLegacyTab(body, rerender) {
     try {
       const result = await importLegacyFile(file);
       writeAudit({ action: "นำเข้าข้อมูลสถิติ (ก่อนเริ่มระบบ)", detail: `${result.meta.count} รายการ จากไฟล์ ${file.name}` }).catch(() => {});
-      showToast(`นำเข้า ${fmt(result.meta.count)} รายการแล้ว — สถิติในหน้าภาพรวมอัปเดตแล้ว`, "success");
+      showToast(result.backupOk
+        ? `นำเข้า ${fmt(result.meta.count)} รายการแล้ว — สถิติในหน้าภาพรวมอัปเดตแล้ว`
+        : `นำเข้า ${fmt(result.meta.count)} รายการแล้ว — แต่สำรองไฟล์ต้นฉบับไม่สำเร็จ (ไฟล์ถูกล็อก) กดอัปโหลดอีกครั้งภายหลังเพื่อสำรอง`, result.backupOk ? "success" : "warning");
       backups = null;
     } catch (error) {
-      showToast(`นำเข้าไม่สำเร็จ: ${error.message}`, "error");
+      showToast(/423|locked/i.test(error.message)
+        ? "นำเข้าไม่สำเร็จ: ไฟล์ในโฟลเดอร์ DrawingLegacy ถูกล็อก (มีคนเปิดค้างใน Excel/SharePoint) — ปิดไฟล์แล้วรอ 1–2 นาทีแล้วลองใหม่"
+        : `นำเข้าไม่สำเร็จ: ${error.message}`, "error");
     } finally {
       busy = false;
       rerender();
