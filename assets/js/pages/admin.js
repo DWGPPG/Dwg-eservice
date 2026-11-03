@@ -92,7 +92,7 @@ function applySearchFilter(items) {
   const query = adminSearchQuery.toLowerCase().trim();
   if (!query) return items;
   return items.filter((item) =>
-    [item.requestNo, item.projectName, item.requesterName, item.requesterEmail, item.assignedToName, item.department]
+    [item.requestNo, item.projectName, item.requesterName, item.requesterEmail, item.assignedToName, item.department, item.drawingNo, item.drawingName]
       .some((v) => String(v || "").toLowerCase().includes(query))
   );
 }
@@ -104,7 +104,8 @@ function applyProjectFilter(items) {
 
 function applyAssigneeFilter(items) {
   if (!adminAssigneeFilter) return items;
-  return items.filter((item) => (item.assignedToEmail || "") === adminAssigneeFilter);
+  const target = adminAssigneeFilter.toLowerCase();
+  return items.filter((item) => (item.assignedToEmail || "").toLowerCase() === target);
 }
 
 function applyDateFilter(items) {
@@ -227,33 +228,17 @@ function renderDesignerPickup(view, state) {
         ${jumpButton("takeover-section", "🔄 งานในฝ่าย (ดึงงาน)", assignedItems.length)}
       </div>
 
+      ${renderFilterBar(state, [...allPending, ...assignedItems])}
+
       <div id="pickup-section" ${sectionHidden("pickup-section")}>
         <button id="pickup-bulk-button" class="primary-button pickup-bulk-button" type="button" disabled>
           รับงาน <span class="pickup-bulk-count">0</span>
         </button>
-        ${renderFilterBar(state, allPending)}
         ${renderPickupTableSection(pendingItems, "รอฝ่ายแบบรับงาน", false, state)}
       </div>
 
       <div id="takeover-section" ${sectionHidden("takeover-section")}>
-        <!-- ── ตัวกรอง ── -->
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center;">
-          <input id="takeover-search" type="text" placeholder="🔍 ค้นหาเลขที่คำร้อง / Drawing..."
-            style="height:34px;padding:0 12px;border:1px solid var(--line);border-radius:8px;font-size:13px;min-width:220px;flex:1;" />
-          <select id="takeover-project" style="height:34px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;">
-            <option value="">🏗️ ทุกโครงการ</option>
-            ${[...new Set(assignedItems.map((i) => i.projectName).filter(Boolean))].sort().map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("")}
-          </select>
-          <select id="takeover-assignee" style="height:34px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;">
-            <option value="">👤 ผู้รับผิดชอบทุกคน</option>
-            ${[...new Set(assignedItems.map((i) => i.assignedToName).filter(Boolean))].sort().map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("")}
-          </select>
-          <select id="takeover-type" style="height:34px;padding:0 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;">
-            <option value="">📋 ทุกประเภท</option>
-            ${[...new Set(assignedItems.map((i) => i.requestType).filter(Boolean))].sort().map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("")}
-          </select>
-        </div>
-        ${renderTakeoverSection(assignedItems, state)}
+        ${renderTakeoverSection(applyAllFilters(assignedItems), state)}
       </div>
 
     </section>
@@ -274,28 +259,6 @@ function renderDesignerPickup(view, state) {
   bindTakeoverEvents(view, state);
   bindRequestDetailEvents(view, state);
 
-  // ── ตัวกรองของ tab "งานในฝ่าย" ──
-  const applyTakeoverFilter = () => {
-    const search   = (view.querySelector("#takeover-search")?.value || "").toLowerCase();
-    const project  = (view.querySelector("#takeover-project")?.value || "").toLowerCase();
-    const assignee = (view.querySelector("#takeover-assignee")?.value || "").toLowerCase();
-    const type     = (view.querySelector("#takeover-type")?.value || "").toLowerCase();
-    view.querySelectorAll("#takeover-section tbody tr[data-takeover-row]").forEach((row) => {
-      const text = row.textContent.toLowerCase();
-      const proj = (row.dataset.project || "").toLowerCase();
-      const asgn = (row.dataset.assignee || "").toLowerCase();
-      const tp   = (row.dataset.type || "").toLowerCase();
-      const show = (!search || text.includes(search))
-        && (!project || proj.includes(project))
-        && (!assignee || asgn === assignee)
-        && (!type || tp === type);
-      row.hidden = !show;
-    });
-  };
-  ["#takeover-search","#takeover-project","#takeover-assignee","#takeover-type"].forEach((sel) => {
-    view.querySelector(sel)?.addEventListener("input", applyTakeoverFilter);
-    view.querySelector(sel)?.addEventListener("change", applyTakeoverFilter);
-  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -327,10 +290,10 @@ function renderManagerAdmin(view, state) {
         ${jumpButton("pickup-section",     "📥 รับงาน",                   pendingItems.length,  true, "pickup-bulk-button", "pickup-bulk-count")}
         ${jumpButton("approve-section",    "✅ อนุมัติเริ่มงาน",           approveItems.length)}
         ${jumpButton("mgr-review-section", "🔍 ตรวจสอบและส่งมอบงาน",       mgrReviewItems.length)}
-        ${jumpButton("takeover-section",   "🔄 งานในฝ่าย (ดึงงาน)",        allAssigned.length)}
+        ${jumpButton("takeover-section",   "🔄 งานในฝ่าย (ดึงงาน)",        applyAllFilters(allAssigned).length)}
       </div>
 
-      ${renderFilterBar(state, [...allPending, ...allApprove])}
+      ${renderFilterBar(state, [...allPending, ...allApprove, ...allAssigned])}
 
       <div class="admin-section-block" id="pickup-section" ${sectionHidden("pickup-section")}>
         <div class="admin-section-heading">📥 รับงาน — ติ๊กเลือกแล้วกดปุ่ม "รับงาน" ด้านบนเพื่อรับพร้อมกัน</div>
@@ -348,7 +311,7 @@ function renderManagerAdmin(view, state) {
       </div>
 
       <div class="admin-section-block" id="takeover-section" ${sectionHidden("takeover-section")}>
-        ${renderTakeoverSection(allAssigned, state)}
+        ${renderTakeoverSection(applyAllFilters(allAssigned), state)}
       </div>
     </section>
   `;
@@ -857,9 +820,16 @@ function pickupDueLabel(dueDate, holidaySet = new Set()) {
 // ══════════════════════════════════════════════════════════════
 
 function bindFilterEvents(view, state, rerender) {
+  // พิมพ์ค้นหา: รอหยุดพิมพ์ครู่หนึ่งแล้ววาดใหม่ + คืนเคอร์เซอร์ไว้ที่ช่องค้นหา (เดิมวาดทุกตัวอักษร เคอร์เซอร์หลุด)
   view.querySelector("#admin-search")?.addEventListener("input", (e) => {
     adminSearchQuery = e.target.value;
-    rerender();
+    clearTimeout(view._adminSearchTimer);
+    view._adminSearchTimer = setTimeout(() => {
+      const pos = e.target.selectionStart;
+      rerender();
+      const input = view.querySelector("#admin-search");
+      if (input) { input.focus(); try { input.setSelectionRange(pos, pos); } catch (_) { /* type=search */ } }
+    }, 250);
   });
   view.querySelector("#admin-project-filter")?.addEventListener("change", (e) => {
     adminProjectFilter = e.target.value;

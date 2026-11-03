@@ -575,29 +575,66 @@ function renderViewAsSwitcher(nextState) {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js").then((registration) => {
-      // เช็คอัปเดตทันทีตอนโหลดหน้า — ไม่ต้องรอ browser เช็คเองตามรอบ (อาจช้าถึง 24 ชม.)
-      registration.update().catch(() => {});
-
-      // กลับมาที่แท็บ/แอปอีกครั้ง (เช่น สลับแอปแล้วกลับมา) → เช็คอัปเดตซ้ำ
-      // สำคัญสำหรับ PWA ที่เปิดค้างไว้นานบนมือถือ ไม่ปิดแอปเอง
+      // เช็คอัปเดตทันทีตอนโหลดหน้า + ทุก 5 นาที + ทุกครั้งที่กลับมาที่แท็บ/แอป
+      // (คนที่เปิดเว็บค้างไว้ทั้งวันจะรู้ว่ามีเวอร์ชันใหม่)
+      const check = () => registration.update().catch(() => {});
+      check();
+      setInterval(check, 5 * 60 * 1000);
       document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") registration.update().catch(() => {});
+        if (document.visibilityState === "visible") check();
       });
 
-      // มี Service Worker เวอร์ชันใหม่เข้าควบคุมหน้านี้ → reload ครั้งเดียวอัตโนมัติ
-      // เพื่อให้ผู้ใช้ได้โค้ด/CSS ล่าสุดทันที ไม่ต้องกดรีเฟรชเองหลายรอบ
-      // กัน loop ด้วย sessionStorage flag (reload ได้แค่ครั้งเดียวต่อ session)
+      // มีเวอร์ชันใหม่ติดตั้งรอไว้ → ขึ้นป๊อปอัปให้ผู้ใช้กด "ดาวน์โหลดเวอร์ชันใหม่" เอง (ไม่รีโหลดเองกลางงาน)
+      const offer = (worker) => { if (worker && navigator.serviceWorker.controller) showUpdatePrompt(worker); };
+      offer(registration.waiting);
+      registration.addEventListener("updatefound", () => {
+        const worker = registration.installing;
+        worker?.addEventListener("statechange", () => { if (worker.state === "installed") offer(worker); });
+      });
+
+      // ผู้ใช้กดอัปเดตแล้ว (หรือเวอร์ชันใหม่เข้าควบคุม) → รีโหลดหนึ่งครั้ง
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
-        if (sessionStorage.getItem("sw-reloaded") === "1") return;
         refreshing = true;
-        sessionStorage.setItem("sw-reloaded", "1");
-        showToast("🔄 มีอัปเดตใหม่ กำลังโหลดเวอร์ชันล่าสุด...", "info");
-        setTimeout(() => window.location.reload(), 600);
+        window.location.reload();
       });
     }).catch((error) => {
       console.warn("Service worker registration failed (non-critical):", error.message);
     });
+  });
+}
+
+// ── ป๊อปอัปแจ้ง "มีเวอร์ชันใหม่" + ปุ่มดาวน์โหลดเวอร์ชันใหม่ ──
+function showUpdatePrompt(worker) {
+  if (document.querySelector(".app-update-prompt")) return;
+  const box = document.createElement("div");
+  box.className = "app-update-prompt";
+  box.setAttribute("role", "alertdialog");
+  box.setAttribute("aria-live", "polite");
+  box.innerHTML = `
+    <div class="app-update-icon" aria-hidden="true">🆕</div>
+    <div class="app-update-text">
+      <strong>มีอัปเดตเวอร์ชันใหม่ของระบบ</strong>
+      <span>กรุณาบันทึก/ส่งงานที่กรอกค้างไว้ก่อน แล้วกดดาวน์โหลดเวอร์ชันใหม่</span>
+    </div>
+    <div class="app-update-actions">
+      <button type="button" class="primary-button" data-update-now>⬇️ ดาวน์โหลดเวอร์ชันใหม่</button>
+      <button type="button" class="secondary-button" data-update-later>ภายหลัง</button>
+    </div>`;
+  document.body.appendChild(box);
+  requestAnimationFrame(() => box.classList.add("is-open"));
+  box.querySelector("[data-update-now]").addEventListener("click", (event) => {
+    event.currentTarget.disabled = true;
+    event.currentTarget.textContent = "กำลังโหลด...";
+    worker.postMessage({ type: "SKIP_WAITING" });
+    // เผื่อ service worker ไม่ตอบ — รีโหลดเองหลัง 3 วินาที
+    setTimeout(() => window.location.reload(), 3000);
+  });
+  box.querySelector("[data-update-later]").addEventListener("click", () => {
+    box.classList.remove("is-open");
+    setTimeout(() => box.remove(), 300);
+    // เตือนอีกครั้งใน 30 นาที
+    setTimeout(() => showUpdatePrompt(worker), 30 * 60 * 1000);
   });
 }
