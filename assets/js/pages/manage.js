@@ -10,6 +10,8 @@ import { writeAudit } from "../services/audit-service.js";
 import { addItem, deleteItem, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
+import { bindLegacyTab, renderLegacyTab } from "./manage-legacy.js";
+import { legacyMeta, loadLegacy } from "../services/legacy-service.js";
 import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, historySuggestions, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
 import { REQUEST_TYPES } from "../constants.js";
 import { holidayName, holidayNameField } from "../services/due-date.js";
@@ -397,6 +399,7 @@ export function renderManage(view) {
     { key: "overview", label: "ภาพรวม", icon: "🩺" },
     { key: "requests", label: "แก้ไขคำร้อง", icon: "✏️", count: state.requests.length },
     ...Object.entries(TABS).map(([key, tab]) => ({ key, label: tab.label, icon: tab.icon, count: activeRows(tab).length })),
+    { key: "legacy", label: "ข้อมูลสถิติ", icon: "📦", count: legacyMeta()?.count },
     { key: "settings", label: "ตั้งค่าระบบ", icon: "⚙️" },
     { key: "audit", label: "Audit log", icon: "🧾" },
   ];
@@ -429,6 +432,7 @@ export function renderManage(view) {
     strip.scrollLeft = Math.max(0, activeTab.offsetLeft - strip.offsetLeft - 16);
   }
   if (ui.tab === "audit" && !ui.audit && !ui.auditLoading) loadAudit(view);
+  if (!legacyMeta()) loadLegacy().then(() => { if (legacyMeta() && view.isConnected && view.querySelector(".manage-page")) renderManage(view); });
 }
 
 let rerenderBodyRef = () => {};
@@ -437,6 +441,7 @@ function renderBody() {
   if (ui.tab === "overview") return renderOverview();
   if (ui.tab === "audit") return renderAudit();
   if (ui.tab === "settings") return renderSettings();
+  if (ui.tab === "legacy") return renderLegacyTab();
   if (ui.tab === "requests") return renderRequestEditor(() => rerenderBodyRef());
   return renderTable(ui.tab);
 }
@@ -804,6 +809,7 @@ function bindBody(view) {
   body.querySelectorAll('[data-action="delete"]').forEach((b) => b.addEventListener("click", () => confirmDelete(ui.tab, find(b.dataset.id), rerender)));
 
   bindSettings(body, rerender);
+  bindLegacyTab(body, rerender);
   // แท็บแก้ไขคำร้อง: วาดเฉพาะเนื้อหาแท็บใหม่ (ไม่วาดแถบแท็บ) — ช่องค้นหาไม่เสียโฟกัส
   rerenderBodyRef = () => {
     if (!body.isConnected) return;

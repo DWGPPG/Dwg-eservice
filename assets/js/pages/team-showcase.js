@@ -11,6 +11,7 @@ import { STATUS } from "../../../config/schema.js";
 import { getDrawingTeamMembers } from "../services/team-service.js";
 import { COVER_KEY, listTeamPhotos, photoUrlSync, preloadPhoto } from "../services/team-photo-service.js";
 import { escapeHtml } from "../utils.js";
+import { legacyRequests, loadLegacy, onLegacyChange } from "../services/legacy-service.js";
 import { openRequestDetail } from "./track.js";
 import { openModal } from "../components/modal.js";
 
@@ -19,9 +20,25 @@ const DELIVERED = [STATUS.DELIVERED, STATUS.DONE];
 const AUTOPLAY_MS = 9000;
 
 const PERIODS = {
+  legacy: "ก่อนเริ่มระบบ",
+  today: "วันนี้",
+  week: "สัปดาห์นี้",
   month: "เดือนนี้",
   year: "ปีนี้",
   all: "ทั้งหมด",
+};
+
+// ประเภทงานสำหรับตารางแยกประเภท (ตามลำดับในหน้าส่งคำขอ)
+const TYPE_ROWS = [
+  { key: "Proposal", icon: "📋", label: "Proposal" },
+  { key: "ขออนุญาต", icon: "🏛️", label: "ขออนุญาตก่อสร้าง" },
+  { key: "เขียนแบบก่อสร้าง", icon: "🏗️", label: "เขียนแบบก่อสร้าง" },
+  { key: "As-Built", icon: "🏁", label: "As-Built" },
+  { key: "", icon: "📁", label: "อื่นๆ" },
+];
+const typeRowOf = (type) => {
+  const t = String(type || "");
+  return TYPE_ROWS.find((row) => row.key && t.includes(row.key)) || TYPE_ROWS[TYPE_ROWS.length - 1];
 };
 
 // คงค่าไว้ข้ามการวาดใหม่ (polling วาดหน้าภาพรวมใหม่เมื่อข้อมูลเปลี่ยน)
@@ -37,12 +54,18 @@ const norm = (v) => String(v || "").trim().toLowerCase();
 
 function periodStart(key) {
   const now = new Date();
+  if (key === "today") return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (key === "week") {
+    const monday = (now.getDay() + 6) % 7; // สัปดาห์เริ่มวันจันทร์
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() - monday);
+  }
   if (key === "month") return new Date(now.getFullYear(), now.getMonth(), 1);
   if (key === "year") return new Date(now.getFullYear(), 0, 1);
   return null;
 }
 
-/** ตัวชี้วัดของชุดคำร้อง (คนเดียว หรือทั้งฝ่าย) — นิยามเดียวกับรายงาน/บทสรุปผู้บริหาร */
+/** ตัวชี้วัดของชุดคำร้อง (คนเดียว หรือทั้งฝ่าย) — นิยามเดียวกับรายงาน/บทสรุปผู้บริหาร
+ *  รวมข้อมูลคำขอก่อนเริ่มระบบ (legacy) ในสถิติย้อนหลัง แต่ไม่นับเป็นภาระงานปัจจุบัน */
 function metricsFor(rows, periodKey, teamActive) {
   const from = periodStart(periodKey);
   const inPeriod = (v) => {
@@ -51,30 +74,38 @@ function metricsFor(rows, periodKey, teamActive) {
     return !Number.isNaN(d.getTime()) && d >= from;
   };
   const today = dayKey(new Date());
+  const live = rows.filter((r) => !r.legacy);
+  const legacy = rows.filter((r) => r.legacy);
 
-  const active = rows.filter((r) => !NO_WORKLOAD.includes(r.status));
+  const active = live.filter((r) => !NO_WORKLOAD.includes(r.status));
   const dueToday = active.filter((r) => r.dueDate && dayKey(r.dueDate) === today).length;
-  const overdueNow = active.filter((r) => r.dueDate && dayKey(r.dueDate) < today).length;
+  const isOverdueNow = (r) => r.dueDate && dayKey(r.dueDate) < today;
+  const overdueNow = active.filter(isOverdueNow).length;
 
-  const delivered = rows.filter((r) => DELIVERED.includes(r.status) && inPeriod(r.deliveredAt || r.doneAt));
-  const withDue = delivered.filter((r) => r.dueDate && (r.deliveredAt || r.doneAt));
-  const onTime = withDue.filter((r) => dayKey(r.deliveredAt || r.doneAt) <= dayKey(r.dueDate)).length;
-  const lateDelivered = withDue.length - onTime;
-  const ftr = delivered.filter((r) => !r.isRevision && !r.revisionReason).length;
-  const cyc = delivered.filter((r) => r.submittedAt && r.deliveredAt);
+  const deliveredLive = live.filter((r) => DELIVERED.includes(r.status) && inPeriod(r.deliveredAt || r.doneAt));
+  const deliveredLegacy = legacy.filter((r) => r.status === STATUS.DONE && inPeriod(r.submittedAt));
+  const withDue = deliveredLive.filter((r) => r.dueDate && (r.deliveredAt || r.doneAt));
+  const isLate = (r) => dayKey(r.deliveredAt || r.doneAt) > dayKey(r.dueDate);
+  const lateDelivered = withDue.filter(isLate).length;
+  const onTime = withDue.length - lateDelivered;
+  const ftr = deliveredLive.filter((r) => !r.isRevision && !r.revisionReason).length;
+  const cyc = deliveredLive.filter((r) => r.submittedAt && r.deliveredAt);
   const avgCycle = cyc.length
     ? Math.round((cyc.reduce((s, r) => s + (new Date(r.deliveredAt) - new Date(r.submittedAt)) / 86400000, 0) / cyc.length) * 10) / 10
     : null;
-  const cancelled = rows.filter((r) => r.status === STATUS.CANCELLED && inPeriod(r.cancelledAt || r.submittedAt)).length;
+  const isCancelled = (r) => r.status === STATUS.CANCELLED && inPeriod(r.cancelledAt || r.submittedAt);
+  const cancelled = rows.filter(isCancelled).length;
+  const legacyOverdue = legacy.filter((r) => r.legacyOverdue > 0 && inPeriod(r.submittedAt));
 
   // Drawing Quality Score — เฉพาะงานแก้ไขสาเหตุ 1.1 (ฝ่ายเขียนแบบ): แก้ < 4 ครั้ง = 100, ≥ 4 = 20 · ไม่มีเลย = 100
-  const q = rows.filter((r) => inPeriod(r.submittedAt) && r.revisionSource === "1.1")
+  const q = live.filter((r) => inPeriod(r.submittedAt) && r.revisionSource === "1.1")
     .map((r) => ((parseInt(r.revisionCount || "1", 10) || 1) >= 4 ? 20 : 100));
   const quality = q.length ? Math.round(q.reduce((s, v) => s + v, 0) / q.length) : 100;
 
   // โครงการ (จากงานในช่วงเวลา + งานที่ถืออยู่) เรียงตามจำนวนงาน
   const projectCounts = new Map();
-  [...active, ...rows.filter((r) => inPeriod(r.submittedAt))].forEach((r) => {
+  const periodRows = rows.filter((r) => inPeriod(r.submittedAt));
+  [...active, ...periodRows].forEach((r) => {
     if (!r.projectName) return;
     projectCounts.set(r.projectName, (projectCounts.get(r.projectName) || 0) + 1);
   });
@@ -82,28 +113,42 @@ function metricsFor(rows, periodKey, teamActive) {
 
   const drawings = [...active].sort((a, b) => String(a.dueDate || "9").localeCompare(String(b.dueDate || "9")));
 
+  // แยกตามประเภทงาน: ทั้งหมด / ส่งช้า / ยกเลิก / เกินกำหนด
+  const byType = TYPE_ROWS.map((row) => ({ ...row, total: 0, late: 0, cancelled: 0, overdue: 0 }));
+  const bucket = (r) => byType[TYPE_ROWS.indexOf(typeRowOf(r.requestType))];
+  periodRows.forEach((r) => { bucket(r).total += 1; });
+  withDue.filter(isLate).forEach((r) => { bucket(r).late += 1; });
+  rows.filter(isCancelled).forEach((r) => { bucket(r).cancelled += 1; });
+  active.filter(isOverdueNow).forEach((r) => { bucket(r).overdue += 1; });
+  legacyOverdue.forEach((r) => { bucket(r).overdue += 1; });
+
   return {
     active: active.length,
-    total: rows.filter((r) => inPeriod(r.submittedAt)).length,
+    total: periodRows.length,
     dueToday,
     overdueNow,
-    delivered: delivered.length,
+    delivered: deliveredLive.length + deliveredLegacy.length,
     onTimeRate: pct(onTime, withDue.length),
-    ftrRate: pct(ftr, delivered.length),
+    ftrRate: pct(ftr, deliveredLive.length),
     avgCycle,
     cancelled,
-    lateTotal: lateDelivered + overdueNow,
+    lateTotal: lateDelivered + overdueNow + legacyOverdue.length,
     quality,
     share: teamActive ? Math.round((active.length / teamActive) * 100) : 0,
     projects,
     drawings,
+    byType,
   };
 }
 
-function buildSlides(requests, periodKey) {
+function buildSlides(liveRequests, periodKey) {
   const team = getDrawingTeamMembers();
+  const legacy = legacyRequests();
+  // ก่อนเริ่มระบบ = เฉพาะข้อมูลเดิม · ช่วงอื่น = ข้อมูลในระบบ + ข้อมูลเดิม (กรองตามวันที่)
+  const requests = periodKey === "legacy" ? legacy : [...liveRequests, ...legacy];
+  const ownedBy = (r, email) => (r.assignees ? r.assignees.includes(email) : norm(r.assignedToEmail) === email);
   const teamEmails = new Set(team.map((m) => norm(m.email)));
-  const teamRows = requests.filter((r) => teamEmails.has(norm(r.assignedToEmail)));
+  const teamRows = liveRequests.filter((r) => teamEmails.has(norm(r.assignedToEmail)));
   const teamActive = teamRows.filter((r) => !NO_WORKLOAD.includes(r.status)).length;
   const slides = [{
     key: COVER_KEY,
@@ -114,7 +159,7 @@ function buildSlides(requests, periodKey) {
     isTeam: true,
   }];
   team.forEach((member) => {
-    const rows = requests.filter((r) => norm(r.assignedToEmail) === norm(member.email));
+    const rows = requests.filter((r) => ownedBy(r, norm(member.email)));
     const m = metricsFor(rows, periodKey, teamActive);
     slides.push({
       key: norm(member.email),
@@ -156,6 +201,7 @@ function slideBody(slide) {
       ${kpi("เกินกำหนด (ตอนนี้)", m.overdueNow, m.overdueNow ? "is-red" : "")}
       ${kpi("เวลาเฉลี่ย รับ→ส่งมอบ", m.avgCycle === null ? "—" : `${m.avgCycle} วัน`)}
     </div>
+    ${typeTable(m)}
     <div class="ts-lists">
       <div class="ts-list">
         <h3>📁 โครงการ <small>${m.projects.length}</small></h3>
@@ -177,6 +223,21 @@ function slideBody(slide) {
           ${m.drawings.length > 4 ? `<li><button type="button" class="ts-more" data-ts-more="drawings">และอีก ${m.drawings.length - 4} งาน · ดูทั้งหมด ›</button></li>` : ""}
         </ul>
       </div>
+    </div>`;
+}
+
+function typeTable(m) {
+  const rows = m.byType.filter((r) => r.total || r.late || r.cancelled || r.overdue);
+  const num = (n, tone) => `<td class="${n && tone ? tone : ""}">${n ? n.toLocaleString("th-TH") : "–"}</td>`;
+  return `
+    <div class="ts-types">
+      <table>
+        <thead><tr><th>ประเภทงาน</th><th>ทั้งหมด</th><th>ส่งช้า</th><th>ยกเลิก</th><th>เกินกำหนด</th></tr></thead>
+        <tbody>
+          ${rows.map((r) => `<tr><th><span aria-hidden="true">${r.icon}</span> ${escapeHtml(r.label)}</th>${num(r.total, "is-neon")}${num(r.late, "is-amber")}${num(r.cancelled, "")}${num(r.overdue, "is-red")}</tr>`).join("")
+            || `<tr><td colspan="5" class="ts-empty">ไม่มีงานในช่วงนี้</td></tr>`}
+        </tbody>
+      </table>
     </div>`;
 }
 
@@ -425,6 +486,15 @@ export function renderTeamShowcase(state) {
 
   renderAll();
   restart();
+
+  // ข้อมูลสถิติย้อนหลังโหลดเสร็จ/อัปเดต → คำนวณใหม่ (ไม่เปลี่ยนสไลด์ที่ดูอยู่)
+  const offLegacy = onLegacyChange(() => {
+    if (!section.isConnected) { offLegacy(); return; }
+    slides = buildSlides(requests, ui.period);
+    ui.index = Math.min(ui.index, slides.length - 1);
+    if (!busy) { body.innerHTML = slideBody(slides[ui.index]); renderCards(); renderNav(); }
+  });
+  loadLegacy();
 
   // รูปมาถึงทีหลัง (ครั้งแรกที่เปิดหน้า) → ใส่รูปแบบค่อยๆ ปรากฏ แล้วโหลดรูปทุกคนไว้ล่วงหน้า
   listTeamPhotos().then(async (map) => {

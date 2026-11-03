@@ -2,6 +2,7 @@ import { isProposalType, ownerSummaryText } from "../services/owner-service.js";
 import { checkOffDay, offDayText } from "../services/due-date.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { paginate } from "../components/pager.js";
+import { canTransferWork, openTransferWorkModal } from "../components/transfer-work.js";
 import { STATUS, STATUS_LABELS, CLOSED_STATUSES , CANCEL_SOURCES, getCancelSource } from "../../../config/schema.js";
 import { appConfig } from "../../../config/config.js";
 import { openModal, confirmSameDayDueDate } from "../components/modal.js";
@@ -451,6 +452,9 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
             ` : ""}
           </div>
         `}
+        ${canTransferWork(item, state.user) ? `
+          <button type="button" class="small-button secondary-button transfer-work-btn" data-transfer-work="${escapeHtml(item.requestNo)}"
+            title="โอนงานนี้ให้บุคคลอื่นในฝ่ายเขียนแบบ">➡️ โอนงาน</button>` : ""}
       </td>
     </tr>
   `;
@@ -556,6 +560,13 @@ function bindWorkbookEvents(view, state) {
     if (sendworkButton) {
       const request = state.requests.find((item) => item.requestNo === sendworkButton.dataset.sendworkOpen);
       if (request) openSendworkModal(view, state, request);
+      return;
+    }
+
+    const transferWorkButton = event.target.closest("[data-transfer-work]");
+    if (transferWorkButton) {
+      const request = state.requests.find((item) => item.requestNo === transferWorkButton.dataset.transferWork);
+      if (request) openTransferWorkModal(request, state.user, () => { if (state.currentRoute === "/track") renderWorkbookTrack(view, state); });
       return;
     }
 

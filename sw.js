@@ -1,4 +1,4 @@
-const CACHE_NAME = "ppg-drawing-shell-v71";
+const CACHE_NAME = "ppg-drawing-shell-v72";
 
 // เฉพาะไฟล์ static ของ shell — ไม่ cache ข้อมูลจาก SharePoint/Graph API เด็ดขาด
 // (ข้อมูลคำร้องต้องสดใหม่เสมอ ไม่งั้นจะเห็นสถานะเก่าค้าง)
@@ -25,7 +25,12 @@ self.addEventListener("install", (event) => {
       // ถ้า cache บางไฟล์ไม่สำเร็จ ไม่ต้อง block การติดตั้ง — ยังใช้งานออนไลน์ได้ปกติ
     })
   );
-  self.skipWaiting();
+  // ไม่ข้ามการรอเอง — หน้าเว็บจะขึ้นป๊อปอัป "มีเวอร์ชันใหม่" ให้ผู้ใช้กดอัปเดตเมื่อพร้อม
+  // (กันหน้ารีโหลดเองระหว่างที่มีคนกรอกฟอร์มค้างอยู่)
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
