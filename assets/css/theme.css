@@ -3658,3 +3658,16 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme="dark"] .exec-range input[type="date"] { color-scheme: dark; }
 [data-theme] .exec-range input[type="date"]:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent); }
 @media (max-width: 720px) { [data-theme] .exec-range { flex-wrap: wrap; } }
+
+/* สไลด์ทีมงาน (จอกว้าง): กรอบการ์ดไม่เป็นช่องเลื่อนในตัว
+   เดิมเป็น overflow-y:auto — ถ้าการ์ดล้นกรอบแม้ 1px (คนเกิน 8 / ปัดเศษพิกเซล) ล้อเมาส์บนการ์ดจะไปเลื่อนกรอบแทนหน้าเว็บ (ค้าง/กระตุก)
+   ตอนนี้: เพิ่มคอลัมน์ตามจำนวนคน (JS ตั้ง --ts-cols / --ts-row-h) ให้ทุกการ์ดอยู่ในกรอบเสมอ */
+@media (min-width: 1101px) {
+  [data-theme] .team-showcase .ts-cards {
+    max-height: none; overflow: hidden; overscroll-behavior: auto;
+    grid-template-columns: repeat(var(--ts-cols, 4), minmax(0, 1fr));
+    grid-auto-rows: var(--ts-row-h, 120px);
+    padding-top: 8px; /* เผื่อการ์ดยกตัวตอนชี้เมาส์ ไม่ให้ขอบบนถูกตัด */
+  }
+  [data-theme] .team-showcase .ts-card { height: var(--ts-row-h, 120px); }
+}

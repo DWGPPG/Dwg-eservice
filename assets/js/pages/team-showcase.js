@@ -388,6 +388,12 @@ export function renderTeamShowcase(state) {
     const order = [];
     for (let i = 1; i < slides.length; i++) order.push((ui.index + i) % slides.length);
     cards.innerHTML = order.map((i) => cardHtml(slides[i], i)).join("");
+    // จัดคอลัมน์ให้การ์ดทุกใบพอดีกรอบ (ไม่มีแถบเลื่อนในกรอบ — ล้อเมาส์เลื่อนหน้าได้ลื่นเสมอ)
+    const n = order.length;
+    const cols = Math.min(7, Math.max(4, Math.ceil(n / 2)));
+    const rows = Math.max(1, Math.ceil(n / cols));
+    cards.style.setProperty("--ts-cols", cols);
+    cards.style.setProperty("--ts-row-h", rows <= 2 ? "120px" : `${Math.floor((246 - (rows - 1) * 10) / rows)}px`);
   };
   const renderNav = () => {
     section.querySelector(".ts-progress i").style.width = `${((ui.index + 1) / slides.length) * 100}%`;
