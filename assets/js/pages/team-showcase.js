@@ -316,7 +316,8 @@ export function renderTeamShowcase(state) {
   const requests = state.requests || [];
   // เข้าหน้าภาพรวมจากหน้าอื่น → เริ่มที่สไลด์ "ฝ่ายเขียนแบบ" เสมอ
   // (ถ้าแค่ข้อมูลอัปเดตแล้วหน้าวาดใหม่ระหว่างดูอยู่ คงสไลด์เดิมไว้ ไม่เด้งกลับ)
-  if (state.previousRoute !== "/dashboard") ui.index = 0;
+  // และช่วงเวลากลับเป็น "ทั้งหมด" (คงช่วงที่เลือกไว้เฉพาะตอนอยู่หน้าภาพรวมต่อเนื่อง)
+  if (state.previousRoute !== "/dashboard") { ui.index = 0; ui.period = "all"; }
   let slides = buildSlides(requests, ui.period);
   ui.index = ((ui.index % slides.length) + slides.length) % slides.length;
 
