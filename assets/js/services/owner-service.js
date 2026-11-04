@@ -154,6 +154,32 @@ export function leavesOn(dateKey = todayKey()) {
   });
 }
 
+/** เวลาสิ้นสุดการลาของวันนั้น (นาทีนับจากเที่ยงคืน) — null = ทั้งวัน/ครึ่งวันบ่าย (หมดเมื่อสิ้นวัน)
+ *  ครึ่งวันเช้า → 12:00 · พิมพ์เวลาเอง เช่น "09:00–11:30" / "9.00-11.30" → เวลาท้ายช่วง */
+export const MORNING_LEAVE_ENDS = "12:00";
+export function leaveEndMinutes(row) {
+  const period = String(row?.Period || "").trim();
+  if (period.startsWith("ครึ่งวันเช้า")) {
+    const [h, m] = MORNING_LEAVE_ENDS.split(":").map(Number);
+    return h * 60 + m;
+  }
+  const times = [...period.matchAll(/(\d{1,2})[:.](\d{2})/g)];
+  if (times.length) {
+    const last = times[times.length - 1];
+    return Number(last[1]) * 60 + Number(last[2]);
+  }
+  return null;
+}
+
+/** ยังลาอยู่ ณ ตอนนี้ไหม (วันนี้ + ยังไม่ถึงเวลาสิ้นสุดช่วงที่ลา) */
+export function leaveActiveNow(email, now = new Date()) {
+  const row = leaveOf(email, toDateKey(now));
+  if (!row) return null;
+  const end = leaveEndMinutes(row);
+  if (end !== null && now.getHours() * 60 + now.getMinutes() >= end) return null;
+  return row;
+}
+
 export function leaveOf(email, dateKey = todayKey()) {
   return leavesOn(dateKey).find((row) => norm(row.Email) === norm(email)) || null;
 }
