@@ -12,7 +12,7 @@ import { getDrawingTeamMembers } from "../services/team-service.js";
 import { COVER_KEY, listTeamPhotos, photoUrlSync, preloadPhoto } from "../services/team-photo-service.js";
 import { escapeHtml } from "../utils.js";
 import { legacyRequests, loadLegacy, onLegacyChange } from "../services/legacy-service.js";
-import { leaveOf } from "../services/owner-service.js";
+import { leaveActiveNow } from "../services/owner-service.js";
 import { openRequestDetail } from "./track.js";
 import { openModal } from "../components/modal.js";
 
@@ -272,7 +272,7 @@ const photoStyle = (key) => {
 /** ป้ายวันลาของวันนี้ (StaffLeave) — "ลาเต็มวัน" / "ลาครึ่งวันเช้า" / "ลา 13:00–15:00" */
 function leaveLabel(slide) {
   if (slide.isTeam) return "";
-  const leave = leaveOf(slide.key);
+  const leave = leaveActiveNow(slide.key); // ลาครึ่งวันเช้าหายหลัง 12:00 · ระบุเวลาเองหายหลังเวลาสิ้นสุด
   if (!leave) return "";
   const period = String(leave.Period || "เต็มวัน").trim();
   return /^ครึ่งวัน|^เต็มวัน/.test(period) ? `ลา${period}` : `ลา ${period}`;
@@ -281,7 +281,7 @@ function leaveLabel(slide) {
 function leaveBadge(slide, extraClass = "") {
   const text = leaveLabel(slide);
   if (!text) return "";
-  const note = leaveOf(slide.key)?.Note;
+  const note = leaveActiveNow(slide.key)?.Note;
   return `<span class="ts-leave ${extraClass}" title="${escapeHtml(note ? `${text} · ${note}` : text)}">🏖️ ${escapeHtml(text)}</span>`;
 }
 
@@ -560,6 +560,18 @@ export function renderTeamShowcase(state) {
 
   renderAll();
   restart();
+
+  // ป้ายวันลาเปลี่ยนตามเวลา (เช่น ลาครึ่งวันเช้าหายหลังเที่ยง) — ตรวจทุกนาที วาดใหม่เฉพาะเมื่อป้ายเปลี่ยน
+  const leaveSig = () => slides.map((sl) => leaveLabel(sl)).join("|");
+  let lastLeave = leaveSig();
+  const leaveTimer = setInterval(() => {
+    if (!section.isConnected) { clearInterval(leaveTimer); return; }
+    const sig = leaveSig();
+    if (sig === lastLeave || busy) return;
+    lastLeave = sig;
+    body.innerHTML = slideBody(slides[ui.index]);
+    renderCards();
+  }, 60 * 1000);
 
   // ข้อมูลสถิติย้อนหลังโหลดเสร็จ/อัปเดต → คำนวณใหม่ (ไม่เปลี่ยนสไลด์ที่ดูอยู่)
   const offLegacy = onLegacyChange(() => {
