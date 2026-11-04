@@ -15,7 +15,7 @@ import {
   transferRequester,
   updateWorkStatus,
 } from "../services/request-service.js";
-import { getAuditHistory } from "../services/audit-service.js";
+import { getAuditHistory, mergeHistory, requestEvents } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, SAME_DAY_PRIORITY, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
@@ -1807,7 +1807,7 @@ export function openRequestDetail(request) {
   const modalRoot = document.querySelector("#modal-root");
   if (modalRoot) hydrateRequesterFiles(modalRoot);
   if (canAct && modalRoot) bindDetailActions(modalRoot, request, closeDetail);
-  loadAuditTimeline(request.requestNo);
+  loadAuditTimeline(request);
 }
 
 /** ปุ่มอัปเดตสถานะ / เสร็จสิ้นส่งงาน / ยกเลิก ใน popup รายละเอียด — ใช้ขั้นตอนเดียวกับตารางติดตามงาน */
@@ -1853,24 +1853,28 @@ function bindDetailActions(root, request, closeDetail) {
   });
 }
 
-async function loadAuditTimeline(requestNo) {
+async function loadAuditTimeline(request) {
   const slot = document.querySelector("#audit-timeline-slot");
   if (!slot) return; // ผู้ใช้ปิด modal ไปแล้วก่อนโหลดเสร็จ
 
+  // ประวัติ = บันทึกใน AuditLog + ขั้นตอนหลักจากวันเวลาในตัวคำร้อง (ไม่ว่างแม้ AuditLog บางรายการหายไป)
+  const derived = requestEvents(request);
+  let audit = [];
+  let failed = false;
   try {
-    const history = await getAuditHistory(requestNo);
-    const freshSlot = document.querySelector("#audit-timeline-slot");
-    if (!freshSlot) return; // เช็คซ้ำเผื่อปิด modal ระหว่างรอ fetch
-
-    if (!history.length) {
-      freshSlot.innerHTML = `<div class="timeline-empty">ยังไม่มีประวัติบันทึกไว้</div>`;
-      return;
-    }
-    freshSlot.innerHTML = history.map(timelineEntry).join("");
+    audit = await getAuditHistory(request.requestNo);
   } catch (error) {
-    const freshSlot = document.querySelector("#audit-timeline-slot");
-    if (freshSlot) freshSlot.innerHTML = `<div class="timeline-empty">โหลดประวัติไม่สำเร็จ</div>`;
+    failed = true;
+    console.warn("โหลดประวัติคำร้องไม่สำเร็จ:", error.message);
   }
+  const freshSlot = document.querySelector("#audit-timeline-slot");
+  if (!freshSlot) return; // เช็คซ้ำเผื่อปิด modal ระหว่างรอ fetch
+
+  const history = mergeHistory(audit, derived);
+  const warn = failed ? `<div class="timeline-empty">⚠️ โหลดบันทึกละเอียด (AuditLog) ไม่สำเร็จ — แสดงขั้นตอนหลักจากข้อมูลคำร้อง</div>` : "";
+  freshSlot.innerHTML = history.length
+    ? warn + history.map(timelineEntry).join("")
+    : warn || `<div class="timeline-empty">ยังไม่มีประวัติบันทึกไว้</div>`;
 }
 
 function timelineEntry(entry) {
@@ -1879,7 +1883,7 @@ function timelineEntry(entry) {
       <span class="timeline-dot" aria-hidden="true"></span>
       <div class="timeline-item-body">
         <div class="timeline-item-top">
-          <strong>${escapeHtml(entry.action || "—")}</strong>
+          <strong>${escapeHtml(entry.action || "—")}</strong>${entry.derived ? ` <small class="timeline-derived" title="จากวันเวลาที่บันทึกในคำร้อง">• ข้อมูลคำร้อง</small>` : ""}
           <time>${formatDate(entry.actionAt)}</time>
         </div>
         <div class="timeline-item-user">${escapeHtml(entry.userName || entry.userEmail || "—")}</div>

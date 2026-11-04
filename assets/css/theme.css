@@ -3680,3 +3680,6 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none;
 }
 [data-theme] .ts-leave.is-inline { position: static; display: inline-block; margin-left: 10px; vertical-align: middle; font-size: 12px; padding: 3px 10px; pointer-events: auto; }
+
+/* ประวัติคำร้อง: ขั้นที่สร้างจากวันเวลาในคำร้อง (ไม่มีใน AuditLog) */
+.timeline-derived { font-weight: 500; font-size: 11px; color: var(--muted); }
