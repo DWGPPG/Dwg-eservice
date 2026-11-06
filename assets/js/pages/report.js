@@ -443,6 +443,57 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
   const scopeLabel = person ? person.name : "ฝ่ายเขียนแบบ";
 
   return `
+    <div class="kpi-pane" data-kpi-pane="overview">
+    <!-- KPI Note -->
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+      <span style="font-size:10.5px;color:#64748B;background:#F8FAFC;padding:4px 10px;border-radius:6px;border:1px solid #E2E8F0;">
+        📌 KPI วัดจาก "ความผิดพลาดที่เกิดจากฝ่ายเขียนแบบ" เท่านั้น
+      </span>
+    </div>
+    <!-- KPI Cards Row 1: Overview -->
+    <div id="dash-kpi-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+      ${kpiCard("📋","คำร้องทั้งหมด",total,periodTh+" · "+scopeLabel,"#005DAC")}
+      ${kpiCard("✅","เสร็จสิ้น",done,`${total?Math.round(done/total*100):0}% ของทั้งหมด`,"#0DB14B")}
+      ${kpiCard("⚙️","กำลังดำเนินการ",active,"งานที่ยังไม่ปิด","#1D4ED8")}
+      ${kpiCard("⚠️","เกินกำหนด",overdue,overdue>0?"ต้องติดตามด่วน":"อยู่ในเกณฑ์ดี",overdue>0?"#EF4444":"#0DB14B")}
+      ${kpiCard("🎯","FTR Rate",`${ftrRate}%`,"ประสิทธิภาพส่งมอบถูกตั้งแต่ครั้งแรก โดยไม่มีการตีกลับ",ftrRate>=80?"#0DB14B":ftrRate>=60?"#F59E0B":"#EF4444")}
+      ${kpiCard("🚀","ส่งตรงเวลา",`${onTimeRate}%`,`จาก ${withDue.length} งานที่วัดผลได้`,onTimeRate>=80?"#0DB14B":"#F59E0B")}
+      ${kpiCard("🔄","Rework Rate",`${reworkRate}%`,"งานที่มีการแก้ไข",reworkRate<=20?"#0DB14B":reworkRate<=40?"#F59E0B":"#EF4444")}
+      ${kpiCard("⏱️","Avg Cycle Time",avgCycle!==null?`${avgCycle} วัน`:"—","ส่งคำร้อง → เสร็จสิ้น","#7C3AED")}
+    </div>
+    <!-- Extra cards row — filled by dashboard.js -->
+    <div id="dash-extra-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;"></div>
+
+    <!-- Row 2: Efficiency + Quality + Types -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
+      ${pBox("📈 Efficiency KPIs",`
+        ${gauge("FTR Ratio (First-Time Right)",ftrRate,80,"% งานผ่านตั้งแต่ครั้งแรก")}
+        ${gauge("On-Time Delivery Rate",onTimeRate,85,"% งานส่งตรงตามกำหนด")}
+        ${gauge("อัตราปิดงาน",total?Math.round(done/total*100):0,70,"% ของคำร้องทั้งหมด")}
+        <div style="margin-top:10px;padding:9px 12px;background:#F0F9FF;border-radius:8px;border-left:3px solid #005DAC;">
+          <div style="font-size:10px;color:#005DAC;font-weight:600;">⏱️ Avg Cycle Time</div>
+          <div style="font-size:20px;font-weight:800;color:#005DAC;">${avgCycle!==null?avgCycle+" วัน":"ยังไม่มีข้อมูล"}</div>
+          <div style="font-size:10px;color:#64748B;">รับคำร้อง → เสร็จสิ้น</div>
+        </div>
+      `)}
+      ${pBox("🔍 Quality KPIs",`
+        ${gauge("Rework Rate",reworkRate,20,"% งานที่ต้องแก้ไข",true)}
+        ${gauge("Rejection Rate",total?Math.round(rejected/total*100):0,15,"% งานที่ถูกปฏิเสธ",true)}
+        ${gauge("Cancellation Rate",cancelRate,10,"% ยกเลิกหลังเริ่มงาน",true)}
+        <div style="margin-top:10px;padding:9px 12px;background:#FFF7ED;border-radius:8px;border-left:3px solid #F59E0B;">
+          <div style="font-size:10px;color:#D97706;font-weight:600;">⚠️ Rework Impact</div>
+          <div style="font-size:20px;font-weight:800;color:#D97706;">${withRevise+rejected} งาน</div>
+          <div style="font-size:10px;color:#64748B;">ต้องแก้ไขใน${periodTh} (${reworkRate}%)</div>
+        </div>
+      `)}
+      ${pBox(`🏷️ งานแยกตามประเภท <span style="font-size:11px;font-weight:400;color:#94A3B8;">${total} คำร้อง</span>`,`
+        ${typeList.length
+          ? typeList.map(([t,n]) => mBar(t, Math.round(n/maxType*100), "#005DAC", n+" งาน")).join("")
+          : "<div style='color:#94A3B8;font-size:12px;text-align:center;padding:20px 0;'>ไม่มีข้อมูล</div>"}
+      `)}
+    </div>
+    </div>
+    <div class="kpi-pane" data-kpi-pane="workload">
     <!-- Row 0: Workload รายวัน — สแนปช็อตของ "วันนี้" ไม่ขึ้นกับตัวกรองช่วงเวลาที่เลือกไว้บนหน้า -->
     ${(() => {
       // สถานะที่ถือว่า "ไม่เป็นภาระแล้ว" — งานที่ฝ่ายส่งต่อ/ปิดไปแล้ว (ตรงกับนิยามเดียวกับหน้า Dashboard)
@@ -588,195 +639,8 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
         </div>
       `)}
     </div>
-
-    <!-- หมายเหตุ สาเหตุ 1.1-1.4 -->
-    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <span style="font-size:14px;">📋</span>
-        <span style="font-size:12px;font-weight:700;color:#1E293B;">คำอธิบาย: รหัสสาเหตุ 1.1 – 1.4 และผลต่อ KPI</span>
-        <span style="margin-left:auto;font-size:10px;color:#94A3B8;">ใช้ในระบบ Revision · Cancellation · Overdue</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
-        <div style="background:#FEE2E2;border-radius:8px;padding:10px 12px;border-left:3px solid #EF4444;">
-          <div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:4px;">1.1 — ฝ่ายเขียนแบบ</div>
-          <div style="font-size:10.5px;color:#7F1D1D;line-height:1.5;">ความผิดพลาดจากทีมเขียนแบบเอง เช่น เขียนผิด ใส่รายละเอียดไม่ครบ</div>
-          <div style="margin-top:6px;display:inline-block;background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🔴 กระทบ KPI ฝ่ายเขียนแบบ</div>
-        </div>
-        <div style="background:#FEF3C7;border-radius:8px;padding:10px 12px;border-left:3px solid #F59E0B;">
-          <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;">1.2 — ผู้ส่งคำร้อง</div>
-          <div style="font-size:10.5px;color:#78350F;line-height:1.5;">ข้อมูล Spec ไม่ครบ เปลี่ยนความต้องการ หรือส่งคำขอผิดพลาด</div>
-          <div style="margin-top:6px;display:inline-block;background:#F59E0B;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🟡 ไม่กระทบ KPI · ปรับปรุงระบบสั่งงาน</div>
-        </div>
-        <div style="background:#EDE9FE;border-radius:8px;padding:10px 12px;border-left:3px solid #7C3AED;">
-          <div style="font-size:12px;font-weight:700;color:#4C1D95;margin-bottom:4px;">1.3 — งานติดตั้ง</div>
-          <div style="font-size:10.5px;color:#3B0764;line-height:1.5;">หน้างานสั่งเปลี่ยนแปลงหลังเริ่มติดตั้ง เงื่อนไขหน้างานเปลี่ยน</div>
-          <div style="margin-top:6px;display:inline-block;background:#7C3AED;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🟣 ไม่กระทบ KPI · ปรับปรุงความแม่นยำหน้างาน</div>
-        </div>
-        <div style="background:#DBEAFE;border-radius:8px;padding:10px 12px;border-left:3px solid #3B82F6;">
-          <div style="font-size:12px;font-weight:700;color:#1E3A8A;margin-bottom:4px;">1.4 — ลูกค้า</div>
-          <div style="font-size:10.5px;color:#1E40AF;line-height:1.5;">ลูกค้าเปลี่ยนแบบ เพิ่ม Scope กลางทาง หรือแก้ไขความต้องการ</div>
-          <div style="margin-top:6px;display:inline-block;background:#3B82F6;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🔵 ไม่กระทบ KPI · ความเสี่ยงธุรกิจ</div>
-        </div>
-      </div>
-      <div style="margin-top:10px;padding:8px 12px;background:#F0F9FF;border-radius:6px;font-size:11px;color:#0369A1;border-left:3px solid #0EA5E9;">
-        💡 <b>หลักการ:</b> KPI ฝ่ายเขียนแบบวัดจาก <b>สาเหตุ 1.1 เท่านั้น</b> — สาเหตุ 1.2/1.3/1.4 แสดงเพื่อให้ผู้บริหารเห็น "คอขวด" ของแต่ละฝ่าย ไม่ใช้หักคะแนนทีมเขียนแบบ
-      </div>
     </div>
-
-    <!-- หมายเหตุ สาเหตุการยกเลิก 2.1-2.5 -->
-    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-        <span style="font-size:14px;">🚫</span>
-        <span style="font-size:12px;font-weight:700;color:#1E293B;">คำอธิบาย: รหัสสาเหตุ 2.1 – 2.5 และผลต่อ KPI</span>
-        <span style="margin-left:auto;font-size:10px;color:#94A3B8;">ใช้เฉพาะตอน <b>ยกเลิกงาน</b> — คนละชุดกับ 1.1–1.4 ที่ใช้ตอนแก้ไขงาน</span>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
-        ${CANCEL_SOURCES.map((c) => `
-          <div style="background:${c.legendBg};border-radius:8px;padding:10px 12px;border-left:3px solid ${c.legendAccent};display:flex;flex-direction:column;">
-            <div style="font-size:12px;font-weight:700;color:${c.legendTitle};margin-bottom:4px;">${c.code} — ${escapeHtml(c.short)}</div>
-            <div style="font-size:10.5px;color:${c.legendText};line-height:1.5;flex:1;">${escapeHtml(c.desc)}</div>
-            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
-              ${c.countsAsDeptFault
-                ? `<span style="display:inline-block;background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🔴 กระทบ KPI คุณภาพฝ่าย</span>`
-                : ""}
-              ${c.countsAsWasted
-                ? `<span style="display:inline-block;background:#7C3AED;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">💸 นับ Wasted Cost</span>`
-                : `<span style="display:inline-block;background:#94A3B8;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">⚪ ไม่นับ KPI ใดๆ</span>`}
-            </div>
-          </div>`).join("")}
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
-        <div style="padding:8px 12px;background:#FEF2F2;border-radius:6px;font-size:11px;color:#991B1B;border-left:3px solid #EF4444;line-height:1.7;">
-          🔴 <b>Dept-Fault Cancellation Rate</b> — ตัววัด<b>คุณภาพงานของฝ่าย</b><br>
-          <span style="font-size:10.5px;">นับเฉพาะ <b>2.1</b> เท่านั้น (ฝ่ายควบคุมได้เอง)</span>
-        </div>
-        <div style="padding:8px 12px;background:#F5F3FF;border-radius:6px;font-size:11px;color:#5B21B6;border-left:3px solid #7C3AED;line-height:1.7;">
-          💸 <b>Wasted Cost</b> — ตัววัด<b>ความสูญเสีย</b> ไม่ว่าใครผิด<br>
-          <span style="font-size:10.5px;">นับ <b>2.1–2.4</b> · ฝ่ายเป็น<b>ผู้รับผลกระทบ</b> ไม่ใช่ผู้ถูกหักคะแนน</span>
-        </div>
-      </div>
-
-      <div style="margin-top:10px;padding:8px 12px;background:#FFF7ED;border-radius:6px;font-size:11px;color:#9A3412;border-left:3px solid #F97316;line-height:1.7;">
-        ⏱️ <b>ทั้งสองตัวนับเฉพาะกรณีที่ฝ่ายลงมือทำไปแล้ว</b> — ยกเลิกก่อนฝ่ายรับงานไม่นับ ·
-        ชั่วโมงที่สูญเปล่าถ่วงตามจังหวะที่ถูกยกเลิก:
-        ${Object.entries(WASTED_HOURS_BY_STAGE).map(([st, hr]) => `<b>${escapeHtml(STATUS_LABELS[st] || st)}</b> ${hr} ชม.`).join(" · ")}
-      </div>
-    </div>
-
-    <!-- KPI Note -->
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-      <span style="font-size:10.5px;color:#64748B;background:#F8FAFC;padding:4px 10px;border-radius:6px;border:1px solid #E2E8F0;">
-        📌 KPI วัดจาก "ความผิดพลาดที่เกิดจากฝ่ายเขียนแบบ" เท่านั้น
-      </span>
-    </div>
-    <!-- KPI Cards Row 1: Overview -->
-    <div id="dash-kpi-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
-      ${kpiCard("📋","คำร้องทั้งหมด",total,periodTh+" · "+scopeLabel,"#005DAC")}
-      ${kpiCard("✅","เสร็จสิ้น",done,`${total?Math.round(done/total*100):0}% ของทั้งหมด`,"#0DB14B")}
-      ${kpiCard("⚙️","กำลังดำเนินการ",active,"งานที่ยังไม่ปิด","#1D4ED8")}
-      ${kpiCard("⚠️","เกินกำหนด",overdue,overdue>0?"ต้องติดตามด่วน":"อยู่ในเกณฑ์ดี",overdue>0?"#EF4444":"#0DB14B")}
-      ${kpiCard("🎯","FTR Rate",`${ftrRate}%`,"ประสิทธิภาพส่งมอบถูกตั้งแต่ครั้งแรก โดยไม่มีการตีกลับ",ftrRate>=80?"#0DB14B":ftrRate>=60?"#F59E0B":"#EF4444")}
-      ${kpiCard("🚀","ส่งตรงเวลา",`${onTimeRate}%`,`จาก ${withDue.length} งานที่วัดผลได้`,onTimeRate>=80?"#0DB14B":"#F59E0B")}
-      ${kpiCard("🔄","Rework Rate",`${reworkRate}%`,"งานที่มีการแก้ไข",reworkRate<=20?"#0DB14B":reworkRate<=40?"#F59E0B":"#EF4444")}
-      ${kpiCard("⏱️","Avg Cycle Time",avgCycle!==null?`${avgCycle} วัน`:"—","ส่งคำร้อง → เสร็จสิ้น","#7C3AED")}
-    </div>
-    <!-- Extra cards row — filled by dashboard.js -->
-    <div id="dash-extra-row" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;"></div>
-
-    <!-- Row 2: Efficiency + Quality + Types -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;">
-      ${pBox("📈 Efficiency KPIs",`
-        ${gauge("FTR Ratio (First-Time Right)",ftrRate,80,"% งานผ่านตั้งแต่ครั้งแรก")}
-        ${gauge("On-Time Delivery Rate",onTimeRate,85,"% งานส่งตรงตามกำหนด")}
-        ${gauge("อัตราปิดงาน",total?Math.round(done/total*100):0,70,"% ของคำร้องทั้งหมด")}
-        <div style="margin-top:10px;padding:9px 12px;background:#F0F9FF;border-radius:8px;border-left:3px solid #005DAC;">
-          <div style="font-size:10px;color:#005DAC;font-weight:600;">⏱️ Avg Cycle Time</div>
-          <div style="font-size:20px;font-weight:800;color:#005DAC;">${avgCycle!==null?avgCycle+" วัน":"ยังไม่มีข้อมูล"}</div>
-          <div style="font-size:10px;color:#64748B;">รับคำร้อง → เสร็จสิ้น</div>
-        </div>
-      `)}
-      ${pBox("🔍 Quality KPIs",`
-        ${gauge("Rework Rate",reworkRate,20,"% งานที่ต้องแก้ไข",true)}
-        ${gauge("Rejection Rate",total?Math.round(rejected/total*100):0,15,"% งานที่ถูกปฏิเสธ",true)}
-        ${gauge("Cancellation Rate",cancelRate,10,"% ยกเลิกหลังเริ่มงาน",true)}
-        <div style="margin-top:10px;padding:9px 12px;background:#FFF7ED;border-radius:8px;border-left:3px solid #F59E0B;">
-          <div style="font-size:10px;color:#D97706;font-weight:600;">⚠️ Rework Impact</div>
-          <div style="font-size:20px;font-weight:800;color:#D97706;">${withRevise+rejected} งาน</div>
-          <div style="font-size:10px;color:#64748B;">ต้องแก้ไขใน${periodTh} (${reworkRate}%)</div>
-        </div>
-      `)}
-      ${pBox(`🏷️ งานแยกตามประเภท <span style="font-size:11px;font-weight:400;color:#94A3B8;">${total} คำร้อง</span>`,`
-        ${typeList.length
-          ? typeList.map(([t,n]) => mBar(t, Math.round(n/maxType*100), "#005DAC", n+" งาน")).join("")
-          : "<div style='color:#94A3B8;font-size:12px;text-align:center;padding:20px 0;'>ไม่มีข้อมูล</div>"}
-      `)}
-    </div>
-
-    <!-- Row 2.5: Drawing Quality Score + External Blockers -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
-
-      ${pBox(`🏆 Drawing Quality Score <span style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px;">วัดจากสาเหตุความผิดพลาดจากฝ่ายเขียนแบบเท่านั้น</span>`, `
-        <div style="display:flex;align-items:center;gap:20px;margin-bottom:14px;">
-          <div style="text-align:center;min-width:90px;">
-            <div style="font-size:52px;font-weight:900;color:${qualityScore>=80?"#0DB14B":qualityScore>=60?"#F59E0B":"#EF4444"};line-height:1;">${qualityScore}%</div>
-            <div style="margin-top:6px;">
-              <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${qualityScore>=80?"#DCFCE7":"#FEE2E2"};color:${qualityScore>=80?"#065F46":"#991B1B"};">
-                ${qualityScore>=80?"✅ ผ่านเกณฑ์":"❌ ต่ำกว่าเกณฑ์"}
-              </span>
-            </div>
-          </div>
-          <div style="flex:1;">
-            <div style="background:#F1F5F9;border-radius:8px;height:14px;overflow:hidden;margin-bottom:6px;position:relative;">
-              <div style="background:${qualityScore>=80?"#0DB14B":qualityScore>=60?"#F59E0B":"#EF4444"};height:100%;width:${qualityScore}%;border-radius:8px;transition:width 0.4s;"></div>
-              <!-- เส้นเป้าหมาย 80% -->
-              <div style="position:absolute;top:0;left:80%;width:2px;height:100%;background:#1E293B;opacity:0.4;"></div>
-            </div>
-            <div style="font-size:10px;color:#64748B;margin-bottom:8px;">เป้าหมาย &gt; 80% · วัดจาก ${qualityMeasurable.length} งาน (สาเหตุ 1.1)</div>
-            <div style="font-size:11px;color:#64748B;line-height:1.8;background:#F8FAFC;border-radius:6px;padding:8px 10px;">
-              • แก้ไข &lt; 4 ครั้ง = <b style="color:#0DB14B;">100%</b> (ผ่านเกณฑ์ปกติ)<br>
-              • แก้ไข ≥ 4 ครั้ง = <b style="color:#EF4444;">20%</b> (หักหนัก — ปัญหาซ้ำซาก)<br>
-              • สาเหตุ 1.2, 1.3, 1.4 = <b style="color:#94A3B8;">Excluded</b> (ไม่นำมาคำนวณ)
-            </div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px;">
-          <div style="background:#FEF2F2;border-radius:8px;padding:8px 10px;text-align:center;border-left:3px solid #EF4444;">
-            <div style="font-weight:700;color:#991B1B;font-size:16px;">${internalFaultRows.length}</div>
-            <div style="color:#991B1B;">สาเหตุ 1.1<br>ฝ่ายเขียนแบบ</div>
-          </div>
-          <div style="background:#F0FDF4;border-radius:8px;padding:8px 10px;text-align:center;border-left:3px solid #0DB14B;">
-            <div style="font-weight:700;color:#065F46;font-size:16px;">${externalFaultRows.length}</div>
-            <div style="color:#065F46;">สาเหตุ 1.2-1.4<br>ภายนอก (ยกเว้น)</div>
-          </div>
-          <div style="background:#F8FAFC;border-radius:8px;padding:8px 10px;text-align:center;border-left:3px solid #94A3B8;">
-            <div style="font-weight:700;color:#475569;font-size:16px;">${excludedRows.length}</div>
-            <div style="color:#475569;">ไม่ระบุ<br>สาเหตุ</div>
-          </div>
-        </div>
-      `)}
-
-      ${pBox(`🚧 External Blockers — สาเหตุจากภายนอก <span style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px;">ไม่กระทบ KPI ฝ่ายเขียนแบบ</span>`, `
-        ${extTotal > 0 ? `
-          ${mBar("1.2 ผิดพลาดจากผู้ส่งคำร้อง", Math.round(ext12/maxExt*100), "#3B82F6", ext12+" งาน")}
-          ${mBar("1.3 ผิดพลาดจากงานติดตั้ง", Math.round(ext13/maxExt*100), "#8B5CF6", ext13+" งาน")}
-          ${mBar("1.4 ผิดพลาดจากลูกค้า", Math.round(ext14/maxExt*100), "#F59E0B", ext14+" งาน")}
-          <div style="margin-top:12px;padding:10px 12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #3B82F6;font-size:11px;color:#1E40AF;">
-            💡 <b>ใช้ข้อมูลนี้</b>คุยกับแผนกอื่น/ลูกค้าเพื่อแก้ปัญหาคอขวด<br>
-            งานเหล่านี้ <b>ไม่ถูกนำมาคิดหักคะแนน</b> Drawing Quality Score
-          </div>
-        ` : `
-          <div style="text-align:center;padding:30px 0;color:#94A3B8;font-size:13px;">
-            ✅ ไม่มี External Blocker ในช่วงนี้<br>
-            <span style="font-size:11px;">ยังไม่มีข้อมูลสาเหตุ 1.2-1.4</span>
-          </div>
-        `}
-        <div style="margin-top:10px;padding:8px 12px;background:#F0FDF4;border-radius:8px;font-size:11px;color:#065F46;">
-          📊 Rework Rate รวม: ${reworkRate}% (นับทุกสาเหตุ) · Drawing Quality Score วัดเฉพาะ 1.1
-        </div>
-      `)}
-    </div>
-
+    <div class="kpi-pane" data-kpi-pane="overdue">
     <!-- Row 3: OVERDUE KPI SECTION -->
     <div style="background:#FFF1F2;border:1.5px solid #FECACA;border-radius:14px;padding:20px;margin-bottom:14px;">
       <div style="font-size:14px;font-weight:700;color:#991B1B;margin-bottom:6px;">
@@ -982,6 +846,128 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
       </div>`;
     })()}
 
+    </div>
+    <div class="kpi-pane" data-kpi-pane="cancel">
+    <!-- Row 3.5: CANCELLATION KPI SECTION -->
+    <div style="background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:14px;padding:20px;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:700;color:#5B21B6;margin-bottom:6px;">
+        🚫 งานที่ถูกยกเลิก (Cancellation KPI)
+        <span style="font-size:11px;font-weight:400;color:#7C3AED;margin-left:8px;">${cancelCount} รายการที่นับเข้า KPI · ${periodTh}</span>
+      </div>
+      <div style="margin-bottom:14px;padding:9px 12px;background:#EDE9FE;border-radius:8px;font-size:10.5px;color:#5B21B6;line-height:1.7;">
+        📌 <b>แยกเป็น 2 ตัวชี้วัด</b> — ทั้งคู่นับเฉพาะกรณีที่<b>ฝ่ายลงมือทำไปแล้ว</b>
+        <br>🔴 <b>Dept-Fault Rate</b> = ฝ่ายเขียนแบบผิดเอง (รหัส 2.1) → <b>ตัววัดคุณภาพงานของฝ่าย</b>
+        <br>💸 <b>Wasted Cost</b> = ชั่วโมงที่ลงแรงไปแล้วสูญเปล่า (รหัส 2.1–2.4 ไม่ว่าใครผิด) → <b>ตัววัดความสูญเสีย ฝ่ายเป็นผู้รับผลกระทบ</b>
+        ${preStartCancelCount + adminCancelCount + unknownCancelCount + rejectedBackCount > 0 ? `<br>
+        ⛔ <b>ไม่นับทั้งสองตัว:</b>
+        ${preStartCancelCount > 0 ? `ยกเลิกก่อนฝ่ายลงมือ <b>${preStartCancelCount}</b> · ` : ""}
+        ${adminCancelCount > 0 ? `ธุรการ 2.5 คำร้องซ้ำ/คีย์ผิด <b>${adminCancelCount}</b> · ` : ""}
+        ${unknownCancelCount > 0 ? `ยังไม่ระบุต้นเหตุ (ข้อมูลเก่า) <b>${unknownCancelCount}</b> · ` : ""}
+        ${rejectedBackCount > 0 ? `ตีกลับ/ส่งกลับผู้ร้องขอ <b>${rejectedBackCount}</b>` : ""}` : ""}
+      </div>
+
+      <!-- KPI Cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
+        ${kpiCard("🔴","Dept-Fault Cancellation Rate",`${deptFaultRate}%`,`ฝ่ายผิดเอง ${deptFaultCount} จาก ${total} คำร้อง — ตัววัดคุณภาพงานของฝ่าย`,deptFaultRate<=2?"#0DB14B":deptFaultRate<=5?"#F59E0B":"#EF4444")}
+        ${kpiCard("💸","Wasted Cost",cancelCost>0?`~${cancelCost.toLocaleString()} ฿`:"—",`${wastedHours} ชม. × ${CANCEL_RATE_PER_HOUR} ฿ จาก ${cancelCount} งาน — ความสูญเสีย ไม่ว่าใครผิด`,"#7C3AED")}
+        ${kpiCard("⏱️","ชั่วโมงที่สูญเปล่า",wastedHours>0?`${wastedHours} ชม.`:"—","ถ่วงตามจังหวะที่ถูกยกเลิก","#EA580C")}
+        ${kpiCard("🚫","ยกเลิกทั้งหมด",allCancelledRows.length,`นับเข้า Wasted Cost ${cancelCount} · ไม่นับ ${allCancelledRows.length - cancelCount}`,"#64748B")}
+      </div>
+
+      <!-- Charts row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+
+        <!-- Donut Chart (SVG) — สัดส่วนต้นเหตุ 2.1–2.5 -->
+        ${pBox(`🍩 สัดส่วนต้นเหตุการยกเลิก`, (() => {
+          if (!cancelBreakdown.length) return `<div style="text-align:center;padding:30px 0;color:#94A3B8;font-size:13px;">✅ ไม่มีงานยกเลิกหลังฝ่ายลงมือในช่วงนี้</div>`;
+          const slices = cancelBreakdown.map((b) => ({ label: `${b.code} ${b.short}`, val: b.count, color: b.bar, kpi: b.countsAsDeptFault }));
+          const total_c = slices.reduce((s, i) => s + i.val, 0) || 1;
+          let svgPaths = ""; let legendHtml = ""; let cumPct = 0;
+          const cx = 70, cy = 70, r = 55, ri = 32;
+          const toRad = (pct) => (pct / 100) * 2 * Math.PI - Math.PI / 2;
+          slices.forEach((sl) => {
+            const pct = sl.val / total_c * 100;
+            const sAngle = toRad(cumPct), eAngle = toRad(cumPct + pct);
+            const large = pct > 50 ? 1 : 0;
+            // ชิ้นเดียวกินเต็มวง (100%) — จุดเริ่มกับจุดจบทับกัน วาด arc ไม่ออก
+            // ต้องวาดเป็นวงแหวนเต็มด้วยวงกลม 2 ชั้นแทน
+            if (pct >= 99.999) {
+              svgPaths += `<circle cx="${cx}" cy="${cy}" r="${(r + ri) / 2}" fill="none" stroke="${sl.color}" stroke-width="${r - ri}" opacity="0.9"/>`;
+              legendHtml += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;color:#334155;">
+                <div style="width:10px;height:10px;border-radius:50%;background:${sl.color};flex-shrink:0;"></div>
+                <span style="font-weight:${sl.kpi?"700":"400"};">${escapeHtml(sl.label)}${sl.kpi?" 🔴":""}</span>
+                <span style="margin-left:auto;font-weight:700;">${sl.val} (100%)</span>
+              </div>`;
+              cumPct += pct;
+              return;
+            }
+            const x1 = cx + r * Math.cos(sAngle), y1 = cy + r * Math.sin(sAngle);
+            const x2 = cx + r * Math.cos(eAngle), y2 = cy + r * Math.sin(eAngle);
+            const xi1 = cx + ri * Math.cos(sAngle), yi1 = cy + ri * Math.sin(sAngle);
+            const xi2 = cx + ri * Math.cos(eAngle), yi2 = cy + ri * Math.sin(eAngle);
+            svgPaths += `<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${ri},${ri} 0 ${large},0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z" fill="${sl.color}" opacity="0.9"/>`;
+            legendHtml += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;color:#334155;">
+              <div style="width:10px;height:10px;border-radius:50%;background:${sl.color};flex-shrink:0;"></div>
+              <span style="font-weight:${sl.kpi?"700":"400"};">${escapeHtml(sl.label)}${sl.kpi?" 🔴":""}</span>
+              <span style="margin-left:auto;font-weight:700;">${sl.val} (${Math.round(pct)}%)</span>
+            </div>`;
+            cumPct += pct;
+          });
+          return `<div style="display:flex;align-items:center;gap:20px;">
+            <div style="flex-shrink:0;">
+              <svg width="140" height="140" viewBox="0 0 140 140">
+                ${svgPaths}
+                <text x="70" y="65" text-anchor="middle" font-size="18" font-weight="bold" fill="#1E293B">${total_c}</text>
+                <text x="70" y="82" text-anchor="middle" font-size="9" fill="#64748B">งานยกเลิก</text>
+              </svg>
+            </div>
+            <div style="flex:1;">${legendHtml}
+              <div style="margin-top:8px;padding:7px 10px;background:#EDE9FE;border-radius:6px;font-size:10px;color:#5B21B6;line-height:1.6;">
+                🔴 <b>2.1</b> = ฝ่ายผิดเอง → นับ <b>KPI คุณภาพฝ่าย</b><br>
+                🟡🟠🔵 <b>2.2–2.4</b> = ปัจจัยภายนอก → นับเฉพาะ <b>Wasted Cost</b><br>
+                ⚪ <b>2.5</b> ธุรการ = ไม่นับ KPI ใดๆ
+              </div>
+            </div>
+          </div>`;
+        })())}
+
+        <!-- Bar Chart: Wasted Cost แยกตามต้นเหตุ + จังหวะ -->
+        ${pBox(`📊 Wasted Cost แยกตามต้นเหตุ`, (() => {
+          if (!cancelBreakdown.length) return `<div style="text-align:center;padding:30px 0;color:#94A3B8;font-size:13px;">✅ ไม่มีต้นทุนที่เสียเปล่า</div>`;
+          return cancelBreakdown.map((b) => `
+            <div style="margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+                <span style="font-size:11px;color:#334155;font-weight:${b.countsAsDeptFault?"700":"400"};">${escapeHtml(`${b.code} ${b.short}`)}${b.countsAsDeptFault?" 🔴":""}</span>
+                <span style="font-size:11px;font-weight:700;color:${b.countsAsWasted&&b.cost>0?b.bar:"#94A3B8"};">${b.countsAsWasted&&b.cost>0?"~"+b.cost.toLocaleString()+" ฿":"ไม่นับ"}</span>
+              </div>
+              <div style="background:#F1F5F9;border-radius:4px;height:10px;overflow:hidden;">
+                <div style="background:${b.bar};height:100%;width:${b.countsAsWasted&&b.cost>0?Math.round(b.cost/maxCancelCost*100):0}%;border-radius:4px;opacity:${b.countsAsDeptFault?1:0.65};"></div>
+              </div>
+              <div style="font-size:9.5px;color:#94A3B8;margin-top:2px;">${b.countsAsWasted
+                ? `${b.count} งาน · ${b.hours} ชม. × ${CANCEL_RATE_PER_HOUR} ฿${b.countsAsDeptFault ? " — กระทบ KPI คุณภาพด้วย" : ""}`
+                : `${b.count} งาน — ${b.code === "2.5" ? "ธุรการ ไม่ได้ลงมือเขียนจริง" : "ยังไม่ระบุต้นเหตุ"} จึงไม่คิดต้นทุน`}</div>
+            </div>
+          `).join("") + (wastedByStage.length ? `
+            <div style="border-top:1px dashed #E2E8F0;margin:14px 0 10px;"></div>
+            <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:8px;">⏱️ ชั่วโมงที่สูญเปล่า แยกตามจังหวะที่ยกเลิก</div>
+            ${wastedByStage.map((x) => `
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+                <span style="font-size:10.5px;color:#475569;width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(x.label)}">${escapeHtml(x.label)}</span>
+                <div style="flex:1;background:#F1F5F9;border-radius:4px;height:9px;overflow:hidden;">
+                  <div style="background:#EA580C;height:100%;width:${Math.round(x.hours/maxStageHours*100)}%;border-radius:4px;"></div>
+                </div>
+                <span style="font-size:10.5px;font-weight:700;color:#EA580C;width:58px;text-align:right;white-space:nowrap;">${x.count}×${x.hrs}ชม.</span>
+              </div>`).join("")}
+          ` : "");
+        })())}
+      </div>
+
+      <div style="margin-top:12px;padding:10px 14px;background:#EDE9FE;border-radius:8px;font-size:11px;color:#5B21B6;line-height:1.7;">
+        💡 <b>วิธีใช้ตัวเลข:</b> <b>Dept-Fault Rate</b> ใช้ประเมินคุณภาพงานของฝ่ายเขียนแบบ (ควบคุมได้เอง) ·
+        <b>Wasted Cost</b> จากรหัส 2.2–2.4 คือความสูญเสียที่ฝ่ายเป็นผู้รับผลกระทบ ใช้เป็นหลักฐานเสนอผู้บริหารเรื่องกำลังคนและความนิ่งของงานต้นน้ำ
+        <br>⏱️ <b>ชั่วโมงที่สูญเปล่า</b> ถ่วงตามจังหวะที่ถูกยกเลิก: รับแล้วยังไม่เริ่ม 0.5 ชม. · กำลังเขียน 5 ชม. · ส่งผู้จัดการตรวจแล้ว 6 ชม. · ส่งมอบแล้ว 8 ชม.
+      </div>
+    </div>
     <!-- Row 3.6: TOP 10 รายการยกเลิก (compact 2 คอลัมน์) -->
     ${(() => {
       const cancelledAll = rows.filter((r) => r.status === STATUS.CANCELLED);
@@ -1110,6 +1096,48 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
       </div>`;
     })()}
 
+    <!-- หมายเหตุ สาเหตุการยกเลิก 2.1-2.5 -->
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <span style="font-size:14px;">🚫</span>
+        <span style="font-size:12px;font-weight:700;color:#1E293B;">คำอธิบาย: รหัสสาเหตุ 2.1 – 2.5 และผลต่อ KPI</span>
+        <span style="margin-left:auto;font-size:10px;color:#94A3B8;">ใช้เฉพาะตอน <b>ยกเลิกงาน</b> — คนละชุดกับ 1.1–1.4 ที่ใช้ตอนแก้ไขงาน</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;">
+        ${CANCEL_SOURCES.map((c) => `
+          <div style="background:${c.legendBg};border-radius:8px;padding:10px 12px;border-left:3px solid ${c.legendAccent};display:flex;flex-direction:column;">
+            <div style="font-size:12px;font-weight:700;color:${c.legendTitle};margin-bottom:4px;">${c.code} — ${escapeHtml(c.short)}</div>
+            <div style="font-size:10.5px;color:${c.legendText};line-height:1.5;flex:1;">${escapeHtml(c.desc)}</div>
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px;">
+              ${c.countsAsDeptFault
+                ? `<span style="display:inline-block;background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🔴 กระทบ KPI คุณภาพฝ่าย</span>`
+                : ""}
+              ${c.countsAsWasted
+                ? `<span style="display:inline-block;background:#7C3AED;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">💸 นับ Wasted Cost</span>`
+                : `<span style="display:inline-block;background:#94A3B8;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">⚪ ไม่นับ KPI ใดๆ</span>`}
+            </div>
+          </div>`).join("")}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+        <div style="padding:8px 12px;background:#FEF2F2;border-radius:6px;font-size:11px;color:#991B1B;border-left:3px solid #EF4444;line-height:1.7;">
+          🔴 <b>Dept-Fault Cancellation Rate</b> — ตัววัด<b>คุณภาพงานของฝ่าย</b><br>
+          <span style="font-size:10.5px;">นับเฉพาะ <b>2.1</b> เท่านั้น (ฝ่ายควบคุมได้เอง)</span>
+        </div>
+        <div style="padding:8px 12px;background:#F5F3FF;border-radius:6px;font-size:11px;color:#5B21B6;border-left:3px solid #7C3AED;line-height:1.7;">
+          💸 <b>Wasted Cost</b> — ตัววัด<b>ความสูญเสีย</b> ไม่ว่าใครผิด<br>
+          <span style="font-size:10.5px;">นับ <b>2.1–2.4</b> · ฝ่ายเป็น<b>ผู้รับผลกระทบ</b> ไม่ใช่ผู้ถูกหักคะแนน</span>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;padding:8px 12px;background:#FFF7ED;border-radius:6px;font-size:11px;color:#9A3412;border-left:3px solid #F97316;line-height:1.7;">
+        ⏱️ <b>ทั้งสองตัวนับเฉพาะกรณีที่ฝ่ายลงมือทำไปแล้ว</b> — ยกเลิกก่อนฝ่ายรับงานไม่นับ ·
+        ชั่วโมงที่สูญเปล่าถ่วงตามจังหวะที่ถูกยกเลิก:
+        ${Object.entries(WASTED_HOURS_BY_STAGE).map(([st, hr]) => `<b>${escapeHtml(STATUS_LABELS[st] || st)}</b> ${hr} ชม.`).join(" · ")}
+      </div>
+    </div>
+    </div>
+    <div class="kpi-pane" data-kpi-pane="revision">
     <!-- Row 3.7: TOP 10 REVISION — Drawing ที่แก้บ่อยสุด + สาเหตุ -->
     ${(() => {
       const revRows = rows.filter((r) =>
@@ -1258,125 +1286,102 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
       </div>`;
     })()}
 
-    <!-- Row 3.5: CANCELLATION KPI SECTION -->
-    <div style="background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:14px;padding:20px;margin-bottom:14px;">
-      <div style="font-size:14px;font-weight:700;color:#5B21B6;margin-bottom:6px;">
-        🚫 งานที่ถูกยกเลิก (Cancellation KPI)
-        <span style="font-size:11px;font-weight:400;color:#7C3AED;margin-left:8px;">${cancelCount} รายการที่นับเข้า KPI · ${periodTh}</span>
-      </div>
-      <div style="margin-bottom:14px;padding:9px 12px;background:#EDE9FE;border-radius:8px;font-size:10.5px;color:#5B21B6;line-height:1.7;">
-        📌 <b>แยกเป็น 2 ตัวชี้วัด</b> — ทั้งคู่นับเฉพาะกรณีที่<b>ฝ่ายลงมือทำไปแล้ว</b>
-        <br>🔴 <b>Dept-Fault Rate</b> = ฝ่ายเขียนแบบผิดเอง (รหัส 2.1) → <b>ตัววัดคุณภาพงานของฝ่าย</b>
-        <br>💸 <b>Wasted Cost</b> = ชั่วโมงที่ลงแรงไปแล้วสูญเปล่า (รหัส 2.1–2.4 ไม่ว่าใครผิด) → <b>ตัววัดความสูญเสีย ฝ่ายเป็นผู้รับผลกระทบ</b>
-        ${preStartCancelCount + adminCancelCount + unknownCancelCount + rejectedBackCount > 0 ? `<br>
-        ⛔ <b>ไม่นับทั้งสองตัว:</b>
-        ${preStartCancelCount > 0 ? `ยกเลิกก่อนฝ่ายลงมือ <b>${preStartCancelCount}</b> · ` : ""}
-        ${adminCancelCount > 0 ? `ธุรการ 2.5 คำร้องซ้ำ/คีย์ผิด <b>${adminCancelCount}</b> · ` : ""}
-        ${unknownCancelCount > 0 ? `ยังไม่ระบุต้นเหตุ (ข้อมูลเก่า) <b>${unknownCancelCount}</b> · ` : ""}
-        ${rejectedBackCount > 0 ? `ตีกลับ/ส่งกลับผู้ร้องขอ <b>${rejectedBackCount}</b>` : ""}` : ""}
-      </div>
+    <!-- Row 2.5: Drawing Quality Score + External Blockers -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
 
-      <!-- KPI Cards -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
-        ${kpiCard("🔴","Dept-Fault Cancellation Rate",`${deptFaultRate}%`,`ฝ่ายผิดเอง ${deptFaultCount} จาก ${total} คำร้อง — ตัววัดคุณภาพงานของฝ่าย`,deptFaultRate<=2?"#0DB14B":deptFaultRate<=5?"#F59E0B":"#EF4444")}
-        ${kpiCard("💸","Wasted Cost",cancelCost>0?`~${cancelCost.toLocaleString()} ฿`:"—",`${wastedHours} ชม. × ${CANCEL_RATE_PER_HOUR} ฿ จาก ${cancelCount} งาน — ความสูญเสีย ไม่ว่าใครผิด`,"#7C3AED")}
-        ${kpiCard("⏱️","ชั่วโมงที่สูญเปล่า",wastedHours>0?`${wastedHours} ชม.`:"—","ถ่วงตามจังหวะที่ถูกยกเลิก","#EA580C")}
-        ${kpiCard("🚫","ยกเลิกทั้งหมด",allCancelledRows.length,`นับเข้า Wasted Cost ${cancelCount} · ไม่นับ ${allCancelledRows.length - cancelCount}`,"#64748B")}
-      </div>
-
-      <!-- Charts row -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-
-        <!-- Donut Chart (SVG) — สัดส่วนต้นเหตุ 2.1–2.5 -->
-        ${pBox(`🍩 สัดส่วนต้นเหตุการยกเลิก`, (() => {
-          if (!cancelBreakdown.length) return `<div style="text-align:center;padding:30px 0;color:#94A3B8;font-size:13px;">✅ ไม่มีงานยกเลิกหลังฝ่ายลงมือในช่วงนี้</div>`;
-          const slices = cancelBreakdown.map((b) => ({ label: `${b.code} ${b.short}`, val: b.count, color: b.bar, kpi: b.countsAsDeptFault }));
-          const total_c = slices.reduce((s, i) => s + i.val, 0) || 1;
-          let svgPaths = ""; let legendHtml = ""; let cumPct = 0;
-          const cx = 70, cy = 70, r = 55, ri = 32;
-          const toRad = (pct) => (pct / 100) * 2 * Math.PI - Math.PI / 2;
-          slices.forEach((sl) => {
-            const pct = sl.val / total_c * 100;
-            const sAngle = toRad(cumPct), eAngle = toRad(cumPct + pct);
-            const large = pct > 50 ? 1 : 0;
-            // ชิ้นเดียวกินเต็มวง (100%) — จุดเริ่มกับจุดจบทับกัน วาด arc ไม่ออก
-            // ต้องวาดเป็นวงแหวนเต็มด้วยวงกลม 2 ชั้นแทน
-            if (pct >= 99.999) {
-              svgPaths += `<circle cx="${cx}" cy="${cy}" r="${(r + ri) / 2}" fill="none" stroke="${sl.color}" stroke-width="${r - ri}" opacity="0.9"/>`;
-              legendHtml += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;color:#334155;">
-                <div style="width:10px;height:10px;border-radius:50%;background:${sl.color};flex-shrink:0;"></div>
-                <span style="font-weight:${sl.kpi?"700":"400"};">${escapeHtml(sl.label)}${sl.kpi?" 🔴":""}</span>
-                <span style="margin-left:auto;font-weight:700;">${sl.val} (100%)</span>
-              </div>`;
-              cumPct += pct;
-              return;
-            }
-            const x1 = cx + r * Math.cos(sAngle), y1 = cy + r * Math.sin(sAngle);
-            const x2 = cx + r * Math.cos(eAngle), y2 = cy + r * Math.sin(eAngle);
-            const xi1 = cx + ri * Math.cos(sAngle), yi1 = cy + ri * Math.sin(sAngle);
-            const xi2 = cx + ri * Math.cos(eAngle), yi2 = cy + ri * Math.sin(eAngle);
-            svgPaths += `<path d="M${xi1.toFixed(1)},${yi1.toFixed(1)} L${x1.toFixed(1)},${y1.toFixed(1)} A${r},${r} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} L${xi2.toFixed(1)},${yi2.toFixed(1)} A${ri},${ri} 0 ${large},0 ${xi1.toFixed(1)},${yi1.toFixed(1)} Z" fill="${sl.color}" opacity="0.9"/>`;
-            legendHtml += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;color:#334155;">
-              <div style="width:10px;height:10px;border-radius:50%;background:${sl.color};flex-shrink:0;"></div>
-              <span style="font-weight:${sl.kpi?"700":"400"};">${escapeHtml(sl.label)}${sl.kpi?" 🔴":""}</span>
-              <span style="margin-left:auto;font-weight:700;">${sl.val} (${Math.round(pct)}%)</span>
-            </div>`;
-            cumPct += pct;
-          });
-          return `<div style="display:flex;align-items:center;gap:20px;">
-            <div style="flex-shrink:0;">
-              <svg width="140" height="140" viewBox="0 0 140 140">
-                ${svgPaths}
-                <text x="70" y="65" text-anchor="middle" font-size="18" font-weight="bold" fill="#1E293B">${total_c}</text>
-                <text x="70" y="82" text-anchor="middle" font-size="9" fill="#64748B">งานยกเลิก</text>
-              </svg>
+      ${pBox(`🏆 Drawing Quality Score <span style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px;">วัดจากสาเหตุความผิดพลาดจากฝ่ายเขียนแบบเท่านั้น</span>`, `
+        <div style="display:flex;align-items:center;gap:20px;margin-bottom:14px;">
+          <div style="text-align:center;min-width:90px;">
+            <div style="font-size:52px;font-weight:900;color:${qualityScore>=80?"#0DB14B":qualityScore>=60?"#F59E0B":"#EF4444"};line-height:1;">${qualityScore}%</div>
+            <div style="margin-top:6px;">
+              <span style="display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;background:${qualityScore>=80?"#DCFCE7":"#FEE2E2"};color:${qualityScore>=80?"#065F46":"#991B1B"};">
+                ${qualityScore>=80?"✅ ผ่านเกณฑ์":"❌ ต่ำกว่าเกณฑ์"}
+              </span>
             </div>
-            <div style="flex:1;">${legendHtml}
-              <div style="margin-top:8px;padding:7px 10px;background:#EDE9FE;border-radius:6px;font-size:10px;color:#5B21B6;line-height:1.6;">
-                🔴 <b>2.1</b> = ฝ่ายผิดเอง → นับ <b>KPI คุณภาพฝ่าย</b><br>
-                🟡🟠🔵 <b>2.2–2.4</b> = ปัจจัยภายนอก → นับเฉพาะ <b>Wasted Cost</b><br>
-                ⚪ <b>2.5</b> ธุรการ = ไม่นับ KPI ใดๆ
-              </div>
+          </div>
+          <div style="flex:1;">
+            <div style="background:#F1F5F9;border-radius:8px;height:14px;overflow:hidden;margin-bottom:6px;position:relative;">
+              <div style="background:${qualityScore>=80?"#0DB14B":qualityScore>=60?"#F59E0B":"#EF4444"};height:100%;width:${qualityScore}%;border-radius:8px;transition:width 0.4s;"></div>
+              <!-- เส้นเป้าหมาย 80% -->
+              <div style="position:absolute;top:0;left:80%;width:2px;height:100%;background:#1E293B;opacity:0.4;"></div>
             </div>
-          </div>`;
-        })())}
-
-        <!-- Bar Chart: Wasted Cost แยกตามต้นเหตุ + จังหวะ -->
-        ${pBox(`📊 Wasted Cost แยกตามต้นเหตุ`, (() => {
-          if (!cancelBreakdown.length) return `<div style="text-align:center;padding:30px 0;color:#94A3B8;font-size:13px;">✅ ไม่มีต้นทุนที่เสียเปล่า</div>`;
-          return cancelBreakdown.map((b) => `
-            <div style="margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
-                <span style="font-size:11px;color:#334155;font-weight:${b.countsAsDeptFault?"700":"400"};">${escapeHtml(`${b.code} ${b.short}`)}${b.countsAsDeptFault?" 🔴":""}</span>
-                <span style="font-size:11px;font-weight:700;color:${b.countsAsWasted&&b.cost>0?b.bar:"#94A3B8"};">${b.countsAsWasted&&b.cost>0?"~"+b.cost.toLocaleString()+" ฿":"ไม่นับ"}</span>
-              </div>
-              <div style="background:#F1F5F9;border-radius:4px;height:10px;overflow:hidden;">
-                <div style="background:${b.bar};height:100%;width:${b.countsAsWasted&&b.cost>0?Math.round(b.cost/maxCancelCost*100):0}%;border-radius:4px;opacity:${b.countsAsDeptFault?1:0.65};"></div>
-              </div>
-              <div style="font-size:9.5px;color:#94A3B8;margin-top:2px;">${b.countsAsWasted
-                ? `${b.count} งาน · ${b.hours} ชม. × ${CANCEL_RATE_PER_HOUR} ฿${b.countsAsDeptFault ? " — กระทบ KPI คุณภาพด้วย" : ""}`
-                : `${b.count} งาน — ${b.code === "2.5" ? "ธุรการ ไม่ได้ลงมือเขียนจริง" : "ยังไม่ระบุต้นเหตุ"} จึงไม่คิดต้นทุน`}</div>
+            <div style="font-size:10px;color:#64748B;margin-bottom:8px;">เป้าหมาย &gt; 80% · วัดจาก ${qualityMeasurable.length} งาน (สาเหตุ 1.1)</div>
+            <div style="font-size:11px;color:#64748B;line-height:1.8;background:#F8FAFC;border-radius:6px;padding:8px 10px;">
+              • แก้ไข &lt; 4 ครั้ง = <b style="color:#0DB14B;">100%</b> (ผ่านเกณฑ์ปกติ)<br>
+              • แก้ไข ≥ 4 ครั้ง = <b style="color:#EF4444;">20%</b> (หักหนัก — ปัญหาซ้ำซาก)<br>
+              • สาเหตุ 1.2, 1.3, 1.4 = <b style="color:#94A3B8;">Excluded</b> (ไม่นำมาคำนวณ)
             </div>
-          `).join("") + (wastedByStage.length ? `
-            <div style="border-top:1px dashed #E2E8F0;margin:14px 0 10px;"></div>
-            <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:8px;">⏱️ ชั่วโมงที่สูญเปล่า แยกตามจังหวะที่ยกเลิก</div>
-            ${wastedByStage.map((x) => `
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
-                <span style="font-size:10.5px;color:#475569;width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(x.label)}">${escapeHtml(x.label)}</span>
-                <div style="flex:1;background:#F1F5F9;border-radius:4px;height:9px;overflow:hidden;">
-                  <div style="background:#EA580C;height:100%;width:${Math.round(x.hours/maxStageHours*100)}%;border-radius:4px;"></div>
-                </div>
-                <span style="font-size:10.5px;font-weight:700;color:#EA580C;width:58px;text-align:right;white-space:nowrap;">${x.count}×${x.hrs}ชม.</span>
-              </div>`).join("")}
-          ` : "");
-        })())}
-      </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;font-size:11px;">
+          <div style="background:#FEF2F2;border-radius:8px;padding:8px 10px;text-align:center;border-left:3px solid #EF4444;">
+            <div style="font-weight:700;color:#991B1B;font-size:16px;">${internalFaultRows.length}</div>
+            <div style="color:#991B1B;">สาเหตุ 1.1<br>ฝ่ายเขียนแบบ</div>
+          </div>
+          <div style="background:#F0FDF4;border-radius:8px;padding:8px 10px;text-align:center;border-left:3px solid #0DB14B;">
+            <div style="font-weight:700;color:#065F46;font-size:16px;">${externalFaultRows.length}</div>
+            <div style="color:#065F46;">สาเหตุ 1.2-1.4<br>ภายนอก (ยกเว้น)</div>
+          </div>
+          <div style="background:#F8FAFC;border-radius:8px;padding:8px 10px;text-align:center;border-left:3px solid #94A3B8;">
+            <div style="font-weight:700;color:#475569;font-size:16px;">${excludedRows.length}</div>
+            <div style="color:#475569;">ไม่ระบุ<br>สาเหตุ</div>
+          </div>
+        </div>
+      `)}
 
-      <div style="margin-top:12px;padding:10px 14px;background:#EDE9FE;border-radius:8px;font-size:11px;color:#5B21B6;line-height:1.7;">
-        💡 <b>วิธีใช้ตัวเลข:</b> <b>Dept-Fault Rate</b> ใช้ประเมินคุณภาพงานของฝ่ายเขียนแบบ (ควบคุมได้เอง) ·
-        <b>Wasted Cost</b> จากรหัส 2.2–2.4 คือความสูญเสียที่ฝ่ายเป็นผู้รับผลกระทบ ใช้เป็นหลักฐานเสนอผู้บริหารเรื่องกำลังคนและความนิ่งของงานต้นน้ำ
-        <br>⏱️ <b>ชั่วโมงที่สูญเปล่า</b> ถ่วงตามจังหวะที่ถูกยกเลิก: รับแล้วยังไม่เริ่ม 0.5 ชม. · กำลังเขียน 5 ชม. · ส่งผู้จัดการตรวจแล้ว 6 ชม. · ส่งมอบแล้ว 8 ชม.
+      ${pBox(`🚧 External Blockers — สาเหตุจากภายนอก <span style="font-size:11px;font-weight:400;color:#94A3B8;margin-left:6px;">ไม่กระทบ KPI ฝ่ายเขียนแบบ</span>`, `
+        ${extTotal > 0 ? `
+          ${mBar("1.2 ผิดพลาดจากผู้ส่งคำร้อง", Math.round(ext12/maxExt*100), "#3B82F6", ext12+" งาน")}
+          ${mBar("1.3 ผิดพลาดจากงานติดตั้ง", Math.round(ext13/maxExt*100), "#8B5CF6", ext13+" งาน")}
+          ${mBar("1.4 ผิดพลาดจากลูกค้า", Math.round(ext14/maxExt*100), "#F59E0B", ext14+" งาน")}
+          <div style="margin-top:12px;padding:10px 12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #3B82F6;font-size:11px;color:#1E40AF;">
+            💡 <b>ใช้ข้อมูลนี้</b>คุยกับแผนกอื่น/ลูกค้าเพื่อแก้ปัญหาคอขวด<br>
+            งานเหล่านี้ <b>ไม่ถูกนำมาคิดหักคะแนน</b> Drawing Quality Score
+          </div>
+        ` : `
+          <div style="text-align:center;padding:30px 0;color:#94A3B8;font-size:13px;">
+            ✅ ไม่มี External Blocker ในช่วงนี้<br>
+            <span style="font-size:11px;">ยังไม่มีข้อมูลสาเหตุ 1.2-1.4</span>
+          </div>
+        `}
+        <div style="margin-top:10px;padding:8px 12px;background:#F0FDF4;border-radius:8px;font-size:11px;color:#065F46;">
+          📊 Rework Rate รวม: ${reworkRate}% (นับทุกสาเหตุ) · Drawing Quality Score วัดเฉพาะ 1.1
+        </div>
+      `)}
+    </div>
+    <!-- หมายเหตุ สาเหตุ 1.1-1.4 -->
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;padding:14px 18px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:14px;">📋</span>
+        <span style="font-size:12px;font-weight:700;color:#1E293B;">คำอธิบาย: รหัสสาเหตุ 1.1 – 1.4 และผลต่อ KPI</span>
+        <span style="margin-left:auto;font-size:10px;color:#94A3B8;">ใช้ในระบบ Revision · Cancellation · Overdue</span>
       </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+        <div style="background:#FEE2E2;border-radius:8px;padding:10px 12px;border-left:3px solid #EF4444;">
+          <div style="font-size:12px;font-weight:700;color:#991B1B;margin-bottom:4px;">1.1 — ฝ่ายเขียนแบบ</div>
+          <div style="font-size:10.5px;color:#7F1D1D;line-height:1.5;">ความผิดพลาดจากทีมเขียนแบบเอง เช่น เขียนผิด ใส่รายละเอียดไม่ครบ</div>
+          <div style="margin-top:6px;display:inline-block;background:#EF4444;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🔴 กระทบ KPI ฝ่ายเขียนแบบ</div>
+        </div>
+        <div style="background:#FEF3C7;border-radius:8px;padding:10px 12px;border-left:3px solid #F59E0B;">
+          <div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:4px;">1.2 — ผู้ส่งคำร้อง</div>
+          <div style="font-size:10.5px;color:#78350F;line-height:1.5;">ข้อมูล Spec ไม่ครบ เปลี่ยนความต้องการ หรือส่งคำขอผิดพลาด</div>
+          <div style="margin-top:6px;display:inline-block;background:#F59E0B;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🟡 ไม่กระทบ KPI · ปรับปรุงระบบสั่งงาน</div>
+        </div>
+        <div style="background:#EDE9FE;border-radius:8px;padding:10px 12px;border-left:3px solid #7C3AED;">
+          <div style="font-size:12px;font-weight:700;color:#4C1D95;margin-bottom:4px;">1.3 — งานติดตั้ง</div>
+          <div style="font-size:10.5px;color:#3B0764;line-height:1.5;">หน้างานสั่งเปลี่ยนแปลงหลังเริ่มติดตั้ง เงื่อนไขหน้างานเปลี่ยน</div>
+          <div style="margin-top:6px;display:inline-block;background:#7C3AED;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🟣 ไม่กระทบ KPI · ปรับปรุงความแม่นยำหน้างาน</div>
+        </div>
+        <div style="background:#DBEAFE;border-radius:8px;padding:10px 12px;border-left:3px solid #3B82F6;">
+          <div style="font-size:12px;font-weight:700;color:#1E3A8A;margin-bottom:4px;">1.4 — ลูกค้า</div>
+          <div style="font-size:10.5px;color:#1E40AF;line-height:1.5;">ลูกค้าเปลี่ยนแบบ เพิ่ม Scope กลางทาง หรือแก้ไขความต้องการ</div>
+          <div style="margin-top:6px;display:inline-block;background:#3B82F6;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;">🔵 ไม่กระทบ KPI · ความเสี่ยงธุรกิจ</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px 12px;background:#F0F9FF;border-radius:6px;font-size:11px;color:#0369A1;border-left:3px solid #0EA5E9;">
+        💡 <b>หลักการ:</b> KPI ฝ่ายเขียนแบบวัดจาก <b>สาเหตุ 1.1 เท่านั้น</b> — สาเหตุ 1.2/1.3/1.4 แสดงเพื่อให้ผู้บริหารเห็น "คอขวด" ของแต่ละฝ่าย ไม่ใช้หักคะแนนทีมเขียนแบบ
+      </div>
+    </div>
     </div>
 
   `;

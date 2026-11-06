@@ -21,6 +21,28 @@ const CLOSED_STATUSES = [STATUS.DONE, STATUS.CANCELLED, STATUS.REJECTED];
 // คำนำหน้าแบบคำเต็มต้องตามด้วยเว้นวรรค (กันชื่อจริงอย่าง "นายิกา" / "นางนวล" โดนตัด), แบบย่อมีจุดอยู่แล้ว
 const NAME_PREFIX_RE = /^(?:(?:นางสาว|นาง|นาย|miss|mrs|mr|ms|dr)\s+|(?:น\.ส\.|ดร\.|ว่าที่\s*ร\.ต\.|mrs\.|mr\.|ms\.|dr\.)\s*)/i;
 
+// แท็บหมวด KPI ฝ่ายเขียนแบบ (ใช้ var: boot() รันระหว่างโหลดโมดูล — กัน TDZ)
+var dashKpiTab = "overview";
+const KPI_TABS = [
+  ["overview", "📊 KPI ฝ่ายเขียนแบบ"],
+  ["workload", "👥 Workload รายวัน / รายบุคคล"],
+  ["overdue", "🔴 งานเกินกำหนด"],
+  ["cancel", "🚫 งานที่ถูกยกเลิก"],
+  ["revision", "✏️ งานที่ถูกแก้ไข"],
+];
+
+/** Export PDF: พิมพ์ทุกหมวด เรียงตามแท็บ พร้อมหัวข้อหมวด (ไม่ใช่แค่แท็บที่เปิดอยู่) */
+function printAllKpiPanes(body) {
+  const clone = body.cloneNode(true);
+  return KPI_TABS.map(([key, label]) => {
+    const pane = clone.querySelector(`[data-kpi-pane="${key}"]`);
+    if (!pane) return "";
+    pane.hidden = false;
+    pane.removeAttribute("hidden");
+    return `<h2 style="color:#005DAC;margin:18px 0 8px;page-break-before:${key === "overview" ? "auto" : "always"};">${label}</h2>${pane.outerHTML}`;
+  }).join("");
+}
+
 export function greetingName(displayName) {
   const name = String(displayName || "").trim().replace(NAME_PREFIX_RE, "").trim();
   return name.split(/\s+/)[0] || "";
@@ -163,9 +185,28 @@ export function renderDashboard(view, state) {
         </button>
       </div>
     </div>
+    <div class="kpi-tabs" role="tablist" aria-label="หมวด KPI">
+      ${KPI_TABS.map(([key, label]) => `<button type="button" role="tab" class="kpi-tab ${dashKpiTab === key ? "is-active" : ""}" data-kpi-tab="${key}" aria-selected="${dashKpiTab === key}">${label}</button>`).join("")}
+    </div>
     <div id="dash-kpi-body"></div>
   `;
   view.appendChild(kpiWrapper);
+
+  // ── แท็บหมวด KPI: แสดงทีละหมวด (คงแท็บที่เลือกไว้ตอนข้อมูลอัปเดต/เปลี่ยนตัวกรอง) ──
+  const applyKpiTab = () => {
+    kpiWrapper.querySelectorAll("[data-kpi-tab]").forEach((b) => {
+      const on = b.dataset.kpiTab === dashKpiTab;
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-selected", String(on));
+    });
+    kpiWrapper.querySelectorAll("[data-kpi-pane]").forEach((pane) => { pane.hidden = pane.dataset.kpiPane !== dashKpiTab; });
+  };
+  kpiWrapper.querySelector(".kpi-tabs").addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-kpi-tab]");
+    if (!btn) return;
+    dashKpiTab = btn.dataset.kpiTab;
+    applyKpiTab();
+  });
 
   const scopeEl  = view.querySelector("#dash-kpi-scope");
   const personEl = view.querySelector("#dash-kpi-person");
@@ -185,6 +226,7 @@ export function renderDashboard(view, state) {
       : null;
     const body = view.querySelector("#dash-kpi-body");
     if (body) body.innerHTML = renderKpiDashboard(state.requests || [], team, periodEl.value, person, customRange, state.masterData?.holidays || []);
+    applyKpiTab();
     // เพิ่ม card รอรับงาน + ภาระสูงสุด + งานครบกำหนดวันนี้ + trend เดือนนี้ vs เดือนที่แล้ว
     const extraRow = body?.querySelector("#dash-extra-row");
     if (extraRow) {
@@ -258,7 +300,7 @@ export function renderDashboard(view, state) {
     const w = window.open("", "_blank");
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>KPI ฝ่ายเขียนแบบ</title>
       <style>body{font-family:Arial,sans-serif;font-size:12px;color:#111;margin:15mm;}@page{size:A4;margin:10mm;}</style>
-      </head><body><h1 style="color:#005DAC;">📊 KPI ฝ่ายเขียนแบบ</h1>${body.innerHTML}</body></html>`);
+      </head><body><h1 style="color:#005DAC;">📊 KPI ฝ่ายเขียนแบบ</h1>${printAllKpiPanes(body)}</body></html>`);
     w.document.close();
     setTimeout(() => w.print(), 800);
   });
