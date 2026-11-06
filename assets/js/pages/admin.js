@@ -130,7 +130,9 @@ function typeFilterButton(key, label) {
 }
 
 function renderFilterBar(state, allItems) {
-  const projects = [...new Set(allItems.map((i) => i.projectName).filter(Boolean))].sort();
+  // ตัวเลือกโครงการ = เฉพาะโครงการที่มีงานใน Tab ที่เปิดอยู่ (คงโครงการที่เลือกไว้ไว้ในรายการ ไม่ให้หายเงียบ)
+  const projects = [...new Set([...allItems.map((i) => i.projectName), adminProjectFilter].filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
   const members  = getDrawingTeamMembers();
   const hasActive = adminProjectFilter || adminAssigneeFilter || adminDateFrom || adminDateTo || adminSearchQuery;
 
@@ -228,7 +230,7 @@ function renderDesignerPickup(view, state) {
         ${jumpButton("takeover-section", "🔄 งานในฝ่าย (ดึงงาน)", assignedItems.length)}
       </div>
 
-      ${renderFilterBar(state, [...allPending, ...assignedItems])}
+      ${renderFilterBar(state, activeSection === "takeover-section" ? assignedItems : allPending)}
 
       <div id="pickup-section" ${sectionHidden("pickup-section")}>
         <button id="pickup-bulk-button" class="primary-button pickup-bulk-button" type="button" disabled>
@@ -293,7 +295,12 @@ function renderManagerAdmin(view, state) {
         ${jumpButton("takeover-section",   "🔄 งานในฝ่าย (ดึงงาน)",        applyAllFilters(allAssigned).length)}
       </div>
 
-      ${renderFilterBar(state, [...allPending, ...allApprove, ...allAssigned])}
+      ${renderFilterBar(state, ({
+        "pickup-section": allPending,
+        "approve-section": allApprove,
+        "mgr-review-section": mgrReviewItems,
+        "takeover-section": allAssigned,
+      })[activeAdminSection] || [...allPending, ...allApprove, ...mgrReviewItems, ...allAssigned])}
 
       <div class="admin-section-block" id="pickup-section" ${sectionHidden("pickup-section")}>
         <div class="admin-section-heading">📥 รับงาน — ติ๊กเลือกแล้วกดปุ่ม "รับงาน" ด้านบนเพื่อรับพร้อมกัน</div>
