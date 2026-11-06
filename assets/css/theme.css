@@ -3683,3 +3683,14 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 
 /* ประวัติคำร้อง: ขั้นที่สร้างจากวันเวลาในคำร้อง (ไม่มีใน AuditLog) */
 .timeline-derived { font-weight: 500; font-size: 11px; color: var(--muted); }
+
+/* KPI ฝ่ายเขียนแบบ: แท็บหมวด */
+[data-theme] .kpi-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 14px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2, rgba(0,0,0,.02)); }
+[data-theme] .kpi-tab { flex: 1 1 auto; min-height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+[data-theme] .kpi-tab:hover { color: var(--text); background: color-mix(in srgb, var(--primary, #0DB14B) 8%, transparent); }
+[data-theme] .kpi-tab.is-active { background: var(--primary, #0DB14B); color: var(--on-primary, #fff); box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--primary, #0DB14B) 70%, transparent); }
+[data-theme] .kpi-pane[hidden] { display: none !important; }
+@media (max-width: 720px) {
+  [data-theme] .kpi-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  [data-theme] .kpi-tab { flex: 0 0 auto; }
+}
