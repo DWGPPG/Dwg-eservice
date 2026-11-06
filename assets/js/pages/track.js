@@ -203,11 +203,20 @@ function renderWorkbookTrack(view, state) {
   );
 
   const baseList       = scopeTab === "mine" ? myAll : deptAll;
-  const projectOptions = [...new Set(state.requests.map((i) => i.projectName).filter(Boolean))].sort();
-  const drawingOptions = [...new Set(state.requests.map((i) => i.drawingNo).filter(Boolean))].sort();
-  const members = getDrawingTeamMembers();
+  // ตัวเลือกในตัวกรอง = เฉพาะค่าที่มีในแท็บที่เปิดอยู่ (งานของฉัน/งานในฝ่าย × ปัจจุบัน/เสร็จ/ยกเลิก/ทั้งหมด)
+  // ค่าที่เลือกค้างไว้ยังคงอยู่ในรายการ (ไม่หายเงียบเมื่อเปลี่ยนแท็บ)
+  const tabRows = filterByStatusTab(baseList, state);
+  const optionsOf = (values, keep) => [...new Set([...values, keep].filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), "th", { numeric: true }));
+  const projectOptions = optionsOf(tabRows.map((i) => i.projectName), projectFilter);
+  const drawingOptions = optionsOf(tabRows.map((i) => i.drawingNo), drawingFilter);
+  const statusOptions = Object.entries(STATUS_LABELS)
+    .filter(([val]) => val === columnStatusFilter || tabRows.some((i) => i.status === val));
+  const tabAssignees = new Set(tabRows.map((i) => String(i.assignedToEmail || "").toLowerCase()).filter(Boolean));
+  const members = getDrawingTeamMembers()
+    .filter((m) => tabAssignees.has(m.email.toLowerCase()) || m.email === assigneeFilter);
 
-  let rows = filterByStatusTab(baseList, state);
+  let rows = tabRows;
   rows = filterByProject(rows);
   rows = filterByDrawing(rows);
   rows = filterByColumnStatus(rows);
@@ -271,7 +280,7 @@ function renderWorkbookTrack(view, state) {
           <span>สถานะ</span>
           <select id="track-status-filter">
             <option value="">ทุกสถานะ</option>
-            ${Object.entries(STATUS_LABELS).map(([val, label]) => `<option value="${escapeHtml(val)}" ${columnStatusFilter === val ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+            ${statusOptions.map(([val, label]) => `<option value="${escapeHtml(val)}" ${columnStatusFilter === val ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
           </select>
         </label>
 
@@ -378,7 +387,7 @@ function renderWorkbookTrack(view, state) {
               <th>
                 <select id="track-col-status-filter" class="track-col-filter-select">
                   <option value="">สถานะ (ทั้งหมด)</option>
-                  ${Object.entries(STATUS_LABELS).map(([val, label]) => `<option value="${escapeHtml(val)}" ${columnStatusFilter === val ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+                  ${statusOptions.map(([val, label]) => `<option value="${escapeHtml(val)}" ${columnStatusFilter === val ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
                 </select>
               </th>
             </tr>
@@ -1093,7 +1102,12 @@ function renderRequesterTrack(view, state) {
   }
   deptRows.sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
 
-  const deptProjects = [...new Set(state.requests.map((i) => i.projectName).filter(Boolean))].sort();
+  // ตัวเลือกตามประเภทที่เลือกอยู่ (คงค่าที่เลือกค้างไว้)
+  const deptBase = reqDeptType ? state.requests.filter((i) => (i.requestType || "") === reqDeptType) : state.requests;
+  const deptProjects = [...new Set([...deptBase.map((i) => i.projectName), reqDeptProject].filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
+  const deptStatuses = Object.entries(STATUS_LABELS)
+    .filter(([val]) => val === reqDeptStatus || deptBase.some((i) => i.status === val));
   const typeCount = (t) => state.requests.filter((i) => (i.requestType || "") === t).length;
 
   const myTabButton = (key, label, count = 0, alert = false) => `
@@ -1193,7 +1207,7 @@ function renderRequesterTrack(view, state) {
             <span>สถานะ</span>
             <select id="req-dept-status">
               <option value="">ทุกสถานะ</option>
-              ${Object.entries(STATUS_LABELS).map(([val, label]) => `<option value="${escapeHtml(val)}" ${reqDeptStatus === val ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+              ${deptStatuses.map(([val, label]) => `<option value="${escapeHtml(val)}" ${reqDeptStatus === val ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}
             </select>
           </label>
           <button id="req-dept-clear" class="secondary-button" type="button">ล้าง</button>
