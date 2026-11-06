@@ -8,7 +8,7 @@ import { showToast } from "../components/toast.js";
 import { createRequest } from "../services/request-service.js";
 import { addItem, patchItem } from "../sharepoint.js";
 import { state } from "../state.js";
-import { escapeHtml, formatFileSize, minDueDateKey, SAME_DAY_PRIORITY, serializeForm } from "../utils.js";
+import { escapeHtml, formatFileSize, minDueDateKey, projectKey, SAME_DAY_PRIORITY, serializeForm } from "../utils.js";
 
 const REQUEST_TYPES = [
   "📋 เขียนแบบ Proposal",
@@ -382,8 +382,11 @@ function renderProjectOptions(view) {
   const group = selectedTypeGroup(view);
   const match = (project) => (project.Title || "").toLowerCase().includes(query);
   const { inGroup, unassigned } = projectsForGroup(group);
-  const list = inGroup.filter(match);
-  const extra = unassigned.filter(match);
+  // ProjectList มีชื่อซ้ำที่ต่างกันแค่ช่องว่าง/ตัวพิมพ์ → แสดงครั้งเดียว
+  const seen = new Set();
+  const once = (project) => { const k = projectKey(project.Title); if (seen.has(k)) return false; seen.add(k); return true; };
+  const list = inGroup.filter(match).filter(once);
+  const extra = unassigned.filter(match).filter(once);
   const label = PROJECT_GROUP_LABEL[group];
   let html = label ? `<div class="combo-group-head">โครงการ ${escapeHtml(label)} · ${list.length}</div>` : "";
   html += list.length
@@ -1244,7 +1247,11 @@ function openAddProjectModal(view, requestType = "", prefilledProjectName = "") 
           const form = document.querySelector("#new-project-form");
           if (!form.reportValidity()) return;
           const data = serializeForm(form);
-          const isExisting = getProjects().some((project) => project.Title === data.name);
+          data.name = String(data.name || "").replace(/[\s\u00a0\u200b]+/g, " ").trim();
+          // ชื่อที่ต่างกันแค่ช่องว่าง/ตัวพิมพ์ = โครงการเดิม → ใช้ชื่อเดิม (ไม่สร้างโครงการซ้ำ)
+          const sameProject = getProjects().find((project) => projectKey(project.Title) === projectKey(data.name));
+          if (sameProject) data.name = sameProject.Title;
+          const isExisting = Boolean(sameProject);
 
           // เก็บแถว Drawing ใหม่ทั้งหมดจากทุกหมวด (รวมหมวดขออนุญาตพิเศษถ้าอยู่ในโหมด permit)
           const newDrawings = [];

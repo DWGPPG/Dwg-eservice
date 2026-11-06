@@ -17,7 +17,7 @@ import {
 } from "../services/request-service.js";
 import { getAuditHistory, mergeHistory, requestEvents } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
-import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, SAME_DAY_PRIORITY, workingDaysUntil } from "../utils.js";
+import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 import { navigate } from "../router.js";
 import { state as appState } from "../state.js";
@@ -177,7 +177,8 @@ function filterByDate(items) {
 
 function filterByProject(items) {
   if (!projectFilter) return items;
-  return items.filter((item) => item.projectName === projectFilter);
+  const key = projectKey(projectFilter);
+  return items.filter((item) => projectKey(item.projectName) === key);
 }
 
 function filterByDrawing(items) {
@@ -208,7 +209,7 @@ function renderWorkbookTrack(view, state) {
   const tabRows = filterByStatusTab(baseList, state);
   const optionsOf = (values, keep) => [...new Set([...values, keep].filter(Boolean))]
     .sort((a, b) => String(a).localeCompare(String(b), "th", { numeric: true }));
-  const projectOptions = optionsOf(tabRows.map((i) => i.projectName), projectFilter);
+  const projectOptions = uniqueProjectNames(tabRows.map((i) => i.projectName), projectFilter);
   const drawingOptions = optionsOf(tabRows.map((i) => i.drawingNo), drawingFilter);
   const statusOptions = Object.entries(STATUS_LABELS)
     .filter(([val]) => val === columnStatusFilter || tabRows.some((i) => i.status === val));
@@ -1091,7 +1092,7 @@ function renderRequesterTrack(view, state) {
   const typeOptions = getRequestTypeOptions(state.requests);
   let deptRows = [...state.requests];
   if (reqDeptType)    deptRows = deptRows.filter((i) => (i.requestType || "") === reqDeptType);
-  if (reqDeptProject) deptRows = deptRows.filter((i) => i.projectName === reqDeptProject);
+  if (reqDeptProject) deptRows = deptRows.filter((i) => projectKey(i.projectName) === projectKey(reqDeptProject));
   if (reqDeptStatus)  deptRows = deptRows.filter((i) => i.status === reqDeptStatus);
   if (reqDeptSearch.trim()) {
     const q = reqDeptSearch.toLowerCase().trim();
@@ -1104,8 +1105,7 @@ function renderRequesterTrack(view, state) {
 
   // ตัวเลือกตามประเภทที่เลือกอยู่ (คงค่าที่เลือกค้างไว้)
   const deptBase = reqDeptType ? state.requests.filter((i) => (i.requestType || "") === reqDeptType) : state.requests;
-  const deptProjects = [...new Set([...deptBase.map((i) => i.projectName), reqDeptProject].filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
+  const deptProjects = uniqueProjectNames(deptBase.map((i) => i.projectName), reqDeptProject);
   const deptStatuses = Object.entries(STATUS_LABELS)
     .filter(([val]) => val === reqDeptStatus || deptBase.some((i) => i.status === val));
   const typeCount = (t) => state.requests.filter((i) => (i.requestType || "") === t).length;

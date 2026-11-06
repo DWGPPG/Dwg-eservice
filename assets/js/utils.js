@@ -135,3 +135,27 @@ export function workingDaysUntil(from, to, holidaySet = new Set()) {
   if (!earlierIsWorkday) return inclusive;
   return inclusive - (b >= a ? 1 : -1);
 }
+
+/** คีย์เปรียบเทียบชื่อโครงการ — ไม่สนช่องว่างเกิน/ช่องว่างพิเศษ (NBSP, zero-width) และตัวพิมพ์เล็ก-ใหญ่
+ *  ("BEM BL1 SOLAR ROOFTOP" กับ "BEM BL1  Solar Rooftop " = โครงการเดียวกัน) */
+export function projectKey(name) {
+  return String(name ?? "").normalize("NFC").replace(/[\s ​‌‍﻿]+/g, " ").trim().toLowerCase();
+}
+
+/** ชื่อโครงการไม่ซ้ำ (ยุบชื่อที่ต่างกันแค่ช่องว่าง/ตัวพิมพ์ เหลือชื่อที่ใช้บ่อยที่สุด) เรียงตามตัวอักษร */
+export function uniqueProjectNames(names, keep = "") {
+  const groups = new Map();
+  [...names, keep].forEach((raw) => {
+    const name = String(raw ?? "").replace(/[\s ​‌‍﻿]+/g, " ").trim();
+    if (!name) return;
+    const key = projectKey(name);
+    const g = groups.get(key) || new Map();
+    g.set(name, (g.get(name) || 0) + 1);
+    groups.set(key, g);
+  });
+  const keepKey = projectKey(keep);
+  return [...groups.entries()].map(([key, g]) => {
+    if (keep && key === keepKey) return String(keep);
+    return [...g.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  }).sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
+}

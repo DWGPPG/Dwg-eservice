@@ -23,7 +23,7 @@ import {
 import { getDrawingTeamMembers, getAllManagerEmails } from "../services/team-service.js";
 import { sendTeams1on1 } from "../graph.js";
 import { isNotificationSupported, notificationPermission } from "../services/notification-service.js";
-import { escapeHtml, formatDate, workingDaysUntil } from "../utils.js";
+import { escapeHtml, formatDate, projectKey, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 import { openRequestDetail, openTransferRequesterModal } from "./track.js";
 
@@ -99,7 +99,8 @@ function applySearchFilter(items) {
 
 function applyProjectFilter(items) {
   if (!adminProjectFilter) return items;
-  return items.filter((item) => item.projectName === adminProjectFilter);
+  const key = projectKey(adminProjectFilter);
+  return items.filter((item) => projectKey(item.projectName) === key);
 }
 
 function applyAssigneeFilter(items) {
@@ -131,8 +132,7 @@ function typeFilterButton(key, label) {
 
 function renderFilterBar(state, allItems) {
   // ตัวเลือกโครงการ = เฉพาะโครงการที่มีงานใน Tab ที่เปิดอยู่ (คงโครงการที่เลือกไว้ไว้ในรายการ ไม่ให้หายเงียบ)
-  const projects = [...new Set([...allItems.map((i) => i.projectName), adminProjectFilter].filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
+  const projects = uniqueProjectNames(allItems.map((i) => i.projectName), adminProjectFilter);
   const members  = getDrawingTeamMembers();
   const hasActive = adminProjectFilter || adminAssigneeFilter || adminDateFrom || adminDateTo || adminSearchQuery;
 
