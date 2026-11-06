@@ -17,7 +17,7 @@ import { REQUEST_TYPES } from "../constants.js";
 import { holidayName, holidayNameField } from "../services/due-date.js";
 import { COVER_KEY, hydrateTeamPhotos, uploadTeamPhoto } from "../services/team-photo-service.js";
 import { state } from "../state.js";
-import { downloadCsv, escapeHtml, formatDate, formatDateOnly } from "../utils.js";
+import { downloadCsv, escapeHtml, formatDate, formatDateOnly, projectKey } from "../utils.js";
 
 // ══════════════════════════════════════════════════════════════
 // หน้า "จัดการข้อมูล" (ผู้จัดการ Lv.2 เท่านั้น)
@@ -64,7 +64,19 @@ const TABS = {
       { key: "ProjectGroup", label: "หมวดโครงการ (ไม่เลือก = ดูจากประวัติคำร้อง) — ขออนุญาต/As-Built ใช้โครงการเขียนแบบก่อสร้าง", type: "multicheck", options: () => ["Proposal", "เขียนแบบก่อสร้าง"] },
     ],
     toPayload: (v) => ({ Title: v.Title, DefaultKwp: v.kwp, SolarKwp: v.kwp, DefaultLocation: v.DefaultLocation, ProjectGroup: v.ProjectGroup }),
-    duplicateKey: (v) => norm(v.Title),
+    duplicateKey: (v) => projectKey(v.Title),
+    // ชื่อโครงการที่ต่างกันแค่ช่องว่าง/ตัวพิมพ์ ทำให้ตัวกรองเคยแสดงซ้ำ — บอกให้ซ่อนรายการที่ไม่ใช้
+    note: () => {
+      const groups = new Map();
+      (state.masterData.projects || []).filter((p) => !p.IsHidden).forEach((p) => {
+        const k = projectKey(p.Title);
+        if (k) groups.set(k, [...(groups.get(k) || []), p.Title]);
+      });
+      const dups = [...groups.values()].filter((g) => g.length > 1);
+      return dups.length
+        ? `⚠️ <b>ชื่อโครงการซ้ำ ${dups.length} ชื่อ</b> (ต่างกันแค่ช่องว่าง/ตัวพิมพ์): ${dups.map((g) => `<b>${escapeHtml(g[0])}</b> × ${g.length}`).join(", ")} — ระบบรวมเป็นโครงการเดียวในตัวกรองแล้ว แนะนำให้กด "ซ่อน" รายการที่ไม่ใช้`
+        : "";
+    },
     searchText: (r) => `${r.Title} ${r.DefaultLocation || ""}`,
   },
   drawingNumbers: {
@@ -457,7 +469,7 @@ function renderTable(key) {
 
   return `
     ${key === "team" ? bootstrapCard() : ""}
-    ${tab.note ? `<div class="manage-note">${tab.note()}</div>` : ""}
+    ${(() => { const note = tab.note?.(); return note ? `<div class="manage-note">${note}</div>` : ""; })()}
     ${tab.yearFilter ? holidayYearBar() : ""}
     <div class="manage-toolbar">
       <input class="manage-search" type="search" placeholder="ค้นหา${escapeHtml(tab.label)}..." value="${escapeHtml(ui.search)}" data-input="search" />
