@@ -5,7 +5,7 @@
 import {
   DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
   auditKindFolder, createDrawingFolders, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
-  disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
+  createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
 import { projectKey } from "../utils.js";
@@ -279,19 +279,29 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
             close();
             const report = [];
             run(`จัดเก็บไฟล์งานย้อนหลัง ${proj || "ทุกโครงการ"} (${list.length} งาน)`, async () => {
+              const ctx = createFilingContext(state.requests || []);
               if (allFolders) {
-                await ensureAllProjectFolders(state.requests || [], (n, total, name) => progress(`📂 สร้างโฟลเดอร์โครงการ ${n}/${total} — ${name}`));
+                await ensureAllProjectFolders(state.requests || [], (n, total, name) => progress(`📂 สร้างโฟลเดอร์โครงการ ${n}/${total} — ${name}`), ctx);
               }
-              for (let i = 0; i < list.length; i += 1) {
-                const r = list[i];
-                progress(`🔄 ${i + 1}/${list.length} — ${r.requestNo} ${r.projectName}`);
-                try {
-                  const res = await fileDeliveryToIso(r, state.requests || []);
-                  report.push(res?.path ? { r, ok: true, text: `${res.copied} ไฟล์ → ${res.path.split("/").slice(3).join(" / ")}` } : { r, skip: true, text: res?.skipped || "ข้าม" });
-                } catch (error) {
-                  report.push({ r, fail: true, text: error.message.slice(0, 160) });
+              // ทำพร้อมกัน 4 งาน (ใช้บริบทเดียวกัน — โฟลเดอร์ที่สร้าง/พบแล้วไม่ต้องถาม SharePoint ซ้ำ)
+              let next = 0;
+              let done = 0;
+              const worker = async () => {
+                while (next < list.length) {
+                  const r = list[next++];
+                  try {
+                    const res = await fileDeliveryToIso(r, state.requests || [], ctx);
+                    report.push(res?.already ? { r, ok: true, text: `มีครบแล้ว → ${res.path.split("/").slice(3).join(" / ")}` }
+                      : res?.path ? { r, ok: true, text: `${res.copied} ไฟล์ → ${res.path.split("/").slice(3).join(" / ")}` }
+                      : { r, skip: true, text: res?.skipped || "ข้าม" });
+                  } catch (error) {
+                    report.push({ r, fail: true, text: error.message.slice(0, 160) });
+                  }
+                  done += 1;
+                  progress(`🔄 ${done}/${list.length} — ${r.requestNo} ${r.projectName}`);
                 }
-              }
+              };
+              await Promise.all(Array.from({ length: Math.min(4, list.length) }, worker));
               showReport(report);
             });
           },
