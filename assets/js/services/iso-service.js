@@ -33,7 +33,18 @@ export const DISCIPLINES = [
 ];
 export const DRAWING_STAGES = ["02-DWG Concept design", "03-DWG Permission", "04-DWG Construction", "05-DWG As-built"];
 const DOC_FOLDERS = ["00-Ref", "01-Document/1-RFD/1-รับมา", "01-Document/1-RFD/2-ส่งออก"];
-const withDisciplines = (stages) => stages.flatMap((stage) => DISCIPLINES.map((d) => `${stage}/${d.code}`));
+export const PERMIT_STAGE = "03-DWG Permission";
+// หมวดขออนุญาต — อยู่เฉพาะใน 03-DWG Permission (แยกจาก GE) ตามหมวดขออนุญาตในระบบ e-Service
+export const PERMIT_FOLDERS = [
+  { name: "P1-ขออนุญาต อ.1", match: /อ\.1/ },
+  { name: "P2-ขออนุญาต PEA-MEA", match: /PEA|MEA/i },
+  { name: "P3-ขออนุญาต กกพ-พค.2", match: /กกพ|พค/ },
+  { name: "P4-ขออนุญาต COP-รง.4", match: /COP|รง/i },
+  { name: "P5-ขออนุญาต อื่นๆ", match: /./ },
+];
+/** โฟลเดอร์หมวดในขั้นแบบหนึ่ง (03-DWG Permission = GE/EE/CE/ME + หมวดขออนุญาต) */
+export const categoryFoldersOf = (stage) => [...DISCIPLINES.map((d) => d.code), ...(stage === PERMIT_STAGE ? PERMIT_FOLDERS.map((f) => f.name) : [])];
+const withDisciplines = (stages) => stages.flatMap((stage) => categoryFoldersOf(stage).map((f) => `${stage}/${f}`));
 
 // โฟลเดอร์มาตรฐานในแต่ละโครงการ — Presale มีแค่ขั้นเสนอแบบ (02)
 export const PROJECT_STAGES = DRAWING_STAGES;
@@ -41,9 +52,12 @@ export const PRESALE_STAGES = DRAWING_STAGES.slice(0, 1);
 export const PROJECT_SUBFOLDERS = [...DOC_FOLDERS, ...withDisciplines(PROJECT_STAGES)];
 export const PRESALE_SUBFOLDERS = [...DOC_FOLDERS, ...withDisciplines(PRESALE_STAGES)];
 
-/** หมวด Drawing ในระบบ e-Service → รหัสหมวดโฟลเดอร์ */
+export const isPermitCategory = (category) => /ขออนุญาต/.test(String(category || ""));
+
+/** หมวด Drawing ในระบบ e-Service → ชื่อโฟลเดอร์หมวด (หมวดขออนุญาต → P1–P5 ใช้ได้เฉพาะใน 03-DWG Permission) */
 export function disciplineOfCategory(category) {
   const c = String(category || "");
+  if (isPermitCategory(c)) return PERMIT_FOLDERS.find((f) => f.match.test(c.replace(/ขออนุญาต/, ""))).name;
   if (/Electrical/i.test(c)) return "EE";
   if (/Mechanical/i.test(c)) return "ME";
   if (/Structural|Architectural|Civil/i.test(c)) return "CE";

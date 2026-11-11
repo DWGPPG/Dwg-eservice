@@ -370,6 +370,7 @@ assets/
     - Presale: `00-Ref`, `01-Document/1-RFD/{1-รับมา,2-ส่งออก}`, `02-DWG Concept design`
     - Project: เพิ่ม `03-DWG Permission`, `04-DWG Construction`, `05-DWG As-built`
     - ทุกขั้นแบบ (02–05) แยกหมวด `GE` / `EE` / `CE` / `ME` → โฟลเดอร์ละ 1 Drawing ชื่อ `เลขDrawing-ชื่อDrawing`
+    - `03-DWG Permission` มีหมวดขออนุญาตเพิ่ม: `P1-ขออนุญาต อ.1`, `P2-ขออนุญาต PEA-MEA`, `P3-ขออนุญาต กกพ-พค.2`, `P4-ขออนุญาต COP-รง.4`, `P5-ขออนุญาต อื่นๆ`
       (เก็บทุก Revision ในโฟลเดอร์เดียว ไฟล์ตั้งชื่อมี Rev · ฉบับที่ยกเลิกย้ายเข้า `_Superseded`)
     - ในโฟลเดอร์หมวด: 📐 เพิ่ม Drawing / 📥 ดึงรายการ Drawing จากระบบ (DrawingNumberList ของโครงการ, หมวดตรงกัน)
 - ดู: เมนู **คู่มือ → 📁 เอกสาร ISO** (ฝ่ายเขียนแบบ/ผู้จัดการ)

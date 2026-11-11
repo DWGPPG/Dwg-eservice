@@ -3,7 +3,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import {
-  DISCIPLINES, DRAWING_STAGES, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
+  DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
   auditKindFolder, createDrawingFolders, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
   disciplineOfCategory, drawingFolderName, importIsoZip, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
@@ -71,7 +71,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     const ctx = projectContext(ui.path);
     const inKind = ctx && ctx.depth === 3 && Object.values(KINDS).includes(ctx.kind);
     const isPresaleProject = ctx && ctx.depth === 4 && ctx.kind === KINDS.presale;
-    const inDiscipline = ctx && ctx.depth === 6 && DRAWING_STAGES.includes(ctx.stage) && DISCIPLINES.some((d) => d.code === ctx.discipline);
+    const inDiscipline = ctx && ctx.depth === 6 && DRAWING_STAGES.includes(ctx.stage) && categoryFoldersOf(ctx.stage).includes(ctx.discipline);
     return `
       <div class="iso-toolbar">
         <button type="button" class="primary-button" data-iso-act="upload">⬆️ อัปโหลดไฟล์</button>
@@ -96,10 +96,10 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     const sec = sectionOf(ui.path.split("/")[0]);
     if (ctx && ctx.depth === 4) {
       const stages = ctx.kind === KINDS.presale ? PRESALE_STAGES : PROJECT_STAGES;
-      return `<div class="iso-guide">📐 โครงสร้าง${ctx.kind === KINDS.presale ? "งาน Presale" : "โครงการ"}: <code>00-Ref</code> · <code>01-Document/1-RFD/{1-รับมา, 2-ส่งออก}</code> · ${stages.map((s) => `<code>${escapeHtml(s)}</code>`).join(" · ")} → หมวด ${DISCIPLINES.map((d) => `<b>${d.code}</b>`).join(" / ")} → โฟลเดอร์ <b>เลขDrawing-ชื่อDrawing</b></div>`;
+      return `<div class="iso-guide">📐 โครงสร้าง${ctx.kind === KINDS.presale ? "งาน Presale" : "โครงการ"}: <code>00-Ref</code> · <code>01-Document/1-RFD/{1-รับมา, 2-ส่งออก}</code> · ${stages.map((s) => `<code>${escapeHtml(s)}</code>`).join(" · ")} → หมวด ${DISCIPLINES.map((d) => `<b>${d.code}</b>`).join(" / ")}${ctx.kind === KINDS.presale ? "" : ` (03-DWG Permission มีหมวดขออนุญาต P1–P5 เพิ่ม)`} → โฟลเดอร์ <b>เลขDrawing-ชื่อDrawing</b></div>`;
     }
     if (ctx && ctx.depth === 5 && DRAWING_STAGES.includes(ctx.stage)) {
-      return `<div class="iso-guide">📂 แยกหมวด: ${DISCIPLINES.map((d) => `<b>${d.code}</b> ${escapeHtml(d.label)}`).join(" · ")}</div>`;
+      return `<div class="iso-guide">📂 แยกหมวด: ${DISCIPLINES.map((d) => `<b>${d.code}</b> ${escapeHtml(d.label)}`).join(" · ")}${ctx.stage === PERMIT_STAGE ? ` · หมวดขออนุญาต: ${PERMIT_FOLDERS.map((f) => `<b>${escapeHtml(f.name)}</b>`).join(" · ")}` : ""}</div>`;
     }
     if (ctx && ctx.depth === 6 && DRAWING_STAGES.includes(ctx.stage)) {
       return `<div class="iso-guide">📐 1 โฟลเดอร์ต่อ 1 Drawing ชื่อ <b>เลขDrawing-ชื่อDrawing</b> — เก็บทุก Revision ไว้ในโฟลเดอร์เดียว ตั้งชื่อไฟล์มี Rev เช่น <code>EE-001_Rev.A.pdf</code> · ฉบับเก่าที่ยกเลิกแล้วย้ายเข้าโฟลเดอร์ย่อย <code>_Superseded</code></div>`;
