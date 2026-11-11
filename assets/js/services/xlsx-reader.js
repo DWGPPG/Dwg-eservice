@@ -112,3 +112,55 @@ export function excelDate(value) {
   const d = new Date(text);
   return text && !Number.isNaN(d.getTime()) ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00` : "";
 }
+
+/**
+ * อ่านไฟล์ ZIP ทั่วไป → [{ name, isDir, size, read: () => Promise<Uint8Array> }]
+ * ชื่อไฟล์ภาษาไทย: ZIP ที่บีบอัดด้วย Windows เดิมเก็บชื่อเป็น windows-874 (ไม่ได้ตั้งธง UTF-8) → แปลงให้อัตโนมัติ
+ */
+export async function readZipEntries(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let eocd = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i -= 1) {
+    if (u32(bytes, i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("ไฟล์ไม่ใช่ ZIP ที่ถูกต้อง (รองรับเฉพาะ .zip — ไฟล์ .rar ให้แปลงเป็น .zip ก่อน)");
+  const count = u16(bytes, eocd + 10);
+  let p = u32(bytes, eocd + 16);
+  const utf8 = new TextDecoder("utf-8", { fatal: true });
+  let thai;
+  try { thai = new TextDecoder("windows-874"); } catch (_) { thai = new TextDecoder(); }
+  const out = [];
+  for (let n = 0; n < count; n += 1) {
+    if (u32(bytes, p) !== 0x02014b50) break;
+    const flags = u16(bytes, p + 8);
+    const method = u16(bytes, p + 10);
+    const csize = u32(bytes, p + 20);
+    const size = u32(bytes, p + 24);
+    const nameLen = u16(bytes, p + 28);
+    const extraLen = u16(bytes, p + 30);
+    const commentLen = u16(bytes, p + 32);
+    const local = u32(bytes, p + 42);
+    const raw = bytes.subarray(p + 46, p + 46 + nameLen);
+    let name;
+    if (flags & 0x800) name = new TextDecoder().decode(raw);
+    else { try { name = utf8.decode(raw); } catch (_) { name = thai.decode(raw); } }
+    name = name.replace(/\\/g, "/").replace(/^\/+/, "");
+    if (flags & 0x1) throw new Error("ไม่รองรับ ZIP ที่ตั้งรหัสผ่าน");
+    out.push({
+      name,
+      isDir: name.endsWith("/"),
+      size,
+      read: async () => {
+        const start = local + 30 + u16(bytes, local + 26) + u16(bytes, local + 28);
+        const data = bytes.subarray(start, start + csize);
+        if (method === 0) return data;
+        if (method !== 8) throw new Error(`รูปแบบการบีบอัดไม่รองรับ (${method}) — ${name}`);
+        const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      },
+    });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  if (!out.length) throw new Error("ไม่พบไฟล์ใน ZIP");
+  return out;
+}
