@@ -294,18 +294,27 @@ export async function fileDeliveryToIso(request, allRequests = []) {
   const firstAt = projectReqs.map((r) => r.submittedAt).sort()[0] || request.submittedAt || new Date().toISOString();
   const year = new Date(firstAt).getFullYear() || new Date().getFullYear();
 
-  // ไฟล์ที่ฝ่ายเขียนแบบส่ง: โฟลเดอร์ย่อยล่าสุดในโฟลเดอร์คำร้อง (ชื่อขึ้นต้นด้วยเลข Drawing) — ไม่มีก็ข้าม
-  const reqFolder = requestFolderPath(request.requestNo);
+  // ไฟล์ที่ฝ่ายเขียนแบบส่ง: (1) โฟลเดอร์ย่อยล่าสุดในโฟลเดอร์คำร้อง (อัปโหลดผ่านระบบ)
+  //                       (2) ถ้าไม่มี — ตามลิงก์ SharePoint/OneDrive ที่แนบตอนส่งงาน (DWG / PDF / ไฟล์อื่น)
   const id = await siteId();
+  const reqFolder = requestFolderPath(request.requestNo);
   const children = await graphFetch(`/sites/${id}/drive/root:/${encodePath(reqFolder)}:/children?$top=200`).then((r) => r?.value || []).catch(() => []);
   const prefix = String(request.drawingNo || "").replace(/["*:<>?/\\|,().]/g, "").trim().toLowerCase();
-  const workFolders = children.filter((c) => c.folder && (!prefix || c.name.toLowerCase().startsWith(prefix)))
+  const workFolders = children.filter((c) => c.folder && !/^Rev\.\d+$/i.test(c.name) && (!prefix || c.name.toLowerCase().startsWith(prefix)))
     .sort((a, b) => String(b.lastModifiedDateTime).localeCompare(String(a.lastModifiedDateTime)));
   const work = workFolders[0];
-  if (!work) return { skipped: "ไม่พบไฟล์งานที่ฝ่ายเขียนแบบส่ง" };
-  const files = await graphFetch(`/sites/${id}/drive/items/${work.id}/children?$top=200`).then((r) => (r?.value || []).filter((f) => f.file)).catch(() => []);
-  if (!files.length) return { skipped: "โฟลเดอร์งานไม่มีไฟล์" };
-  const rev = String(request.currentRevise || request.reviseNumber || work.name.split("-").pop() || "0").replace(/^rev\.?\s*/i, "").replace(/^r(?=\d)/i, "").replace(/[\\/:*?"<>|#%]+/g, "") || "0";
+  let files = [];
+  if (work) {
+    files = await graphFetch(`/sites/${id}/drive/items/${work.id}/children?$top=200`)
+      .then((r) => (r?.value || []).filter((f) => f.file).map((f) => ({ id: f.id, driveId: f.parentReference?.driveId, name: f.name })))
+      .catch(() => []);
+  }
+  if (!files.length) files = await filesFromLinks(sentLinks(request));
+  if (!files.length) {
+    const links = sentLinks(request);
+    return { skipped: links.length ? "ลิงก์ที่แนบเปิดไม่ได้/ไม่ใช่ SharePoint-OneDrive ขององค์กร" : "ไม่มีไฟล์หรือลิงก์งานที่ฝ่ายเขียนแบบส่ง" };
+  }
+  const rev = String(request.currentRevise || request.reviseNumber || work?.name.split("-").pop() || "0").replace(/^rev\.?\s*/i, "").replace(/^r(?=\d)/i, "").replace(/[\\/:*?"<>|#%]+/g, "") || "0";
 
   const projectPath = await ensureIsoProject(request.projectName, kind, year);
   const category = disciplineOfCategory(request.drawingCategory);
@@ -341,11 +350,64 @@ export async function fileDeliveryToIso(request, allRequests = []) {
   // คัดลอก (SharePoint ทำงานเบื้องหลัง — ตอบ 202 ไม่มีเนื้อหา)
   let copied = 0;
   for (let i = 0; i < files.length; i += 1) {
-    await graphFetch(`/sites/${id}/drive/items/${files[i].id}/copy?@microsoft.graph.conflictBehavior=replace`, {
+    const srcPath = files[i].driveId ? `/drives/${files[i].driveId}/items/${files[i].id}` : `/sites/${id}/drive/items/${files[i].id}`;
+    await graphFetch(`${srcPath}/copy?@microsoft.graph.conflictBehavior=replace`, {
       method: "POST",
       body: JSON.stringify({ parentReference: { driveId, id: target.id }, name: newNames[i] }),
     }).catch((e) => { if (!(e instanceof SyntaxError)) throw e; });
     copied += 1;
   }
   return { path: drawingPath, copied, superseded };
+}
+
+/** ลิงก์ไฟล์งานที่ฝ่ายเขียนแบบแนบตอนส่งงาน (DWG, PDF, ไฟล์อื่นใน noteFromDrawing หลัง |||) */
+function sentLinks(request) {
+  const links = [request.dwgFileUrl, request.pdfFileUrl];
+  const raw = String(request.noteFromDrawing || "");
+  const sep = raw.indexOf("|||");
+  if (sep >= 0) {
+    try { JSON.parse(raw.slice(sep + 3)).forEach((f) => links.push(f.url)); } catch (_) { /* ไม่ใช่ JSON */ }
+  }
+  return [...new Set(links.map((u) => String(u || "").trim()).filter((u) => /^https:\/\//i.test(u)))];
+}
+
+/** ลิงก์ SharePoint/OneDrive → ไฟล์ (ลิงก์โฟลเดอร์ = ไฟล์ทุกไฟล์ในโฟลเดอร์นั้นชั้นเดียว) ผ่าน Graph shares API */
+async function filesFromLinks(urls) {
+  const out = [];
+  for (const url of urls) {
+    if (!/sharepoint\.com|1drv\.ms|onedrive\.live\.com/i.test(url)) continue;
+    const token = "u!" + btoa(unescape(encodeURIComponent(url))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
+    try {
+      const item = await graphFetch(`/shares/${token}/driveItem`);
+      const driveId = item?.parentReference?.driveId;
+      if (item?.file) out.push({ id: item.id, driveId, name: item.name });
+      else if (item?.folder && driveId) {
+        const kids = await graphFetch(`/drives/${driveId}/items/${item.id}/children?$top=200`);
+        (kids?.value || []).filter((f) => f.file).forEach((f) => out.push({ id: f.id, driveId, name: f.name }));
+      }
+    } catch (error) {
+      console.warn("เปิดลิงก์ไฟล์งานไม่ได้:", url, error.message);
+    }
+  }
+  const seen = new Set();
+  return out.filter((f) => !seen.has(f.id) && seen.add(f.id));
+}
+
+/** สร้างโฟลเดอร์ ISO ให้ทุกโครงการที่มีคำร้องในระบบ (แม้ยังไม่มีไฟล์) — ปี = ปีที่มีคำร้องแรก · มีแต่ Proposal = Presale */
+export async function ensureAllProjectFolders(requests, onProgress) {
+  const groups = new Map();
+  requests.filter((r) => !r.legacy && r.projectName && stageOfRequestType(r.requestType)).forEach((r) => {
+    const k = keyOf(r.projectName);
+    const g = groups.get(k) || { name: r.projectName.trim(), first: r.submittedAt || "", project: false };
+    if (r.submittedAt && (!g.first || r.submittedAt < g.first)) g.first = r.submittedAt;
+    if (!/Proposal/i.test(r.requestType)) g.project = true;
+    groups.set(k, g);
+  });
+  let i = 0;
+  for (const g of groups.values()) {
+    onProgress?.(++i, groups.size, g.name);
+    const year = new Date(g.first || Date.now()).getFullYear() || new Date().getFullYear();
+    await ensureIsoProject(g.name, g.project ? "project" : "presale", year);
+  }
+  return groups.size;
 }
