@@ -5,6 +5,7 @@ import { addItem, deleteItem, ensureSite, patchItem } from "../sharepoint.js";
 import { setRequests, state, updateRequest } from "../state.js";
 import { writeAudit } from "./audit-service.js";
 import { ensureRequestFolder, uploadRequestFiles, uploadSendworkFiles } from "./drawing-service.js";
+import { fileDeliveryToIso } from "./iso-service.js";
 import { getAllManagerEmails, getDrawingTeamMembers } from "./team-service.js";
 import { initRequestCache, syncRequests, syncRequestsNow } from "./request-sync.js";
 import { effectiveBootstrapEmails } from "./role-service.js";
@@ -1101,6 +1102,9 @@ export async function mgrApproveDeliver(request) {
     reviewDeadline: deadline.toISOString(),
   }, "ผู้จัดการอนุมัติส่งมอบ");
 
+  // จัดเก็บไฟล์งานลงเอกสาร ISO อัตโนมัติ (ทำเบื้องหลัง — ไม่ทำให้การส่งมอบช้าหรือล้ม)
+  autoFileToIso(request);
+
   const thaiDate = new Date(now).toLocaleDateString("th-TH", {
     year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
@@ -1153,6 +1157,21 @@ export async function mgrApproveDeliver(request) {
       `⏰ <b>ผู้ร้องขอต้องตรวจรับภายใน:</b> ${thaiDeadline} (ไม่เกิน 3 วันทำการ)`,
     ])
   );
+}
+
+/** คัดลอกไฟล์งานที่ส่งมอบไปโฟลเดอร์ ISO ของโครงการ — ล้มเหลวแค่แจ้งเตือน (ส่งมอบงานสำเร็จไปแล้ว) */
+export function autoFileToIso(request) {
+  fileDeliveryToIso(request, state.requests || [])
+    .then((res) => {
+      if (res?.path) {
+        writeAudit({ requestNo: request.requestNo, action: "จัดเก็บไฟล์ลงเอกสาร ISO", detail: `${res.copied} ไฟล์ → ${res.path}${res.superseded ? ` (ย้ายฉบับเก่า ${res.superseded} ไฟล์เข้า _Superseded)` : ""}` }).catch(() => {});
+        showToast(`📁 จัดเก็บไฟล์ ${request.requestNo} ลงเอกสาร ISO แล้ว (${res.copied} ไฟล์)`, "success");
+      }
+    })
+    .catch((error) => {
+      console.warn("จัดเก็บไฟล์ลง ISO ไม่สำเร็จ:", error.message);
+      showToast(`ส่งมอบงานแล้ว แต่จัดเก็บไฟล์ลงเอกสาร ISO ไม่สำเร็จ — กด "จัดเก็บไฟล์งานย้อนหลัง" ในหน้าจัดการข้อมูลภายหลังได้`, "warning");
+    });
 }
 
 export async function mgrRejectWork(request, reason, options = {}) {

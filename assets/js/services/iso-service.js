@@ -7,6 +7,7 @@
 import { ensureDriveFolder, graphFetch, uploadDriveFile } from "../graph.js";
 import { ensureSite } from "../sharepoint.js";
 import { readZipEntries } from "./xlsx-reader.js";
+import { requestFolderPath } from "./drawing-service.js";
 
 export const ISO_ROOT = "ISO-DWG";
 export const ISO_ROOT_LABEL = "DWG เขียนแบบ (ISO)";
@@ -245,4 +246,106 @@ export async function createDrawingFolders(path, drawings) {
     created += 1;
   }
   return created;
+}
+
+// ══════════════════════════════════════════════════════════════
+// จัดเก็บไฟล์งานอัตโนมัติ: ผู้จัดการ "อนุมัติ + ส่งมอบ" → คัดลอกไฟล์ที่ฝ่ายเขียนแบบส่ง
+// (DrawingRequests/<เลขคำร้อง>/<Drawing>-<Rev>/) ไปที่
+// ISO-DWG/8-Project/<ปี>/<1-Presale|2-Project>/<NN-โครงการ>/<ขั้นแบบ>/<หมวด>/<เลขDrawing-ชื่อDrawing>/
+//  - ปี = ปีที่โครงการนี้มีคำร้องครั้งแรกในระบบ (โครงการเดียวอยู่ปีเดียว ตรวจ Audit ง่าย)
+//  - ชื่อไฟล์ใส่ Rev ต่อท้าย · ฉบับเก่าในโฟลเดอร์ Drawing ย้ายเข้า _Superseded
+//  - คัดลอกภายใน SharePoint (ไม่ดาวน์โหลดลงเครื่อง) · ไฟล์ต้นฉบับในโฟลเดอร์คำร้องยังอยู่ครบ
+// ══════════════════════════════════════════════════════════════
+
+const STAGE_OF_TYPE = [
+  [/Proposal/i, "02-DWG Concept design"],
+  [/ขออนุญาต/, "03-DWG Permission"],
+  [/As-?Built/i, "05-DWG As-built"],
+  [/ก่อสร้าง/, "04-DWG Construction"],
+];
+export const stageOfRequestType = (type) => STAGE_OF_TYPE.find(([re]) => re.test(String(type || "")))?.[1] || null;
+const keyOf = (name) => String(name || "").replace(/^\d+-/, "").normalize("NFC").replace(/[\s ​]+/g, " ").trim().toLowerCase();
+
+async function itemByPath(fullPath) {
+  const id = await siteId();
+  return graphFetch(`/sites/${id}/drive/root:/${encodePath(fullPath)}`);
+}
+
+/** หา/สร้างโฟลเดอร์โครงการใน ISO (ชื่อตรงกันโดยไม่สนเลขนำหน้า/ช่องว่าง/ตัวพิมพ์) */
+export async function ensureIsoProject(projectName, kind, year) {
+  const yearPath = await ensureYearFolder(year);
+  const kindPath = joinPath(yearPath, KINDS[kind]);
+  const items = (await listIso(kindPath)) || [];
+  const found = items.find((it) => it.isFolder && keyOf(it.name) === keyOf(projectName));
+  if (found) return joinPath(kindPath, found.name);
+  return createProjectFolder({ year, kind, name: projectName });
+}
+
+/**
+ * คัดลอกไฟล์งานของคำร้องที่ส่งมอบแล้วไปเก็บในโฟลเดอร์ ISO — คืน { path, copied, superseded } หรือ { skipped }
+ * @param {object} request คำร้อง (ต้องมี requestNo, projectName, requestType, drawingNo/drawingName, drawingCategory)
+ * @param {Array} allRequests ใช้หาปีที่โครงการเริ่ม
+ */
+export async function fileDeliveryToIso(request, allRequests = []) {
+  const stage = stageOfRequestType(request.requestType);
+  if (!stage || !request.projectName) return { skipped: "ประเภทงานนี้ไม่มีโฟลเดอร์ขั้นแบบ" };
+  const kind = /Proposal/i.test(request.requestType) ? "presale" : "project";
+  const projectReqs = allRequests.filter((r) => keyOf(r.projectName) === keyOf(request.projectName) && r.submittedAt);
+  const firstAt = projectReqs.map((r) => r.submittedAt).sort()[0] || request.submittedAt || new Date().toISOString();
+  const year = new Date(firstAt).getFullYear() || new Date().getFullYear();
+
+  // ไฟล์ที่ฝ่ายเขียนแบบส่ง: โฟลเดอร์ย่อยล่าสุดในโฟลเดอร์คำร้อง (ชื่อขึ้นต้นด้วยเลข Drawing) — ไม่มีก็ข้าม
+  const reqFolder = requestFolderPath(request.requestNo);
+  const id = await siteId();
+  const children = await graphFetch(`/sites/${id}/drive/root:/${encodePath(reqFolder)}:/children?$top=200`).then((r) => r?.value || []).catch(() => []);
+  const prefix = String(request.drawingNo || "").replace(/["*:<>?/\\|,().]/g, "").trim().toLowerCase();
+  const workFolders = children.filter((c) => c.folder && (!prefix || c.name.toLowerCase().startsWith(prefix)))
+    .sort((a, b) => String(b.lastModifiedDateTime).localeCompare(String(a.lastModifiedDateTime)));
+  const work = workFolders[0];
+  if (!work) return { skipped: "ไม่พบไฟล์งานที่ฝ่ายเขียนแบบส่ง" };
+  const files = await graphFetch(`/sites/${id}/drive/items/${work.id}/children?$top=200`).then((r) => (r?.value || []).filter((f) => f.file)).catch(() => []);
+  if (!files.length) return { skipped: "โฟลเดอร์งานไม่มีไฟล์" };
+  const rev = String(request.currentRevise || request.reviseNumber || work.name.split("-").pop() || "0").replace(/^rev\.?\s*/i, "").replace(/^r(?=\d)/i, "").replace(/[\\/:*?"<>|#%]+/g, "") || "0";
+
+  const projectPath = await ensureIsoProject(request.projectName, kind, year);
+  const category = disciplineOfCategory(request.drawingCategory);
+  const catFolder = stage === PERMIT_STAGE || !PERMIT_FOLDERS.some((f) => f.name === category) ? category : "GE";
+  const drawingName = drawingFolderName(request.drawingNo || (kind === "presale" ? "Proposal" : request.requestNo), request.drawingName);
+  const drawingPath = joinPath(projectPath, stage, catFolder, drawingName);
+  await createIsoFolder(drawingPath);
+
+  const target = await itemByPath(joinPath(ISO_ROOT, drawingPath));
+  const driveId = target.parentReference?.driveId;
+  const newNames = files.map((f) => {
+    const dot = f.name.lastIndexOf(".");
+    const base = dot > 0 ? f.name.slice(0, dot) : f.name;
+    const ext = dot > 0 ? f.name.slice(dot) : "";
+    return /_Rev[^_]*$/i.test(base) ? f.name : `${base}_Rev.${rev}${ext}`;
+  });
+
+  // ฉบับเก่า (ไฟล์ที่ไม่ใช่ชุดนี้) → _Superseded
+  const existing = await graphFetch(`/sites/${id}/drive/items/${target.id}/children?$top=200`).then((r) => r?.value || []).catch(() => []);
+  const oldFiles = existing.filter((f) => f.file && !newNames.includes(f.name));
+  let superseded = 0;
+  if (oldFiles.length) {
+    const sup = await createIsoFolder(joinPath(drawingPath, "_Superseded")).catch(() => null);
+    const supItem = sup?.id ? sup : await itemByPath(joinPath(ISO_ROOT, drawingPath, "_Superseded"));
+    for (const f of oldFiles) {
+      await graphFetch(`/sites/${id}/drive/items/${f.id}?@microsoft.graph.conflictBehavior=rename`, {
+        method: "PATCH",
+        body: JSON.stringify({ parentReference: { id: supItem.id } }),
+      }).then(() => { superseded += 1; }).catch((e) => console.warn("ย้ายฉบับเก่าไม่สำเร็จ:", f.name, e.message));
+    }
+  }
+
+  // คัดลอก (SharePoint ทำงานเบื้องหลัง — ตอบ 202 ไม่มีเนื้อหา)
+  let copied = 0;
+  for (let i = 0; i < files.length; i += 1) {
+    await graphFetch(`/sites/${id}/drive/items/${files[i].id}/copy?@microsoft.graph.conflictBehavior=replace`, {
+      method: "POST",
+      body: JSON.stringify({ parentReference: { driveId, id: target.id }, name: newNames[i] }),
+    }).catch((e) => { if (!(e instanceof SyntaxError)) throw e; });
+    copied += 1;
+  }
+  return { path: drawingPath, copied, superseded };
 }
