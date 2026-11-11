@@ -5,7 +5,7 @@
 import {
   DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
   auditKindFolder, createDrawingFolders, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
-  disciplineOfCategory, drawingFolderName, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
+  disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
 import { projectKey } from "../utils.js";
@@ -265,7 +265,8 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
             ${projects.map((p) => `<option value="${escapeHtml(p)}" ${p === here ? "selected" : ""}>${escapeHtml(p)} (${delivered.filter((r) => r.projectName.trim() === p).length} งาน)</option>`).join("")}
           </select>
         </label>
-        <p class="manage-hint">คัดลอกไฟล์ที่ฝ่ายเขียนแบบส่ง (จากโฟลเดอร์คำร้อง) ไปไว้ที่ โครงการ → ขั้นแบบตามประเภทงาน → หมวด → โฟลเดอร์ Drawing — ทำซ้ำได้ ไฟล์ชื่อเดิมจะถูกแทนที่ ไม่ซ้ำซ้อน · ไฟล์ต้นฉบับไม่ถูกย้าย</p>`,
+        <label class="manage-check"><input type="checkbox" id="iso-bf-all" checked /> <span>สร้างโฟลเดอร์ให้<b>ทุกโครงการในระบบ</b>ด้วย (แม้ยังไม่มีงานส่งมอบ)</span></label>
+        <p class="manage-hint">คัดลอกไฟล์ที่ฝ่ายเขียนแบบส่ง (อัปโหลดในระบบ หรือลิงก์ SharePoint/OneDrive ที่แนบตอนส่งงาน) ไปไว้ที่ โครงการ → ขั้นแบบตามประเภทงาน → หมวด → โฟลเดอร์ Drawing — ทำซ้ำได้ ไฟล์ชื่อเดิมจะถูกแทนที่ ไม่ซ้ำซ้อน · ไฟล์ต้นฉบับไม่ถูกย้าย</p>`,
       actions: [
         { label: "ยกเลิก", className: "secondary-button" },
         {
@@ -273,26 +274,47 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
           className: "primary-button",
           onClick: (close) => {
             const proj = document.querySelector("#iso-bf-project")?.value || "";
+            const allFolders = document.querySelector("#iso-bf-all")?.checked && !proj;
             const list = proj ? delivered.filter((r) => r.projectName.trim() === proj) : delivered;
             close();
+            const report = [];
             run(`จัดเก็บไฟล์งานย้อนหลัง ${proj || "ทุกโครงการ"} (${list.length} งาน)`, async () => {
-              let ok = 0; let skipped = 0; let failed = 0; let files = 0;
+              if (allFolders) {
+                await ensureAllProjectFolders(state.requests || [], (n, total, name) => progress(`📂 สร้างโฟลเดอร์โครงการ ${n}/${total} — ${name}`));
+              }
               for (let i = 0; i < list.length; i += 1) {
-                progress(`🔄 ${i + 1}/${list.length} — ${list[i].requestNo} ${list[i].projectName}`);
+                const r = list[i];
+                progress(`🔄 ${i + 1}/${list.length} — ${r.requestNo} ${r.projectName}`);
                 try {
-                  const res = await fileDeliveryToIso(list[i], state.requests || []);
-                  if (res?.path) { ok += 1; files += res.copied; } else skipped += 1;
+                  const res = await fileDeliveryToIso(r, state.requests || []);
+                  report.push(res?.path ? { r, ok: true, text: `${res.copied} ไฟล์ → ${res.path.split("/").slice(3).join(" / ")}` } : { r, skip: true, text: res?.skipped || "ข้าม" });
                 } catch (error) {
-                  failed += 1;
-                  console.warn("จัดเก็บไม่สำเร็จ:", list[i].requestNo, error.message);
+                  report.push({ r, fail: true, text: error.message.slice(0, 160) });
                 }
               }
-              showToast(`จัดเก็บแล้ว ${ok} งาน (${files} ไฟล์)${skipped ? ` · ข้าม ${skipped} งาน (ไม่มีไฟล์งาน)` : ""}${failed ? ` · ไม่สำเร็จ ${failed} งาน` : ""}`, failed ? "warning" : "success");
+              showReport(report);
             });
           },
         },
       ],
     });
+  }
+
+  function showReport(report) {
+    const ok = report.filter((x) => x.ok);
+    const skip = report.filter((x) => x.skip);
+    const fail = report.filter((x) => x.fail);
+    const rows = (items, cls) => items.map((x) => `<tr class="${cls}"><td>${escapeHtml(x.r.requestNo)}</td><td>${escapeHtml(x.r.projectName || "")}</td><td>${escapeHtml(x.r.drawingNo || "")}</td><td>${escapeHtml(x.text)}</td></tr>`).join("");
+    setTimeout(() => openModal({
+      title: `📋 ผลการจัดเก็บ — สำเร็จ ${ok.length} · ข้าม ${skip.length} · ไม่สำเร็จ ${fail.length}`,
+      body: `
+        <div class="track-table-wrap iso-report"><table class="manage-table">
+          <thead><tr><th>เลขคำร้อง</th><th>โครงการ</th><th>Drawing</th><th>ผล</th></tr></thead>
+          <tbody>${rows(fail, "is-fail")}${rows(skip, "is-skip")}${rows(ok, "is-ok")}</tbody>
+        </table></div>
+        <p class="manage-hint">ข้าม = งานนั้นไม่มีไฟล์ที่อัปโหลดผ่านระบบ และลิงก์ที่แนบเปิดไม่ได้ (เช่น ลิงก์นอกองค์กร / ไม่มีสิทธิ์) — อัปโหลดไฟล์เองในโฟลเดอร์ Drawing ได้</p>`,
+      actions: [{ label: "ปิด", className: "primary-button" }],
+    }), 400);
   }
 
   function openDrawingForm() {

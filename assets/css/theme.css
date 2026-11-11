@@ -3737,3 +3737,8 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .iso-pull-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; border-radius: 8px; font-size: 13px; cursor: pointer; }
 [data-theme] .iso-pull-row:hover { background: var(--surface-2, rgba(0,0,0,.03)); }
 [data-theme] .iso-pull-row small { color: var(--muted); margin-left: auto; }
+[data-theme] .iso-report { max-height: 60vh; overflow: auto; }
+[data-theme] .iso-report td { font-size: 12.5px; vertical-align: top; }
+[data-theme] .iso-report tr.is-ok td:last-child { color: #059669; }
+[data-theme] .iso-report tr.is-skip td:last-child { color: #d97706; }
+[data-theme] .iso-report tr.is-fail td:last-child { color: #dc2626; }
