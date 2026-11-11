@@ -503,3 +503,33 @@ export async function ensureAllProjectFolders(requests, onProgress, ctx = create
   }
   return { count: groups.size, failures };
 }
+
+/** ค้นหาไฟล์/โฟลเดอร์ใต้โฟลเดอร์ (path นับจาก ISO_ROOT) ทุกชั้น ด้วย SharePoint search — คืนสูงสุด 200 รายการ พร้อม path ที่อยู่ */
+export async function searchIso(path, query) {
+  const id = await siteId();
+  const full = encodePath(joinPath(ISO_ROOT, path));
+  const q = encodeURIComponent(String(query).replace(/'/g, "''"));
+  const res = await graphFetch(`/sites/${id}/drive/root:/${full}:/search(q='${q}')?$top=200&$select=id,name,size,folder,file,webUrl,lastModifiedDateTime,lastModifiedBy,parentReference`);
+  const rootMarker = `root:/${ISO_ROOT}`;
+  return (res?.value || [])
+    .map((it) => {
+      const parent = decodeURIComponent(String(it.parentReference?.path || ""));
+      const at = parent.indexOf(rootMarker);
+      if (at < 0) return null; // อยู่นอกโฟลเดอร์เอกสาร ISO
+      const rel = parent.slice(at + rootMarker.length).replace(/^\/+/, "");
+      return {
+        id: it.id,
+        name: it.name,
+        isFolder: Boolean(it.folder),
+        childCount: it.folder?.childCount ?? 0,
+        size: it.size || 0,
+        webUrl: it.webUrl || "",
+        downloadUrl: "",
+        modified: it.lastModifiedDateTime || "",
+        modifiedBy: it.lastModifiedBy?.user?.displayName || "",
+        path: rel,
+      };
+    })
+    .filter((it) => it && !/^(thumbs\.db|desktop\.ini)$/i.test(it.name) && it.name.toLowerCase().includes(String(query).toLowerCase()))
+    .sort((a, b) => (Number(b.isFolder) - Number(a.isFolder)) || a.path.localeCompare(b.path, "th", { numeric: true }) || a.name.localeCompare(b.name, "th", { numeric: true }));
+}

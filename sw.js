@@ -1,4 +1,4 @@
-const CACHE_NAME = "ppg-drawing-shell-v92";
+const CACHE_NAME = "ppg-drawing-shell-v93";
 
 // เฉพาะไฟล์ static ของ shell — ไม่ cache ข้อมูลจาก SharePoint/Graph API เด็ดขาด
 // (ข้อมูลคำร้องต้องสดใหม่เสมอ ไม่งั้นจะเห็นสถานะเก่าค้าง)
