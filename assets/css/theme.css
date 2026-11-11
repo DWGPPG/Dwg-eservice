@@ -3760,3 +3760,10 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .iso-browser .iso-filter select { flex: 0 0 auto; width: auto; min-width: 150px; }
 [data-theme] .iso-browser .iso-filter .iso-scope { flex: 0 0 auto; }
 @media (max-width: 640px) { [data-theme] .iso-browser .iso-filter select { flex: 1 1 auto; } }
+
+/* ── เอกสาร ISO: เลขคำร้องด้านขวาของไฟล์ (กดดูรายละเอียด + ประวัติ) ── */
+[data-theme] .iso-reqs { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-right: 4px; }
+[data-theme] .iso-req { border: 1px solid rgba(34, 211, 238, 0.45); background: rgba(34, 211, 238, 0.1); color: #67e8f9; border-radius: 999px; padding: 3px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; }
+[data-theme] .iso-req:hover { background: rgba(34, 211, 238, 0.22); color: #fff; }
+[data-theme="light"] .iso-req { color: #0e7490; background: rgba(14, 116, 144, 0.08); border-color: rgba(14, 116, 144, 0.35); }
+[data-theme] .iso-reqs small { color: var(--muted, #94a3b8); font-size: 0.75rem; }
