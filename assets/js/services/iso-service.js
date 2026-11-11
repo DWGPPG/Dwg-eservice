@@ -66,14 +66,28 @@ export function disciplineOfCategory(category) {
 }
 
 /** ชื่อโฟลเดอร์ Drawing: "เลขDrawing-ชื่อDrawing" */
-export const drawingFolderName = (no, name) => safeName([no, name].filter((v) => String(v || "").trim()).join("-")).slice(0, 150);
+export const drawingFolderName = (no, name) => safeName([no, name].filter((v) => String(v || "").trim()).join("-"), 80);
 export const KINDS = { presale: "1-Presale", project: "2-Project" };
 
 const yearFolderRe = (year) => new RegExp(`(^|-)\\s*Project ปี ${year}$`);
 const pad2 = (n) => String(n).padStart(2, "0");
 export const joinPath = (...parts) => parts.filter(Boolean).join("/").replace(/\/+/g, "/");
 const encodePath = (path) => path.split("/").filter(Boolean).map(encodeURIComponent).join("/");
-export const safeName = (name) => String(name || "").replace(/[\\/:*?"<>|#%]+/g, " ").replace(/\s+/g, " ").trim();
+/** ชื่อโฟลเดอร์/ไฟล์ที่ SharePoint ยอมรับ: ตัดอักขระต้องห้าม/อักขระควบคุม, ห้ามลงท้ายด้วยจุดหรือช่องว่าง
+ *  (เช่น "Co., Ltd." → "Co., Ltd"), เลี่ยงชื่อสงวน และจำกัดความยาว (path รวมต้องไม่เกิน 400 ตัวอักษร) */
+const RESERVED_NAMES = /^(con|prn|aux|nul|com\d|lpt\d|desktop\.ini|_vti_.*|forms)$/i;
+export const safeName = (name, max = 100) => {
+  let out = String(name || "")
+    .normalize("NFC")
+    .replace(/[\u0000-\u001f\u007f\u200b-\u200d\ufeff]/g, "")
+    .replace(/[\\/:*?"<>|#%]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^~\$/, "")
+    .replace(/[.\s]+$/, "");
+  if (out.length > max) out = out.slice(0, max).replace(/[.\s]+$/, "");
+  return RESERVED_NAMES.test(out) ? `${out}_` : out;
+};
 
 async function siteId() { return ensureSite(); }
 
@@ -264,7 +278,9 @@ const STAGE_OF_TYPE = [
   [/ก่อสร้าง/, "04-DWG Construction"],
 ];
 export const stageOfRequestType = (type) => STAGE_OF_TYPE.find(([re]) => re.test(String(type || "")))?.[1] || null;
-const keyOf = (name) => String(name || "").replace(/^\d+-/, "").normalize("NFC").replace(/[\s ​]+/g, " ").trim().toLowerCase();
+// คีย์เทียบชื่อโครงการ: ผ่าน safeName เหมือนตอนตั้งชื่อโฟลเดอร์ (ชื่อที่มีจุดท้าย/อักขระต้องห้ามจะจับคู่โฟลเดอร์เดิมได้)
+const keyOf = (name) => safeName(name, 80).toLowerCase();
+const folderKeyOf = (folderName) => keyOf(String(folderName || "").replace(/^\d+-/, ""));
 
 
 // ── บริบทการจัดเก็บ (ใช้ซ้ำทั้งรอบ): จำ id โฟลเดอร์ที่มี/สร้างแล้ว + รายชื่อโครงการ → เรียก SharePoint น้อยลงมาก ──
@@ -331,10 +347,12 @@ export async function ensureIsoProject(projectName, kind, year, ctx = createFili
     return withLock(ctx, kindPath, async () => {
       if (!ctx.kindLists.has(kindPath)) ctx.kindLists.set(kindPath, ((await listIso(kindPath)) || []).filter((it) => it.isFolder).map((it) => it.name));
       const names = ctx.kindLists.get(kindPath);
-      const found = names.find((n) => keyOf(n) === keyOf(projectName));
+      const found = names.find((n) => folderKeyOf(n) === keyOf(projectName));
       if (found) return joinPath(kindPath, found);
       const maxNo = names.reduce((m, n) => Math.max(m, Number(n.match(/^(\d+)-/)?.[1] || 0)), 0);
-      const name = `${pad2(maxNo + 1)}-${safeName(projectName)}`;
+      const clean = safeName(projectName, 80);
+      if (!clean) throw new Error(`ชื่อโครงการใช้ตั้งชื่อโฟลเดอร์ไม่ได้: "${projectName}"`);
+      const name = `${pad2(maxNo + 1)}-${clean}`;
       names.push(name);
       const path = joinPath(kindPath, name);
       const subs = kind === "presale" ? PRESALE_SUBFOLDERS : PROJECT_SUBFOLDERS;
@@ -473,10 +491,15 @@ export async function ensureAllProjectFolders(requests, onProgress, ctx = create
     groups.set(k, g);
   });
   let i = 0;
+  const failures = [];
   for (const g of groups.values()) {
     onProgress?.(++i, groups.size, g.name);
     const year = new Date(g.first || Date.now()).getFullYear() || new Date().getFullYear();
-    await ensureIsoProject(g.name, g.project ? "project" : "presale", year, ctx);
+    try {
+      await ensureIsoProject(g.name, g.project ? "project" : "presale", year, ctx);
+    } catch (error) {
+      failures.push({ name: g.name, error: error.message });
+    }
   }
-  return groups.size;
+  return { count: groups.size, failures };
 }
