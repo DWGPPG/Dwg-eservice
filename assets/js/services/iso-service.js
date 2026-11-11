@@ -365,6 +365,54 @@ export async function ensureIsoProject(projectName, kind, year, ctx = createFili
   return job;
 }
 
+const revOf = (v) => String(v || "0").replace(/^rev\.?\s*/i, "").replace(/^r(?=\d)/i, "").replace(/[\\/:*?"<>|#%]+/g, "").trim() || "0";
+
+/** ตำแหน่งในโฟลเดอร์ ISO ที่คำร้องนี้จัดเก็บ (ไม่รวมปี/Presale-Project) — ใช้ทั้งตอนจัดเก็บและตอนหาคำร้องจากไฟล์ */
+export function isoTargetOf(request) {
+  const stage = stageOfRequestType(request.requestType);
+  if (!stage || !request.projectName) return null;
+  const kind = /Proposal/i.test(request.requestType) ? "presale" : "project";
+  const category = disciplineOfCategory(request.drawingCategory);
+  const catFolder = stage === PERMIT_STAGE || !PERMIT_FOLDERS.some((f) => f.name === category) ? category : "GE";
+  const drawingName = drawingFolderName(request.drawingNo || (kind === "presale" ? "Proposal" : request.requestNo), request.drawingName);
+  return { stage, catFolder, drawingName, projectKey: keyOf(request.projectName), rev: revOf(request.currentRevise || request.reviseNumber) };
+}
+
+/** ดัชนี "โครงการ|ขั้นแบบ|หมวด|Drawing" → คำร้อง (ไม่รวมที่ยกเลิก) สำหรับแสดงเลขคำร้องข้างไฟล์ในเอกสาร ISO */
+export function buildIsoRequestIndex(requests = []) {
+  const index = new Map();
+  requests.forEach((r) => {
+    if (r.status === "cancelled") return;
+    const t = isoTargetOf(r);
+    if (!t) return;
+    const key = [t.projectKey, t.stage, t.catFolder.toLowerCase(), t.drawingName.toLowerCase()].join("|");
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push({ request: r, rev: t.rev });
+  });
+  index.forEach((list) => list.sort((a, b) => String(b.request.submittedAt || "").localeCompare(String(a.request.submittedAt || ""))));
+  return index;
+}
+
+/**
+ * คำร้องของไฟล์/โฟลเดอร์ Drawing ในเอกสาร ISO
+ * @param {string} folderPath path ของโฟลเดอร์ที่รายการอยู่ (นับจาก ISO_ROOT)
+ * @param {string} name ชื่อไฟล์หรือโฟลเดอร์
+ * @param {boolean} isFolder
+ */
+export function requestsForIsoItem(index, folderPath, name, isFolder) {
+  if (!index || !index.size) return [];
+  const parts = [...String(folderPath || "").split("/").filter(Boolean), ...(isFolder ? [name] : [])];
+  // 8-Project / 1-Project ปี yyyy / 1-Presale|2-Project / โครงการ / ขั้นแบบ / หมวด / Drawing [/ _Superseded]
+  if (parts.length < 7 || parts[0] !== PROJECT_FOLDER) return [];
+  if (isFolder && parts.length !== 7) return [];
+  const key = [folderKeyOf(parts[3]), parts[4], parts[5].toLowerCase(), parts[6].toLowerCase()].join("|");
+  const list = index.get(key) || [];
+  if (isFolder || list.length <= 1) return list.map((x) => x.request);
+  const m = String(name).match(/_Rev\.?([^_.]+)(?:\.[^.]*)?$/i);
+  const sameRev = m ? list.filter((x) => x.rev.toLowerCase() === revOf(m[1]).toLowerCase()) : [];
+  return (sameRev.length ? sameRev : list).map((x) => x.request);
+}
+
 /**
  * คัดลอกไฟล์งานของคำร้องที่ส่งมอบแล้วไปเก็บในโฟลเดอร์ ISO — คืน { path, copied, superseded, already } หรือ { skipped }
  * @param {object} request คำร้อง (ต้องมี requestNo, projectName, requestType, drawingNo/drawingName, drawingCategory)
@@ -398,12 +446,10 @@ export async function fileDeliveryToIso(request, allRequests = [], ctx = null) {
     const links = sentLinks(request);
     return { skipped: links.length ? "ลิงก์ที่แนบเปิดไม่ได้/ไม่ใช่ SharePoint-OneDrive ขององค์กร" : "ไม่มีไฟล์หรือลิงก์งานที่ฝ่ายเขียนแบบส่ง" };
   }
-  const rev = String(request.currentRevise || request.reviseNumber || work?.name.split("-").pop() || "0").replace(/^rev\.?\s*/i, "").replace(/^r(?=\d)/i, "").replace(/[\\/:*?"<>|#%]+/g, "") || "0";
+  const rev = revOf(request.currentRevise || request.reviseNumber || work?.name.split("-").pop());
 
   const projectPath = await ensureIsoProject(request.projectName, kind, year, ctx);
-  const category = disciplineOfCategory(request.drawingCategory);
-  const catFolder = stage === PERMIT_STAGE || !PERMIT_FOLDERS.some((f) => f.name === category) ? category : "GE";
-  const drawingName = drawingFolderName(request.drawingNo || (kind === "presale" ? "Proposal" : request.requestNo), request.drawingName);
+  const { catFolder, drawingName } = isoTargetOf(request);
   const drawingPath = joinPath(projectPath, stage, catFolder, drawingName);
   const targetId = await folderId(ctx, joinPath(ISO_ROOT, drawingPath));
   if (!ctx.driveId) ctx.driveId = (await graphFetch(`/sites/${id}/drive?$select=id`)).id;

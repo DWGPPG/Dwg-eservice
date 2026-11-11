@@ -5,7 +5,7 @@
 import {
   DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
   auditKindFolder, createDrawingFolders, searchIso, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
-  createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
+  createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, buildIsoRequestIndex, requestsForIsoItem, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
 import { projectKey } from "../utils.js";
@@ -123,6 +123,18 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
   };
   const matches = (it) => TYPE_TEST[filter.type](it) && (!filter.q || it.name.toLowerCase().includes(filter.q.toLowerCase()));
 
+  // ── เลขคำร้องของไฟล์/โฟลเดอร์ Drawing (จับคู่จากตำแหน่งโฟลเดอร์ + Rev ในชื่อไฟล์) ──
+  let reqIndex = null;
+  let reqIndexSrc = null;
+  function requestChips(it, folderPath) {
+    if (!["designer", "manager"].includes(state.user?.role) && !editable) return "";
+    if (reqIndexSrc !== state.requests) { reqIndexSrc = state.requests; reqIndex = buildIsoRequestIndex(state.requests || []); }
+    const list = requestsForIsoItem(reqIndex, folderPath, it.name, it.isFolder);
+    if (!list.length) return "";
+    const shown = list.slice(0, 3);
+    return `<span class="iso-reqs">${shown.map((r) => `<button type="button" class="iso-req" data-iso-req="${escapeHtml(r.requestNo)}" title="ดูรายละเอียดและประวัติคำร้อง ${escapeHtml(r.requestNo)}">📋 ${escapeHtml(r.requestNo)}</button>`).join("")}${list.length > shown.length ? `<small>+${list.length - shown.length}</small>` : ""}</span>`;
+  }
+
   function rowHtml(it, { showPath = false } = {}) {
     const sec = !ui.path && !showPath && it.isFolder ? sectionOf(it.name) : null;
     const where = showPath ? (it.path || ISO_ROOT_LABEL) : "";
@@ -138,7 +150,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
               <span class="iso-name"><b>${highlight(it.name)}</b>${sec ? `<small>${escapeHtml(sec.label)}</small>` : ""}${where ? `<small>📂 ${escapeHtml(where)}</small>` : ""}</span>
               <span class="iso-meta">${showPath ? "" : `${it.childCount} รายการ`}</span>
             </button>
-            <span class="iso-actions">${actions}</span>
+            <span class="iso-actions">${requestChips(it, showPath ? it.path : ui.path)}${actions}</span>
           </li>`;
     }
     return `
@@ -149,6 +161,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
             <span class="iso-meta">${sizeText(it.size)}</span>
           </a>
           <span class="iso-actions">
+            ${requestChips(it, showPath ? it.path : ui.path)}
             ${it.downloadUrl ? `<a class="small-button" href="${escapeHtml(it.downloadUrl)}" download="${escapeHtml(it.name)}" title="ดาวน์โหลด">⬇️</a>` : ""}
             ${showPath && it.path !== undefined ? `<button type="button" class="small-button" data-iso-go="${escapeHtml(it.path)}" title="เปิดโฟลเดอร์ที่เก็บไฟล์นี้">📂</button>` : ""}
             ${actions}
@@ -515,6 +528,13 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
   root.addEventListener("click", async (event) => {
     const goBtn = event.target.closest("[data-iso-go]");
     if (goBtn) { go(goBtn.dataset.isoGo); return; }
+    const reqBtn = event.target.closest("[data-iso-req]");
+    if (reqBtn) {
+      const no = reqBtn.dataset.isoReq;
+      const request = (state.requests || []).find((r) => r.requestNo === no);
+      if (request) import("../pages/track.js").then((m) => m.openRequestDetail(request));
+      return;
+    }
     if (!editable) return;
     const act = event.target.closest("[data-iso-act]")?.dataset.isoAct;
     if (act === "upload") body.querySelector("[data-iso-file]")?.click();
