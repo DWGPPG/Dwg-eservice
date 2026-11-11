@@ -281,7 +281,8 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
             run(`จัดเก็บไฟล์งานย้อนหลัง ${proj || "ทุกโครงการ"} (${list.length} งาน)`, async () => {
               const ctx = createFilingContext(state.requests || []);
               if (allFolders) {
-                await ensureAllProjectFolders(state.requests || [], (n, total, name) => progress(`📂 สร้างโฟลเดอร์โครงการ ${n}/${total} — ${name}`), ctx);
+                const res = await ensureAllProjectFolders(state.requests || [], (n, total, name) => progress(`📂 สร้างโฟลเดอร์โครงการ ${n}/${total} — ${name}`), ctx);
+                res.failures.forEach((f) => report.push({ r: { requestNo: "สร้างโฟลเดอร์โครงการ", projectName: f.name, drawingNo: "" }, fail: true, text: f.error.slice(0, 160) }));
               }
               // ทำพร้อมกัน 4 งาน (ใช้บริบทเดียวกัน — โฟลเดอร์ที่สร้าง/พบแล้วไม่ต้องถาม SharePoint ซ้ำ)
               let next = 0;
