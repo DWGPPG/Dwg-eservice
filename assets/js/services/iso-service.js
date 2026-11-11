@@ -266,47 +266,113 @@ const STAGE_OF_TYPE = [
 export const stageOfRequestType = (type) => STAGE_OF_TYPE.find(([re]) => re.test(String(type || "")))?.[1] || null;
 const keyOf = (name) => String(name || "").replace(/^\d+-/, "").normalize("NFC").replace(/[\s ​]+/g, " ").trim().toLowerCase();
 
-async function itemByPath(fullPath) {
-  const id = await siteId();
-  return graphFetch(`/sites/${id}/drive/root:/${encodePath(fullPath)}`);
+
+// ── บริบทการจัดเก็บ (ใช้ซ้ำทั้งรอบ): จำ id โฟลเดอร์ที่มี/สร้างแล้ว + รายชื่อโครงการ → เรียก SharePoint น้อยลงมาก ──
+export function createFilingContext(allRequests = []) {
+  const firstYear = new Map();
+  allRequests.forEach((r) => {
+    if (!r.projectName || !r.submittedAt) return;
+    const k = keyOf(r.projectName);
+    const y = new Date(r.submittedAt).getFullYear();
+    if (y && (!firstYear.has(k) || y < firstYear.get(k))) firstYear.set(k, y);
+  });
+  return { folders: new Map(), kindLists: new Map(), projects: new Map(), locks: new Map(), firstYear, driveId: null };
+}
+
+/** id ของโฟลเดอร์ (path เต็มจากรากไดรฟ์) — มีแล้วใช้เลย ไม่มีค่อยสร้าง · จำผลไว้ (รวมระหว่างทำพร้อมกันหลายงาน) */
+function folderId(ctx, path) {
+  if (ctx.folders.has(path)) return ctx.folders.get(path);
+  const promise = (async () => {
+    const id = await siteId();
+    const parts = path.split("/");
+    const name = parts.pop();
+    const parentId = parts.length ? await folderId(ctx, parts.join("/")) : "root";
+    try {
+      const it = await graphFetch(`/sites/${id}/drive/items/${parentId}:/${encodeURIComponent(name)}?$select=id`);
+      return it.id;
+    } catch (error) {
+      if (!/404|itemNotFound/i.test(String(error.message))) throw error;
+    }
+    try {
+      const created = await graphFetch(`/sites/${id}/drive/items/${parentId}/children`, {
+        method: "POST",
+        body: JSON.stringify({ name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" }),
+      });
+      return created.id;
+    } catch (error) {
+      if (!/409|nameAlreadyExists/i.test(String(error.message))) throw error;
+      const it = await graphFetch(`/sites/${id}/drive/items/${parentId}:/${encodeURIComponent(name)}?$select=id`);
+      return it.id;
+    }
+  })();
+  ctx.folders.set(path, promise);
+  promise.catch(() => ctx.folders.delete(path));
+  return promise;
+}
+
+/** ทำทีละงานต่อ key (กันเลขลำดับโครงการชนกันตอนทำพร้อมกัน) */
+function withLock(ctx, key, fn) {
+  const prev = ctx.locks.get(key) || Promise.resolve();
+  const next = prev.catch(() => {}).then(fn);
+  ctx.locks.set(key, next);
+  return next;
 }
 
 /** หา/สร้างโฟลเดอร์โครงการใน ISO (ชื่อตรงกันโดยไม่สนเลขนำหน้า/ช่องว่าง/ตัวพิมพ์) */
-export async function ensureIsoProject(projectName, kind, year) {
-  const yearPath = await ensureYearFolder(year);
-  const kindPath = joinPath(yearPath, KINDS[kind]);
-  const items = (await listIso(kindPath)) || [];
-  const found = items.find((it) => it.isFolder && keyOf(it.name) === keyOf(projectName));
-  if (found) return joinPath(kindPath, found.name);
-  return createProjectFolder({ year, kind, name: projectName });
+export async function ensureIsoProject(projectName, kind, year, ctx = createFilingContext()) {
+  const cacheKey = `${kind}|${year}|${keyOf(projectName)}`;
+  if (ctx.projects.has(cacheKey)) return ctx.projects.get(cacheKey);
+  const job = (async () => {
+    const yearPath = await withLock(ctx, `year|${year}`, async () => {
+      if (!ctx.projects.has(`year|${year}`)) ctx.projects.set(`year|${year}`, ensureYearFolder(year));
+      return ctx.projects.get(`year|${year}`);
+    });
+    const kindPath = joinPath(yearPath, KINDS[kind]);
+    return withLock(ctx, kindPath, async () => {
+      if (!ctx.kindLists.has(kindPath)) ctx.kindLists.set(kindPath, ((await listIso(kindPath)) || []).filter((it) => it.isFolder).map((it) => it.name));
+      const names = ctx.kindLists.get(kindPath);
+      const found = names.find((n) => keyOf(n) === keyOf(projectName));
+      if (found) return joinPath(kindPath, found);
+      const maxNo = names.reduce((m, n) => Math.max(m, Number(n.match(/^(\d+)-/)?.[1] || 0)), 0);
+      const name = `${pad2(maxNo + 1)}-${safeName(projectName)}`;
+      names.push(name);
+      const path = joinPath(kindPath, name);
+      const subs = kind === "presale" ? PRESALE_SUBFOLDERS : PROJECT_SUBFOLDERS;
+      for (const sub of subs) await folderId(ctx, joinPath(ISO_ROOT, path, sub));
+      return path;
+    });
+  })();
+  ctx.projects.set(cacheKey, job);
+  job.catch(() => ctx.projects.delete(cacheKey));
+  return job;
 }
 
 /**
- * คัดลอกไฟล์งานของคำร้องที่ส่งมอบแล้วไปเก็บในโฟลเดอร์ ISO — คืน { path, copied, superseded } หรือ { skipped }
+ * คัดลอกไฟล์งานของคำร้องที่ส่งมอบแล้วไปเก็บในโฟลเดอร์ ISO — คืน { path, copied, superseded, already } หรือ { skipped }
  * @param {object} request คำร้อง (ต้องมี requestNo, projectName, requestType, drawingNo/drawingName, drawingCategory)
  * @param {Array} allRequests ใช้หาปีที่โครงการเริ่ม
+ * @param {object} [ctx] บริบทจาก createFilingContext() — ส่งตัวเดียวกันเมื่อจัดเก็บหลายงาน (เร็วขึ้นมาก)
  */
-export async function fileDeliveryToIso(request, allRequests = []) {
+export async function fileDeliveryToIso(request, allRequests = [], ctx = null) {
+  ctx = ctx || createFilingContext(allRequests);
   const stage = stageOfRequestType(request.requestType);
   if (!stage || !request.projectName) return { skipped: "ประเภทงานนี้ไม่มีโฟลเดอร์ขั้นแบบ" };
   const kind = /Proposal/i.test(request.requestType) ? "presale" : "project";
-  const projectReqs = allRequests.filter((r) => keyOf(r.projectName) === keyOf(request.projectName) && r.submittedAt);
-  const firstAt = projectReqs.map((r) => r.submittedAt).sort()[0] || request.submittedAt || new Date().toISOString();
-  const year = new Date(firstAt).getFullYear() || new Date().getFullYear();
+  const year = ctx.firstYear.get(keyOf(request.projectName)) || new Date(request.submittedAt || Date.now()).getFullYear() || new Date().getFullYear();
 
   // ไฟล์ที่ฝ่ายเขียนแบบส่ง: (1) โฟลเดอร์ย่อยล่าสุดในโฟลเดอร์คำร้อง (อัปโหลดผ่านระบบ)
   //                       (2) ถ้าไม่มี — ตามลิงก์ SharePoint/OneDrive ที่แนบตอนส่งงาน (DWG / PDF / ไฟล์อื่น)
   const id = await siteId();
   const reqFolder = requestFolderPath(request.requestNo);
-  const children = await graphFetch(`/sites/${id}/drive/root:/${encodePath(reqFolder)}:/children?$top=200`).then((r) => r?.value || []).catch(() => []);
+  const children = await graphFetch(`/sites/${id}/drive/root:/${encodePath(reqFolder)}:/children?$top=200&$select=id,name,folder,lastModifiedDateTime`).then((r) => r?.value || []).catch(() => []);
   const prefix = String(request.drawingNo || "").replace(/["*:<>?/\\|,().]/g, "").trim().toLowerCase();
   const workFolders = children.filter((c) => c.folder && !/^Rev\.\d+$/i.test(c.name) && (!prefix || c.name.toLowerCase().startsWith(prefix)))
     .sort((a, b) => String(b.lastModifiedDateTime).localeCompare(String(a.lastModifiedDateTime)));
   const work = workFolders[0];
   let files = [];
   if (work) {
-    files = await graphFetch(`/sites/${id}/drive/items/${work.id}/children?$top=200`)
-      .then((r) => (r?.value || []).filter((f) => f.file).map((f) => ({ id: f.id, driveId: f.parentReference?.driveId, name: f.name })))
+    files = await graphFetch(`/sites/${id}/drive/items/${work.id}/children?$top=200&$select=id,name,file,size,parentReference`)
+      .then((r) => (r?.value || []).filter((f) => f.file).map((f) => ({ id: f.id, driveId: f.parentReference?.driveId, name: f.name, size: f.size })))
       .catch(() => []);
   }
   if (!files.length) files = await filesFromLinks(sentLinks(request));
@@ -316,15 +382,13 @@ export async function fileDeliveryToIso(request, allRequests = []) {
   }
   const rev = String(request.currentRevise || request.reviseNumber || work?.name.split("-").pop() || "0").replace(/^rev\.?\s*/i, "").replace(/^r(?=\d)/i, "").replace(/[\\/:*?"<>|#%]+/g, "") || "0";
 
-  const projectPath = await ensureIsoProject(request.projectName, kind, year);
+  const projectPath = await ensureIsoProject(request.projectName, kind, year, ctx);
   const category = disciplineOfCategory(request.drawingCategory);
   const catFolder = stage === PERMIT_STAGE || !PERMIT_FOLDERS.some((f) => f.name === category) ? category : "GE";
   const drawingName = drawingFolderName(request.drawingNo || (kind === "presale" ? "Proposal" : request.requestNo), request.drawingName);
   const drawingPath = joinPath(projectPath, stage, catFolder, drawingName);
-  await createIsoFolder(drawingPath);
-
-  const target = await itemByPath(joinPath(ISO_ROOT, drawingPath));
-  const driveId = target.parentReference?.driveId;
+  const targetId = await folderId(ctx, joinPath(ISO_ROOT, drawingPath));
+  if (!ctx.driveId) ctx.driveId = (await graphFetch(`/sites/${id}/drive?$select=id`)).id;
   const newNames = files.map((f) => {
     const dot = f.name.lastIndexOf(".");
     const base = dot > 0 ? f.name.slice(0, dot) : f.name;
@@ -332,17 +396,22 @@ export async function fileDeliveryToIso(request, allRequests = []) {
     return /_Rev[^_]*$/i.test(base) ? f.name : `${base}_Rev.${rev}${ext}`;
   });
 
+  const existing = await graphFetch(`/sites/${id}/drive/items/${targetId}/children?$top=200&$select=id,name,file,size`).then((r) => r?.value || []).catch(() => []);
+  // จัดเก็บไปแล้ว (ชื่อ + ขนาดตรงกันครบ) → ข้าม ไม่คัดลอกซ้ำ
+  const existingByName = new Map(existing.filter((f) => f.file).map((f) => [f.name, f]));
+  if (newNames.every((n, i) => existingByName.has(n) && (!files[i].size || existingByName.get(n).size === files[i].size))) {
+    return { path: drawingPath, copied: 0, superseded: 0, already: true };
+  }
+
   // ฉบับเก่า (ไฟล์ที่ไม่ใช่ชุดนี้) → _Superseded
-  const existing = await graphFetch(`/sites/${id}/drive/items/${target.id}/children?$top=200`).then((r) => r?.value || []).catch(() => []);
   const oldFiles = existing.filter((f) => f.file && !newNames.includes(f.name));
   let superseded = 0;
   if (oldFiles.length) {
-    const sup = await createIsoFolder(joinPath(drawingPath, "_Superseded")).catch(() => null);
-    const supItem = sup?.id ? sup : await itemByPath(joinPath(ISO_ROOT, drawingPath, "_Superseded"));
+    const supId = await folderId(ctx, joinPath(ISO_ROOT, drawingPath, "_Superseded"));
     for (const f of oldFiles) {
       await graphFetch(`/sites/${id}/drive/items/${f.id}?@microsoft.graph.conflictBehavior=rename`, {
         method: "PATCH",
-        body: JSON.stringify({ parentReference: { id: supItem.id } }),
+        body: JSON.stringify({ parentReference: { id: supId } }),
       }).then(() => { superseded += 1; }).catch((e) => console.warn("ย้ายฉบับเก่าไม่สำเร็จ:", f.name, e.message));
     }
   }
@@ -353,7 +422,7 @@ export async function fileDeliveryToIso(request, allRequests = []) {
     const srcPath = files[i].driveId ? `/drives/${files[i].driveId}/items/${files[i].id}` : `/sites/${id}/drive/items/${files[i].id}`;
     await graphFetch(`${srcPath}/copy?@microsoft.graph.conflictBehavior=replace`, {
       method: "POST",
-      body: JSON.stringify({ parentReference: { driveId, id: target.id }, name: newNames[i] }),
+      body: JSON.stringify({ parentReference: { driveId: ctx.driveId, id: targetId }, name: newNames[i] }),
     }).catch((e) => { if (!(e instanceof SyntaxError)) throw e; });
     copied += 1;
   }
@@ -394,7 +463,7 @@ async function filesFromLinks(urls) {
 }
 
 /** สร้างโฟลเดอร์ ISO ให้ทุกโครงการที่มีคำร้องในระบบ (แม้ยังไม่มีไฟล์) — ปี = ปีที่มีคำร้องแรก · มีแต่ Proposal = Presale */
-export async function ensureAllProjectFolders(requests, onProgress) {
+export async function ensureAllProjectFolders(requests, onProgress, ctx = createFilingContext(requests)) {
   const groups = new Map();
   requests.filter((r) => !r.legacy && r.projectName && stageOfRequestType(r.requestType)).forEach((r) => {
     const k = keyOf(r.projectName);
@@ -407,7 +476,7 @@ export async function ensureAllProjectFolders(requests, onProgress) {
   for (const g of groups.values()) {
     onProgress?.(++i, groups.size, g.name);
     const year = new Date(g.first || Date.now()).getFullYear() || new Date().getFullYear();
-    await ensureIsoProject(g.name, g.project ? "project" : "presale", year);
+    await ensureIsoProject(g.name, g.project ? "project" : "presale", year, ctx);
   }
   return groups.size;
 }
