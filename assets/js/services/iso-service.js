@@ -24,22 +24,34 @@ export const ISO_SECTIONS = [
   { name: PROJECT_FOLDER, label: "เอกสารโครงการ", hint: "แยกปี → 1-Presale / 2-Project → โครงการ" },
 ];
 
-// โฟลเดอร์มาตรฐานในแต่ละโครงการ (ตามแฟ้มเดิม) — Presale มีแค่ขั้นเสนอแบบ
-export const PROJECT_SUBFOLDERS = [
-  "00-Ref",
-  "01-Document/1-RFD/1-รับมา",
-  "01-Document/1-RFD/2-ส่งออก",
-  "02-DWG Concept design",
-  "03-DWG Permission",
-  "04-DWG Construction",
-  "05-DWG As-built",
+// หมวดงานในแต่ละขั้นแบบ → ในหมวดแยกโฟลเดอร์ตาม Drawing "เลขDrawing-ชื่อDrawing"
+export const DISCIPLINES = [
+  { code: "GE", label: "General" },
+  { code: "EE", label: "Electrical" },
+  { code: "CE", label: "Civil / Structural / Architectural" },
+  { code: "ME", label: "Mechanical" },
 ];
-export const PRESALE_SUBFOLDERS = [
-  "00-Ref",
-  "01-Document/1-RFD/1-รับมา",
-  "01-Document/1-RFD/2-ส่งออก",
-  "02-DWG Concept design",
-];
+export const DRAWING_STAGES = ["02-DWG Concept design", "03-DWG Permission", "04-DWG Construction", "05-DWG As-built"];
+const DOC_FOLDERS = ["00-Ref", "01-Document/1-RFD/1-รับมา", "01-Document/1-RFD/2-ส่งออก"];
+const withDisciplines = (stages) => stages.flatMap((stage) => DISCIPLINES.map((d) => `${stage}/${d.code}`));
+
+// โฟลเดอร์มาตรฐานในแต่ละโครงการ — Presale มีแค่ขั้นเสนอแบบ (02)
+export const PROJECT_STAGES = DRAWING_STAGES;
+export const PRESALE_STAGES = DRAWING_STAGES.slice(0, 1);
+export const PROJECT_SUBFOLDERS = [...DOC_FOLDERS, ...withDisciplines(PROJECT_STAGES)];
+export const PRESALE_SUBFOLDERS = [...DOC_FOLDERS, ...withDisciplines(PRESALE_STAGES)];
+
+/** หมวด Drawing ในระบบ e-Service → รหัสหมวดโฟลเดอร์ */
+export function disciplineOfCategory(category) {
+  const c = String(category || "");
+  if (/Electrical/i.test(c)) return "EE";
+  if (/Mechanical/i.test(c)) return "ME";
+  if (/Structural|Architectural|Civil/i.test(c)) return "CE";
+  return "GE";
+}
+
+/** ชื่อโฟลเดอร์ Drawing: "เลขDrawing-ชื่อDrawing" */
+export const drawingFolderName = (no, name) => safeName([no, name].filter((v) => String(v || "").trim()).join("-")).slice(0, 150);
 export const KINDS = { presale: "1-Presale", project: "2-Project" };
 
 const yearFolderRe = (year) => new RegExp(`(^|-)\\s*Project ปี ${year}$`);
@@ -189,19 +201,34 @@ export async function importIsoZip(path, zipFile, onProgress) {
   return { folders: sortedDirs.length, files: files.length };
 }
 
-/** ตรวจความครบถ้วนสำหรับ Audit: แต่ละโครงการในโฟลเดอร์ Presale/Project มีไฟล์ในโฟลเดอร์มาตรฐานกี่ไฟล์ */
+/** ตรวจความครบถ้วนสำหรับ Audit: แต่ละโครงการ → ต่อโฟลเดอร์หลัก (00-Ref, 01-Document, 02–05)
+ *  ใช้ขนาดรวมของโฟลเดอร์จาก SharePoint (รวมไฟล์ทุกชั้นข้างใน) — 1 ครั้งต่อโครงการ ไม่ต้องไล่ทุกโฟลเดอร์ย่อย */
 export async function auditKindFolder(kindPath) {
   const kind = /Presale$/.test(kindPath) ? "presale" : "project";
-  const subs = kind === "presale" ? PRESALE_SUBFOLDERS : PROJECT_SUBFOLDERS;
+  const cols = ["00-Ref", "01-Document", ...(kind === "presale" ? PRESALE_STAGES : PROJECT_STAGES)];
   const projects = ((await listIso(kindPath)) || []).filter((it) => it.isFolder);
   const rows = [];
   for (const project of projects) {
-    const counts = [];
-    for (const sub of subs) {
-      const items = await listIso(joinPath(kindPath, project.name, sub));
-      counts.push(items === null ? null : items.filter((it) => !it.isFolder).length);
-    }
-    rows.push({ name: project.name, counts });
+    const children = (await listIso(joinPath(kindPath, project.name))) || [];
+    const cells = cols.map((col) => {
+      const f = children.find((c) => c.isFolder && c.name === col);
+      return f ? { size: f.size || 0 } : null;
+    });
+    rows.push({ name: project.name, cells });
   }
-  return { kind, subs, rows };
+  return { kind, subs: cols, rows };
+}
+
+/** สร้างโฟลเดอร์ Drawing ในหมวด (path = .../<ขั้นแบบ>/<หมวด>) — ข้ามชื่อที่มีอยู่แล้ว */
+export async function createDrawingFolders(path, drawings) {
+  const existing = new Set(((await listIso(path)) || []).map((it) => it.name.toLowerCase()));
+  let created = 0;
+  for (const d of drawings) {
+    const name = drawingFolderName(d.no, d.name);
+    if (!name || existing.has(name.toLowerCase())) continue;
+    await createIsoFolder(joinPath(path, name));
+    existing.add(name.toLowerCase());
+    created += 1;
+  }
+  return created;
 }

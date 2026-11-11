@@ -3,10 +3,12 @@
 // ══════════════════════════════════════════════════════════════
 
 import {
-  ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PROJECT_FOLDER, PRESALE_SUBFOLDERS, PROJECT_SUBFOLDERS,
-  auditKindFolder, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
-  importIsoZip, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
+  DISCIPLINES, DRAWING_STAGES, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
+  auditKindFolder, createDrawingFolders, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
+  disciplineOfCategory, drawingFolderName, importIsoZip, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
+import { state } from "../state.js";
+import { projectKey } from "../utils.js";
 import { writeAudit } from "../services/audit-service.js";
 import { escapeHtml, formatDate } from "../utils.js";
 import { openModal } from "./modal.js";
@@ -31,7 +33,7 @@ const sectionOf = (name) => ISO_SECTIONS.find((s) => s.name === name);
 function projectContext(path) {
   const parts = path.split("/");
   if (parts[0] !== PROJECT_FOLDER) return null;
-  return { yearFolder: parts[1] || "", kind: parts[2] || "", project: parts[3] || "", depth: parts.length };
+  return { yearFolder: parts[1] || "", kind: parts[2] || "", project: parts[3] || "", stage: parts[4] || "", discipline: parts[5] || "", depth: parts.length };
 }
 
 export function renderIsoBrowser(container, { editable = false } = {}) {
@@ -69,6 +71,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     const ctx = projectContext(ui.path);
     const inKind = ctx && ctx.depth === 3 && Object.values(KINDS).includes(ctx.kind);
     const isPresaleProject = ctx && ctx.depth === 4 && ctx.kind === KINDS.presale;
+    const inDiscipline = ctx && ctx.depth === 6 && DRAWING_STAGES.includes(ctx.stage) && DISCIPLINES.some((d) => d.code === ctx.discipline);
     return `
       <div class="iso-toolbar">
         <button type="button" class="primary-button" data-iso-act="upload">⬆️ อัปโหลดไฟล์</button>
@@ -77,6 +80,8 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
         ${ui.path.startsWith(PROJECT_FOLDER) || !ui.path ? `<button type="button" class="secondary-button" data-iso-act="project">➕ โครงการใหม่</button>` : ""}
         ${isPresaleProject ? `<button type="button" class="secondary-button" data-iso-act="promote" title="ย้ายโฟลเดอร์ไป 2-Project พร้อมไฟล์ แล้วเพิ่มโฟลเดอร์ขั้นขออนุญาต/ก่อสร้าง/As-built">⇢ เลื่อนเป็นโครงการ</button>` : ""}
         ${inKind ? `<button type="button" class="secondary-button" data-iso-act="audit">✅ ตรวจความครบถ้วน (Audit)</button>` : ""}
+        ${inDiscipline ? `<button type="button" class="secondary-button" data-iso-act="drawing">📐 เพิ่ม Drawing</button>
+        <button type="button" class="secondary-button" data-iso-act="pull" title="สร้างโฟลเดอร์ตามรายการ Drawing ของโครงการในระบบ e-Service">📥 ดึงรายการ Drawing จากระบบ</button>` : ""}
         ${!ui.path ? `<button type="button" class="secondary-button" data-iso-act="standard" title="สร้างโฟลเดอร์ 1-SP … 8-Project และปีปัจจุบัน (โฟลเดอร์ที่มีอยู่แล้วไม่ถูกแตะ)">🏗️ สร้างโครงสร้างมาตรฐาน</button>` : ""}
         <input type="file" multiple hidden data-iso-file />
         <input type="file" accept=".zip,application/zip" hidden data-iso-zip />
@@ -90,8 +95,14 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     }
     const sec = sectionOf(ui.path.split("/")[0]);
     if (ctx && ctx.depth === 4) {
-      const subs = ctx.kind === KINDS.presale ? PRESALE_SUBFOLDERS : PROJECT_SUBFOLDERS;
-      return `<div class="iso-guide">📐 โฟลเดอร์มาตรฐานของ${ctx.kind === KINDS.presale ? "งาน Presale" : "โครงการ"}: ${subs.map((s) => `<code>${escapeHtml(s)}</code>`).join(" · ")}</div>`;
+      const stages = ctx.kind === KINDS.presale ? PRESALE_STAGES : PROJECT_STAGES;
+      return `<div class="iso-guide">📐 โครงสร้าง${ctx.kind === KINDS.presale ? "งาน Presale" : "โครงการ"}: <code>00-Ref</code> · <code>01-Document/1-RFD/{1-รับมา, 2-ส่งออก}</code> · ${stages.map((s) => `<code>${escapeHtml(s)}</code>`).join(" · ")} → หมวด ${DISCIPLINES.map((d) => `<b>${d.code}</b>`).join(" / ")} → โฟลเดอร์ <b>เลขDrawing-ชื่อDrawing</b></div>`;
+    }
+    if (ctx && ctx.depth === 5 && DRAWING_STAGES.includes(ctx.stage)) {
+      return `<div class="iso-guide">📂 แยกหมวด: ${DISCIPLINES.map((d) => `<b>${d.code}</b> ${escapeHtml(d.label)}`).join(" · ")}</div>`;
+    }
+    if (ctx && ctx.depth === 6 && DRAWING_STAGES.includes(ctx.stage)) {
+      return `<div class="iso-guide">📐 1 โฟลเดอร์ต่อ 1 Drawing ชื่อ <b>เลขDrawing-ชื่อDrawing</b> — เก็บทุก Revision ไว้ในโฟลเดอร์เดียว ตั้งชื่อไฟล์มี Rev เช่น <code>EE-001_Rev.A.pdf</code> · ฉบับเก่าที่ยกเลิกแล้วย้ายเข้าโฟลเดอร์ย่อย <code>_Superseded</code></div>`;
     }
     return sec ? `<div class="iso-guide">ℹ️ <b>${escapeHtml(sec.label)}</b> — ${escapeHtml(sec.hint)}</div>` : "";
   }
@@ -223,17 +234,92 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     box.innerHTML = `<p class="iso-empty">กำลังตรวจโฟลเดอร์ทุกโครงการ...</p>`;
     try {
       const { subs, rows } = await auditKindFolder(ui.path);
-      const short = (s) => s.replace("01-Document/1-RFD/", "RFD ").replace(/^0\d-/, "").replace("DWG ", "");
+      const short = (s) => s.replace(/^0\d-/, "").replace("DWG ", "");
+      const cell = (c) => (c === null ? `<td class="is-missing">ไม่มีโฟลเดอร์</td>` : c.size ? `<td class="is-ok">✓ ${sizeText(c.size)}</td>` : `<td class="is-empty">–</td>`);
       box.innerHTML = rows.length ? `
-        <h4>✅ ความครบถ้วนของเอกสาร (จำนวนไฟล์ในแต่ละโฟลเดอร์มาตรฐาน)</h4>
+        <h4>✅ ความครบถ้วนของเอกสาร (ขนาดไฟล์รวมในแต่ละโฟลเดอร์ รวมทุกหมวด/ทุก Drawing ข้างใน)</h4>
         <div class="track-table-wrap"><table class="manage-table iso-audit-table">
           <thead><tr><th>โครงการ</th>${subs.map((s) => `<th title="${escapeHtml(s)}">${escapeHtml(short(s))}</th>`).join("")}</tr></thead>
-          <tbody>${rows.map((r) => `<tr><td><button type="button" class="iso-crumb" data-iso-go="${escapeHtml(joinPath(ui.path, r.name))}">${escapeHtml(r.name)}</button></td>${r.counts.map((c) => `<td class="${c === null ? "is-missing" : c === 0 ? "is-empty" : "is-ok"}">${c === null ? "ไม่มีโฟลเดอร์" : c === 0 ? "–" : c}</td>`).join("")}</tr>`).join("")}</tbody>
+          <tbody>${rows.map((r) => `<tr><td><button type="button" class="iso-crumb" data-iso-go="${escapeHtml(joinPath(ui.path, r.name))}">${escapeHtml(r.name)}</button></td>${r.cells.map(cell).join("")}</tr>`).join("")}</tbody>
         </table></div>
-        <p class="manage-hint">– = ยังไม่มีไฟล์ · ไม่มีโฟลเดอร์ = โครงสร้างไม่ครบ (เปิดโครงการแล้วสร้างโฟลเดอร์ที่ขาด)</p>` : `<p class="iso-empty">ยังไม่มีโครงการในโฟลเดอร์นี้</p>`;
+        <p class="manage-hint">✓ = มีไฟล์ · – = ยังไม่มีไฟล์ · ไม่มีโฟลเดอร์ = โครงสร้างไม่ครบ (เปิดโครงการแล้วสร้างโฟลเดอร์ที่ขาด)</p>` : `<p class="iso-empty">ยังไม่มีโครงการในโฟลเดอร์นี้</p>`;
     } catch (error) {
       box.innerHTML = `<p class="iso-empty">⚠️ ตรวจไม่สำเร็จ: ${escapeHtml(error.message)}</p>`;
     }
+  }
+
+  function openDrawingForm() {
+    openModal({
+      title: "📐 เพิ่มโฟลเดอร์ Drawing",
+      body: `
+        <label class="field"><span>เลข Drawing</span><input id="iso-dno" type="text" placeholder="เช่น EE-001" autocomplete="off" /></label>
+        <label class="field"><span>ชื่อ Drawing</span><input id="iso-dname" type="text" placeholder="เช่น Single Line Diagram" autocomplete="off" /></label>
+        <p class="manage-hint">ชื่อโฟลเดอร์: <b>เลขDrawing-ชื่อDrawing</b></p>`,
+      actions: [
+        { label: "ยกเลิก", className: "secondary-button" },
+        {
+          label: "สร้าง",
+          className: "primary-button",
+          onClick: (close) => {
+            const no = document.querySelector("#iso-dno")?.value || "";
+            const name = document.querySelector("#iso-dname")?.value || "";
+            if (!no.trim()) { showToast("กรุณาระบุเลข Drawing", "warning"); return; }
+            close();
+            run(`เพิ่ม Drawing ${drawingFolderName(no, name)}`, () => createDrawingFolders(ui.path, [{ no, name }]));
+          },
+        },
+      ],
+    });
+  }
+
+  /** ดึงรายการ Drawing ของโครงการในระบบ e-Service (เฉพาะหมวดของโฟลเดอร์นี้) มาสร้างโฟลเดอร์ */
+  function openPullDrawings() {
+    const ctx = projectContext(ui.path);
+    const all = (state.masterData?.drawingNumbers || []).filter((d) => !d.IsHidden && d.Title);
+    const projects = [...new Set(all.map((d) => String(d.ProjectName || "").trim()).filter(Boolean))];
+    const folderKey = projectKey(ctx.project.replace(/^\d+-/, ""));
+    const score = (p) => { const k = projectKey(p); return k === folderKey ? 3 : (k.includes(folderKey) || folderKey.includes(k)) ? 2 : 0; };
+    projects.sort((a, b) => score(b) - score(a) || a.localeCompare(b, "th", { numeric: true }));
+    const listFor = (proj) => all.filter((d) => projectKey(d.ProjectName) === projectKey(proj) && disciplineOfCategory(d.DrawingCategory) === ctx.discipline)
+      .sort((a, b) => String(a.Title).localeCompare(String(b.Title), "th", { numeric: true }));
+    const rowsHtml = (proj) => {
+      const items = listFor(proj);
+      return items.length
+        ? items.map((d, i) => `<label class="iso-pull-row"><input type="checkbox" data-pull="${i}" checked /> <b>${escapeHtml(d.Title)}</b> ${escapeHtml(d.DrawingName || "")} <small>${escapeHtml(d.DrawingCategory || "")}</small></label>`).join("")
+        : `<p class="manage-hint">ไม่มี Drawing หมวด ${escapeHtml(ctx.discipline)} ในโครงการนี้</p>`;
+    };
+    if (!projects.length) { showToast("ยังไม่มีรายการ Drawing ในระบบ", "warning"); return; }
+    let current = projects[0];
+    openModal({
+      title: `📥 ดึงรายการ Drawing หมวด ${ctx.discipline} จากระบบ`,
+      body: `
+        <label class="field"><span>โครงการในระบบ e-Service</span>
+          <select id="iso-pull-project">${projects.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}${score(p) ? " ✓" : ""}</option>`).join("")}</select>
+        </label>
+        <div class="iso-pull-list" id="iso-pull-list">${rowsHtml(current)}</div>
+        <p class="manage-hint">สร้างโฟลเดอร์ <b>เลขDrawing-ชื่อDrawing</b> ใน ${escapeHtml(ctx.stage)}/${escapeHtml(ctx.discipline)} — ชื่อที่มีอยู่แล้วจะข้ามให้</p>`,
+      actions: [
+        { label: "ยกเลิก", className: "secondary-button" },
+        {
+          label: "สร้างโฟลเดอร์",
+          className: "primary-button",
+          onClick: (close) => {
+            const items = listFor(current);
+            const picked = [...document.querySelectorAll("[data-pull]")].filter((c) => c.checked).map((c) => items[Number(c.dataset.pull)]).filter(Boolean);
+            if (!picked.length) { showToast("ยังไม่ได้เลือก Drawing", "warning"); return; }
+            close();
+            run(`ดึง Drawing ${picked.length} รายการจาก ${current}`, async () => {
+              const n = await createDrawingFolders(ui.path, picked.map((d) => ({ no: d.Title, name: d.DrawingName })));
+              showToast(`สร้างโฟลเดอร์ Drawing ${n} รายการ${picked.length - n ? ` (มีอยู่แล้ว ${picked.length - n})` : ""}`, "success");
+            });
+          },
+        },
+      ],
+    });
+    document.querySelector("#iso-pull-project")?.addEventListener("change", (e) => {
+      current = e.target.value;
+      document.querySelector("#iso-pull-list").innerHTML = rowsHtml(current);
+    });
   }
 
   root.addEventListener("click", async (event) => {
@@ -245,6 +331,8 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     if (act === "zip") body.querySelector("[data-iso-zip]")?.click();
     if (act === "project") openProjectForm();
     if (act === "audit") showAudit();
+    if (act === "drawing") openDrawingForm();
+    if (act === "pull") openPullDrawings();
     if (act === "folder") {
       const name = await askText("📁 โฟลเดอร์ใหม่", "ชื่อโฟลเดอร์", "", "แนะนำให้ใส่เลขลำดับนำหน้า เช่น 2026 หรือ 06-Transmittal");
       if (name) run(`สร้างโฟลเดอร์ ${name}`, () => createIsoFolder(joinPath(ui.path, safeName(name))));
