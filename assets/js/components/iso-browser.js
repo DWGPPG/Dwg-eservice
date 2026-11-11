@@ -4,7 +4,7 @@
 
 import {
   DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
-  auditKindFolder, createDrawingFolders, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
+  auditKindFolder, createDrawingFolders, searchIso, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
   createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
@@ -45,7 +45,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
   let items = [];
   let busy = false;
 
-  const go = (path) => { ui.path = path; load(); };
+  const go = (path) => { ui.path = path; filter.q = ""; filter.results = null; filter.scope = "here"; load(); };
 
   async function load() {
     body.innerHTML = `<p class="iso-empty">กำลังโหลด...</p>`;
@@ -108,47 +108,157 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     return sec ? `<div class="iso-guide">ℹ️ <b>${escapeHtml(sec.label)}</b> — ${escapeHtml(sec.hint)}</div>` : "";
   }
 
-  function draw() {
-    const list = items || [];
-    const rows = list.map((it) => {
-      const sec = !ui.path && it.isFolder ? sectionOf(it.name) : null;
-      const actions = editable ? `
+  // ── ค้นหา/กรอง: ในโฟลเดอร์นี้ (ทันที) หรือทุกโฟลเดอร์ย่อย (ค้นใน SharePoint) ──
+  const filter = { q: "", type: "all", scope: "here", results: null, searching: false };
+  let searchTimer = 0;
+  let searchSeq = 0;
+  const TYPE_TEST = {
+    all: () => true,
+    folder: (it) => it.isFolder,
+    pdf: (it) => !it.isFolder && /\.pdf$/i.test(it.name),
+    dwg: (it) => !it.isFolder && /\.(dwg|dxf)$/i.test(it.name),
+    office: (it) => !it.isFolder && /\.(xlsx?|csv|docx?|pptx?)$/i.test(it.name),
+    image: (it) => !it.isFolder && /\.(jpe?g|png|gif|webp|tiff?)$/i.test(it.name),
+    other: (it) => !it.isFolder && !/\.(pdf|dwg|dxf|xlsx?|csv|docx?|pptx?|jpe?g|png|gif|webp|tiff?)$/i.test(it.name),
+  };
+  const matches = (it) => TYPE_TEST[filter.type](it) && (!filter.q || it.name.toLowerCase().includes(filter.q.toLowerCase()));
+
+  function rowHtml(it, { showPath = false } = {}) {
+    const sec = !ui.path && !showPath && it.isFolder ? sectionOf(it.name) : null;
+    const where = showPath ? (it.path || ISO_ROOT_LABEL) : "";
+    const actions = editable && !showPath ? `
         <button type="button" class="small-button" data-iso-rename="${it.id}" title="เปลี่ยนชื่อ">✏️</button>
         <button type="button" class="small-button danger" data-iso-delete="${it.id}" title="ลบ">🗑️</button>` : "";
-      if (it.isFolder) {
-        return `
+    if (it.isFolder) {
+      const target = showPath ? joinPath(it.path, it.name) : joinPath(ui.path, it.name);
+      return `
           <li class="iso-row is-folder">
-            <button type="button" class="iso-open" data-iso-go="${escapeHtml(joinPath(ui.path, it.name))}">
+            <button type="button" class="iso-open" data-iso-go="${escapeHtml(target)}">
               <span class="iso-icon">📁</span>
-              <span class="iso-name"><b>${escapeHtml(it.name)}</b>${sec ? `<small>${escapeHtml(sec.label)}</small>` : ""}</span>
-              <span class="iso-meta">${it.childCount} รายการ</span>
+              <span class="iso-name"><b>${highlight(it.name)}</b>${sec ? `<small>${escapeHtml(sec.label)}</small>` : ""}${where ? `<small>📂 ${escapeHtml(where)}</small>` : ""}</span>
+              <span class="iso-meta">${showPath ? "" : `${it.childCount} รายการ`}</span>
             </button>
             <span class="iso-actions">${actions}</span>
           </li>`;
-      }
-      return `
+    }
+    return `
         <li class="iso-row">
           <a class="iso-open" href="${escapeHtml(it.webUrl)}" target="_blank" rel="noopener noreferrer" title="เปิดใน SharePoint">
             <span class="iso-icon">${fileIcon(it.name)}</span>
-            <span class="iso-name"><b>${escapeHtml(it.name)}</b><small>${escapeHtml(formatDate(it.modified))}${it.modifiedBy ? ` · ${escapeHtml(it.modifiedBy)}` : ""}</small></span>
+            <span class="iso-name"><b>${highlight(it.name)}</b><small>${where ? `📂 ${escapeHtml(where)} · ` : ""}${escapeHtml(formatDate(it.modified))}${it.modifiedBy ? ` · ${escapeHtml(it.modifiedBy)}` : ""}</small></span>
             <span class="iso-meta">${sizeText(it.size)}</span>
           </a>
           <span class="iso-actions">
             ${it.downloadUrl ? `<a class="small-button" href="${escapeHtml(it.downloadUrl)}" download="${escapeHtml(it.name)}" title="ดาวน์โหลด">⬇️</a>` : ""}
+            ${showPath && it.path !== undefined ? `<button type="button" class="small-button" data-iso-go="${escapeHtml(it.path)}" title="เปิดโฟลเดอร์ที่เก็บไฟล์นี้">📂</button>` : ""}
             ${actions}
           </span>
         </li>`;
-    }).join("");
+  }
+
+  function highlight(name) {
+    const text = escapeHtml(name);
+    if (!filter.q) return text;
+    const q = escapeHtml(filter.q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replace(new RegExp(q, "ig"), (m) => `<mark>${m}</mark>`);
+  }
+
+  function filterBar() {
+    if (items === null) return "";
+    return `
+      <div class="iso-filter">
+        <label class="iso-search"><span aria-hidden="true">🔍</span>
+          <input type="search" data-iso-q placeholder="ค้นหาชื่อไฟล์ / โฟลเดอร์ / เลข Drawing..." value="${escapeHtml(filter.q)}" autocomplete="off" />
+        </label>
+        <select data-iso-type title="ประเภท">
+          ${[["all", "ทุกประเภท"], ["folder", "📁 โฟลเดอร์"], ["pdf", "📕 PDF"], ["dwg", "📐 DWG/DXF"], ["office", "📗 Excel/Word"], ["image", "🖼️ รูปภาพ"], ["other", "📄 อื่นๆ"]]
+            .map(([v, l]) => `<option value="${v}" ${filter.type === v ? "selected" : ""}>${l}</option>`).join("")}
+        </select>
+        <div class="iso-scope" role="group" aria-label="ขอบเขตการค้นหา">
+          <button type="button" class="${filter.scope === "here" ? "is-active" : ""}" data-iso-scope="here">ในโฟลเดอร์นี้</button>
+          <button type="button" class="${filter.scope === "all" ? "is-active" : ""}" data-iso-scope="all" title="ค้นทุกโฟลเดอร์ย่อยใต้โฟลเดอร์นี้">ทุกโฟลเดอร์ย่อย</button>
+        </div>
+      </div>`;
+  }
+
+  /** วาดเฉพาะรายการ (ไม่วาดช่องค้นหาใหม่ — เคอร์เซอร์ไม่หลุดตอนพิมพ์) */
+  function drawList() {
+    const host = body.querySelector(".iso-list-host");
+    if (!host) return;
+    if (items === null) {
+      host.innerHTML = `<p class="iso-empty">ยังไม่มีโฟลเดอร์เอกสาร ISO ${editable ? "— กด <b>🏗️ สร้างโครงสร้างมาตรฐาน</b> หรือ <b>🗜️ นำเข้า ZIP</b>" : "— ผู้จัดการสร้างได้ที่หน้าจัดการข้อมูล → เอกสาร ISO"}</p>`;
+      return;
+    }
+    if (filter.scope === "all" && (filter.q || filter.type !== "all")) {
+      if (!filter.q.trim()) { host.innerHTML = `<p class="iso-empty">พิมพ์คำค้นเพื่อค้นทุกโฟลเดอร์ย่อย</p>`; return; }
+      if (filter.searching && !filter.results) { host.innerHTML = `<p class="iso-empty">กำลังค้นหาใน SharePoint...</p>`; return; }
+      const found = (filter.results || []).filter((it) => TYPE_TEST[filter.type](it));
+      host.innerHTML = found.length
+        ? `<p class="iso-count">พบ ${found.length.toLocaleString("th-TH")} รายการ${filter.results?.length >= 200 ? " (แสดง 200 รายการแรก — พิมพ์คำค้นให้เจาะจงขึ้น)" : ""}</p><ul class="iso-list">${found.map((it) => rowHtml(it, { showPath: true })).join("")}</ul>`
+        : `<p class="iso-empty">ไม่พบ "${escapeHtml(filter.q)}" ในโฟลเดอร์นี้และโฟลเดอร์ย่อย</p>`;
+      return;
+    }
+    const list = items.filter(matches);
+    const filtered = filter.q || filter.type !== "all";
+    host.innerHTML = list.length
+      ? `${filtered ? `<p class="iso-count">${list.length} จาก ${items.length} รายการ · <button type="button" class="iso-crumb" data-iso-scope="all">ค้นทุกโฟลเดอร์ย่อย ›</button></p>` : ""}<ul class="iso-list">${list.map((it) => rowHtml(it)).join("")}</ul>`
+      : filtered
+        ? `<p class="iso-empty">ไม่พบในโฟลเดอร์นี้ — <button type="button" class="iso-crumb" data-iso-scope="all">ค้นทุกโฟลเดอร์ย่อย ›</button></p>`
+        : `<p class="iso-empty">โฟลเดอร์ว่าง${editable ? " — ลากไฟล์มาวางที่นี่ หรือกดอัปโหลดไฟล์" : ""}</p>`;
+  }
+
+  function runSearch() {
+    clearTimeout(searchTimer);
+    if (filter.scope !== "all" || !filter.q.trim()) { filter.results = null; drawList(); return; }
+    filter.searching = true;
+    filter.results = null;
+    drawList();
+    const seq = ++searchSeq;
+    searchTimer = setTimeout(async () => {
+      try {
+        const res = await searchIso(ui.path, filter.q.trim());
+        if (seq !== searchSeq) return;
+        filter.results = res;
+      } catch (error) {
+        if (seq !== searchSeq) return;
+        filter.results = [];
+        showToast(`ค้นหาไม่สำเร็จ: ${error.message}`, "error");
+      }
+      filter.searching = false;
+      drawList();
+    }, 350);
+  }
+
+  function draw() {
     body.innerHTML = `
       ${crumbs()}
       ${toolbar()}
       ${guidePanel()}
-      ${items === null
-        ? `<p class="iso-empty">ยังไม่มีโฟลเดอร์เอกสาร ISO ${editable ? "— กด <b>🏗️ สร้างโครงสร้างมาตรฐาน</b> หรือ <b>🗜️ นำเข้า ZIP</b>" : "— ผู้จัดการสร้างได้ที่หน้าจัดการข้อมูล → เอกสาร ISO"}</p>`
-        : list.length ? `<ul class="iso-list">${rows}</ul>` : `<p class="iso-empty">โฟลเดอร์ว่าง${editable ? " — ลากไฟล์มาวางที่นี่ หรือกดอัปโหลดไฟล์" : ""}</p>`}
+      ${filterBar()}
+      <div class="iso-list-host"></div>
       <div class="iso-progress" hidden></div>
       <div class="iso-audit"></div>`;
+    drawList();
+    if (filter.scope === "all" && filter.q) runSearch();
   }
+
+  root.addEventListener("input", (event) => {
+    if (event.target.matches("[data-iso-q]")) {
+      filter.q = event.target.value;
+      if (filter.scope === "all") runSearch(); else drawList();
+    }
+  });
+  root.addEventListener("change", (event) => {
+    if (event.target.matches("[data-iso-type]")) { filter.type = event.target.value; drawList(); }
+  });
+  root.addEventListener("click", (event) => {
+    const scopeBtn = event.target.closest("[data-iso-scope]");
+    if (!scopeBtn) return;
+    filter.scope = scopeBtn.dataset.isoScope;
+    body.querySelectorAll(".iso-scope [data-iso-scope]").forEach((b) => b.classList.toggle("is-active", b.dataset.isoScope === filter.scope));
+    runSearch();
+    body.querySelector("[data-iso-q]")?.focus();
+  });
 
   const progress = (text) => {
     const el = body.querySelector(".iso-progress");
