@@ -23,7 +23,7 @@ export const NAV_ITEMS = [
   { route: "/admin", label: "รับงาน / อนุมัติ", icon: "04", svg: "admin", roles: ["manager", "designer"] },
   { route: "/report", label: "รายงาน", icon: "05", svg: "report", roles: ["manager"] },
   { route: "/manage", label: "จัดการข้อมูล", icon: "06", svg: "manage", roles: ["manager"] },
-  { route: "/guide", label: "คู่มือ", icon: "07", svg: "guide", roles: ["manager", "requester", "designer"] },
+  { route: "/guide", label: "คู่มือ", staffLabel: "คู่มือ/เอกสาร ISO", icon: "07", svg: "guide", roles: ["manager", "requester", "designer"] },
 ];
 
 // ลิงก์ไประบบอื่นของบริษัท — แสดงใต้เมนูหลักในแถบซ้าย เปิดในแท็บใหม่ (ทุกคนที่ login เห็น)
