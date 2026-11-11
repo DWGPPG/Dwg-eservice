@@ -5,7 +5,7 @@
 import {
   DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
   auditKindFolder, createDrawingFolders, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
-  disciplineOfCategory, drawingFolderName, importIsoZip, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
+  disciplineOfCategory, drawingFolderName, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
 import { projectKey } from "../utils.js";
@@ -82,6 +82,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
         ${inKind ? `<button type="button" class="secondary-button" data-iso-act="audit">✅ ตรวจความครบถ้วน (Audit)</button>` : ""}
         ${inDiscipline ? `<button type="button" class="secondary-button" data-iso-act="drawing">📐 เพิ่ม Drawing</button>
         <button type="button" class="secondary-button" data-iso-act="pull" title="สร้างโฟลเดอร์ตามรายการ Drawing ของโครงการในระบบ e-Service">📥 ดึงรายการ Drawing จากระบบ</button>` : ""}
+        ${!ui.path || ui.path.startsWith(PROJECT_FOLDER) ? `<button type="button" class="secondary-button" data-iso-act="backfill" title="คัดลอกไฟล์งานที่ส่งมอบแล้วในระบบ e-Service ลงโฟลเดอร์ ISO ของแต่ละโครงการ">🔄 จัดเก็บไฟล์งานย้อนหลัง</button>` : ""}
         ${!ui.path ? `<button type="button" class="secondary-button" data-iso-act="standard" title="สร้างโฟลเดอร์ 1-SP … 8-Project และปีปัจจุบัน (โฟลเดอร์ที่มีอยู่แล้วไม่ถูกแตะ)">🏗️ สร้างโครงสร้างมาตรฐาน</button>` : ""}
         <input type="file" multiple hidden data-iso-file />
         <input type="file" accept=".zip,application/zip" hidden data-iso-zip />
@@ -248,6 +249,52 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     }
   }
 
+  /** คำร้องที่ส่งมอบแล้ว (ส่งมอบ/ตรวจรับแล้ว) ในระบบ → คัดลอกไฟล์ลงโฟลเดอร์ ISO ย้อนหลัง */
+  function openBackfill() {
+    const delivered = (state.requests || []).filter((r) => ["delivered", "done"].includes(r.status) && stageOfRequestType(r.requestType) && r.projectName);
+    if (!delivered.length) { showToast("ยังไม่มีงานที่ส่งมอบแล้วในระบบ", "warning"); return; }
+    const projects = [...new Set(delivered.map((r) => r.projectName.trim()))].sort((a, b) => a.localeCompare(b, "th", { numeric: true }));
+    const ctx = projectContext(ui.path);
+    const here = ctx?.project ? projects.find((p) => projectKey(p) === projectKey(ctx.project.replace(/^\d+-/, ""))) : "";
+    openModal({
+      title: "🔄 จัดเก็บไฟล์งานย้อนหลังลงเอกสาร ISO",
+      body: `
+        <label class="field"><span>โครงการ</span>
+          <select id="iso-bf-project">
+            <option value="">ทุกโครงการ (${delivered.length} งาน)</option>
+            ${projects.map((p) => `<option value="${escapeHtml(p)}" ${p === here ? "selected" : ""}>${escapeHtml(p)} (${delivered.filter((r) => r.projectName.trim() === p).length} งาน)</option>`).join("")}
+          </select>
+        </label>
+        <p class="manage-hint">คัดลอกไฟล์ที่ฝ่ายเขียนแบบส่ง (จากโฟลเดอร์คำร้อง) ไปไว้ที่ โครงการ → ขั้นแบบตามประเภทงาน → หมวด → โฟลเดอร์ Drawing — ทำซ้ำได้ ไฟล์ชื่อเดิมจะถูกแทนที่ ไม่ซ้ำซ้อน · ไฟล์ต้นฉบับไม่ถูกย้าย</p>`,
+      actions: [
+        { label: "ยกเลิก", className: "secondary-button" },
+        {
+          label: "เริ่มจัดเก็บ",
+          className: "primary-button",
+          onClick: (close) => {
+            const proj = document.querySelector("#iso-bf-project")?.value || "";
+            const list = proj ? delivered.filter((r) => r.projectName.trim() === proj) : delivered;
+            close();
+            run(`จัดเก็บไฟล์งานย้อนหลัง ${proj || "ทุกโครงการ"} (${list.length} งาน)`, async () => {
+              let ok = 0; let skipped = 0; let failed = 0; let files = 0;
+              for (let i = 0; i < list.length; i += 1) {
+                progress(`🔄 ${i + 1}/${list.length} — ${list[i].requestNo} ${list[i].projectName}`);
+                try {
+                  const res = await fileDeliveryToIso(list[i], state.requests || []);
+                  if (res?.path) { ok += 1; files += res.copied; } else skipped += 1;
+                } catch (error) {
+                  failed += 1;
+                  console.warn("จัดเก็บไม่สำเร็จ:", list[i].requestNo, error.message);
+                }
+              }
+              showToast(`จัดเก็บแล้ว ${ok} งาน (${files} ไฟล์)${skipped ? ` · ข้าม ${skipped} งาน (ไม่มีไฟล์งาน)` : ""}${failed ? ` · ไม่สำเร็จ ${failed} งาน` : ""}`, failed ? "warning" : "success");
+            });
+          },
+        },
+      ],
+    });
+  }
+
   function openDrawingForm() {
     openModal({
       title: "📐 เพิ่มโฟลเดอร์ Drawing",
@@ -332,6 +379,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     if (act === "project") openProjectForm();
     if (act === "audit") showAudit();
     if (act === "drawing") openDrawingForm();
+    if (act === "backfill") openBackfill();
     if (act === "pull") openPullDrawings();
     if (act === "folder") {
       const name = await askText("📁 โฟลเดอร์ใหม่", "ชื่อโฟลเดอร์", "", "แนะนำให้ใส่เลขลำดับนำหน้า เช่น 2026 หรือ 06-Transmittal");
