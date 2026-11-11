@@ -79,10 +79,12 @@ function renderNav() {
   const links = availableNavItems().map((item) => {
     const count = badgeCounts[item.route] || 0;
     const badge = count > 0 ? `<span class="nav-badge">${count > 99 ? "99+" : count}</span>` : "";
+    // ฝ่ายเขียนแบบ/ผู้จัดการเห็นเอกสาร ISO ในเมนูนี้ด้วย — ผู้ส่งคำร้องเห็นแค่ "คู่มือ"
+    const label = item.staffLabel && ["designer", "manager"].includes(state.user?.role) ? item.staffLabel : item.label;
     return `
-      <a class="nav-link ${item.route === state.currentRoute ? "is-active" : ""}" href="#${item.route}" data-route="${item.route}" title="${item.label}">
+      <a class="nav-link ${item.route === state.currentRoute ? "is-active" : ""}" href="#${item.route}" data-route="${item.route}" title="${label}">
         <span class="nav-icon" aria-hidden="true">${icon(item.svg)}</span>
-        <span class="nav-label">${item.label}</span>
+        <span class="nav-label">${label}</span>
         ${badge}
       </a>
     `;
