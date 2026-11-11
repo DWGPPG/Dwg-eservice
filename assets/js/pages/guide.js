@@ -1,4 +1,9 @@
 import { STATUS, STATUS_LABELS } from "../../../config/schema.js";
+import { renderIsoBrowser } from "../components/iso-browser.js";
+import { state } from "../state.js";
+
+// โหมดหน้าคู่มือ: "manual" = คู่มือการใช้งานระบบ · "iso" = เอกสาร ISO (ฝ่ายเขียนแบบ/ผู้จัดการ)
+var guideMode = "manual";
 
 // ══════════════════════════════════════════════════════════════
 // เนื้อหาคู่มือ — แบ่งเป็น section ตามหัวข้อ
@@ -114,6 +119,35 @@ const roleRows = [
 // ══════════════════════════════════════════════════════════════
 
 export function renderGuide(view) {
+  const canIso = ["designer", "manager"].includes(state.user?.role);
+  if (!canIso) guideMode = "manual";
+  const modeBar = canIso ? `
+      <div class="guide-modes" role="tablist" aria-label="เลือกหมวดคู่มือ">
+        <button type="button" role="tab" class="guide-mode ${guideMode === "manual" ? "is-active" : ""}" data-guide-mode="manual">📘 คู่มือการใช้งานระบบ</button>
+        <button type="button" role="tab" class="guide-mode ${guideMode === "iso" ? "is-active" : ""}" data-guide-mode="iso">📁 เอกสาร ISO</button>
+      </div>` : "";
+  const bindModes = () => view.querySelectorAll("[data-guide-mode]").forEach((btn) => btn.addEventListener("click", () => {
+    if (guideMode === btn.dataset.guideMode) return;
+    guideMode = btn.dataset.guideMode;
+    renderGuide(view);
+  }));
+
+  if (guideMode === "iso") {
+    view.innerHTML = `
+      <section class="content-section guide-page">
+        <div class="guide-hero">
+          <div class="guide-hero-kicker">ISO · ฝ่ายเขียนแบบ</div>
+          <h2>เอกสาร ISO</h2>
+          <p>ระเบียบปฏิบัติ คู่มือ แบบฟอร์ม แผนงาน KPI ประเมินความเสี่ยง และเอกสารโครงการ — จัดเก็บใน SharePoint ฝ่ายเขียนแบบ พร้อมสำหรับตรวจ Audit</p>
+        </div>
+        ${modeBar}
+        <div class="guide-iso-host"></div>
+      </section>`;
+    bindModes();
+    renderIsoBrowser(view.querySelector(".guide-iso-host"), { editable: false });
+    return;
+  }
+
   view.innerHTML = `
     <section class="content-section guide-page">
       <div class="guide-hero">
@@ -122,6 +156,7 @@ export function renderGuide(view) {
         <p>รวมทุกขั้นตอนการทำงาน ความหมายของสถานะ ระบบเลขคำขอ และการจัดเก็บไฟล์ ไว้ในที่เดียว</p>
       </div>
 
+      ${modeBar}
       <nav class="guide-toc" aria-label="สารบัญคู่มือ">
         ${tocItems.map((item) => `<a href="#guide-${item.id}" class="guide-toc-link" data-toc="${item.id}">${item.label}</a>`).join("")}
       </nav>
@@ -142,6 +177,7 @@ export function renderGuide(view) {
   `;
 
   bindTocScrollSpy(view);
+  bindModes();
 }
 
 function renderWorkflowSection() {
