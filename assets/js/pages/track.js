@@ -15,7 +15,7 @@ import {
   transferRequester,
   updateWorkStatus,
 } from "../services/request-service.js";
-import { getAuditHistory, mergeHistory, requestEvents } from "../services/audit-service.js";
+import { cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
@@ -449,9 +449,9 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
         ` : `
           <div style="display:inline-flex;align-items:center;gap:6px;">
             <span class="badge badge-${item.status}" style="white-space:nowrap;">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>
-            ${item.status === STATUS.DONE ? `
+            ${item.status === STATUS.DONE || item.reviewedAt ? `
               <button type="button" data-delivery-form="${escapeHtml(item.requestNo)}"
-                title="${item.deliveryFormUrl ? "ดาวน์โหลดใบส่งมอบ" : "สร้างใบส่งมอบงาน"}"
+                title="ใบทวนสอบและอนุมัติแบบ FM-ENG-009 (1 ใบต่อการตอบกลับ อนุมัติ/ขอแก้ไข)"
                 style="background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:6px;display:inline-flex;align-items:center;color:${item.deliveryFormUrl ? "#0DB14B" : "#005DAC"};"
                 onmouseenter="this.style.background='#f0f6ff'" onmouseleave="this.style.background='none'">
                 ${item.deliveryFormUrl
@@ -557,11 +557,7 @@ function bindWorkbookEvents(view, state) {
     if (deliveryBtn) {
       const request = state.requests.find((i) => i.requestNo === deliveryBtn.dataset.deliveryForm);
       if (request) {
-        if (request.deliveryFormUrl) {
-          window.open(request.deliveryFormUrl, "_blank", "noopener,noreferrer");
-        } else {
-          openDeliveryFormModal(view, state, request);
-        }
+        openTransmittalPicker(view, state, request);
       }
       return;
     }
@@ -1788,6 +1784,7 @@ export function openRequestDetail(request) {
 
           ${request.mgrRejectReason ? `<div class="request-detail-note cancellation-detail"><span>เหตุผลที่ผู้จัดการส่งกลับ</span><strong>${escapeHtml(request.mgrRejectReason)}</strong></div>` : ""}
           ${request.rejectReason ? `<div class="request-detail-note cancellation-detail"><span>เหตุผลส่งกลับ/ยกเลิก</span><strong>${escapeHtml(request.rejectReason)}</strong></div>` : ""}
+          <div class="request-detail-note fm009-slot" id="fm009-slot" hidden></div>
         </article>
 
         <aside class="request-detail-history">
@@ -1822,6 +1819,7 @@ export function openRequestDetail(request) {
   if (modalRoot) hydrateRequesterFiles(modalRoot);
   if (canAct && modalRoot) bindDetailActions(modalRoot, request, closeDetail);
   loadAuditTimeline(request);
+  loadTransmittalSlot(request);
 }
 
 /** ปุ่มอัปเดตสถานะ / เสร็จสิ้นส่งงาน / ยกเลิก ใน popup รายละเอียด — ใช้ขั้นตอนเดียวกับตารางติดตามงาน */
@@ -1876,7 +1874,7 @@ async function loadAuditTimeline(request) {
   let audit = [];
   let failed = false;
   try {
-    audit = await getAuditHistory(request.requestNo);
+    audit = (await getAuditHistory(request.requestNo)).filter((e) => e.action !== TRANSMITTAL_ACTION);
   } catch (error) {
     failed = true;
     console.warn("โหลดประวัติคำร้องไม่สำเร็จ:", error.message);
@@ -1960,7 +1958,53 @@ let deliveryDrawing2 = false;
 let deliveryDrawing3 = false;
 let deliveryCurrentCanvas = null;
 
-function openDeliveryFormModal(view, state, request) {
+const FM009_STATUS_TEXT = { AP: "AP — อนุมัติ (Approved)", AC: "AC — อนุมัติพร้อมความเห็น", RC: "RC — ส่งกลับแก้ไข (Return for Correction)", X: "X — ไม่อนุมัติ (Rejected)" };
+
+/** เลือกใบ FM-ENG-009 ของคำร้อง (1 ใบต่อการตอบกลับของผู้ร้องขอ 1 ครั้ง) — มีใบเดียวเปิดเลย */
+async function openTransmittalPicker(view, state, request) {
+  showToast("กำลังโหลดใบทวนสอบและอนุมัติแบบ...", "info");
+  const rounds = await getTransmittals(request);
+  if (!rounds.length) { showToast("คำร้องนี้ยังไม่มีการตอบกลับจากผู้ร้องขอ (อนุมัติ/ขอแก้ไข)", "warning"); return; }
+  if (rounds.length === 1) { openDeliveryFormModal(view, state, request, rounds[0]); return; }
+  openModal({
+    title: `📄 FM-ENG-009 — ${escapeHtml(request.requestNo)}`,
+    body: `<p class="manage-hint">1 ใบต่อการตอบกลับของผู้ร้องขอ 1 ครั้ง — เลือกใบที่ต้องการ</p>${transmittalListHtml(rounds)}`,
+    actions: [{ label: "ปิด", className: "secondary-button" }],
+  });
+  document.querySelectorAll("#modal-root [data-fm009-round]").forEach((btn) => btn.addEventListener("click", () => {
+    openDeliveryFormModal(view, state, request, rounds[Number(btn.dataset.fm009Round)]);
+  }));
+}
+
+function transmittalListHtml(rounds) {
+  return `<div class="fm009-rounds">${rounds.map((r, i) => `
+    <button type="button" class="fm009-round is-${r.code.toLowerCase()}" data-fm009-round="${i}">
+      <span class="fm009-round-code">${escapeHtml(r.code)}</span>
+      <span class="fm009-round-main"><b>${escapeHtml(r.transNo)}</b>
+        <small>${escapeHtml(FM009_STATUS_TEXT[r.code] || r.code)} · ${escapeHtml(formatDate(r.at))}${r.by ? ` · ${escapeHtml(r.by)}` : ""}</small>
+        ${r.comment ? `<small class="fm009-round-note">💬 ${escapeHtml(r.source ? `[${r.source}] ` : "")}${escapeHtml(r.comment)}</small>` : ""}</span>
+      <span class="fm009-round-go">📄 เปิดฟอร์ม</span>
+    </button>`).join("")}</div>`;
+}
+
+/** ส่วน "ใบทวนสอบและอนุมัติแบบ" ใน popup รายละเอียดคำร้อง */
+async function loadTransmittalSlot(request) {
+  const slot = document.querySelector("#fm009-slot");
+  if (!slot) return;
+  const rounds = await getTransmittals(request);
+  const fresh = document.querySelector("#fm009-slot");
+  if (!fresh) return;
+  if (!rounds.length) { fresh.hidden = true; return; }
+  fresh.hidden = false;
+  fresh.innerHTML = `<span>📄 ใบทวนสอบและอนุมัติแบบ FM-ENG-009 (${rounds.length} ใบ)</span>${transmittalListHtml(rounds)}`;
+  fresh.querySelectorAll("[data-fm009-round]").forEach((btn) => btn.addEventListener("click", () => {
+    openDeliveryFormModal(document.querySelector("#app-view"), appState, request, rounds[Number(btn.dataset.fm009Round)]);
+  }));
+}
+
+function openDeliveryFormModal(view, state, request, round = null) {
+  // เปิดจากหน้าต่างอื่น (รายการใบ / รายละเอียดคำร้อง) → ปิดหน้าต่างเดิมก่อน (ระบบเปิดได้ทีละหน้าต่าง)
+  document.querySelector("#modal-root .modal header .icon-button")?.click();
   const thaiDate = (iso) => iso
     ? new Date(iso).toLocaleDateString("th-TH", { year:"numeric", month:"short", day:"numeric" })
     : "—";
@@ -1968,14 +2012,24 @@ function openDeliveryFormModal(view, state, request) {
   deliverySig2 = null;
   deliverySig3 = null;
 
-  // ข้อมูลอัตโนมัติ
-  const issuedName  = request.assignedToName   || "—";
-  const issuedDate  = thaiDate(request.approvedLv2At || request.submittedAt);
-  const checkerName = request.mgrApprovedBy    || "—";
-  const checkerDate = thaiDate(request.mgrApprovedAt);
-  const reviewName  = request.requesterName    || "—";
-  const reviewDate  = thaiDate(request.reviewedAt || request.doneAt);
+  // ข้อมูลอัตโนมัติ — ใช้ข้อมูลของรอบที่เลือก (บันทึกไว้ตอนผู้ร้องขอตอบกลับ) ก่อน แล้วค่อยใช้ข้อมูลคำร้อง
+  round = round || { code: "AP", rev: cleanRev(request.currentRevise || request.reviseNumber), at: request.reviewedAt || request.doneAt, by: request.requesterName };
+  if (!round.transNo) round.transNo = `${request.requestNo}-Rev.${round.rev}`;
+  const issuedName  = round.issuedName || request.assignedToName || "—";
+  const issuedDate  = thaiDate(round.issuedAt || request.deptFinishedAt || request.approvedLv2At || request.submittedAt);
+  const checkerName = round.checkerName || request.mgrApprovedBy || "—";
+  const checkerDate = thaiDate(round.checkerAt || request.mgrApprovedAt || request.deliveredAt);
+  const reviewName  = round.by || request.requesterName || "—";
+  const reviewDate  = thaiDate(round.at);
   const today       = thaiDate(new Date().toISOString());
+  const extra = {
+    round,
+    transNo: round.transNo,
+    rev: round.rev,
+    statusCode: round.code,
+    note: round.code === "AP" ? (round.comment || "") : [round.source ? `[${round.source}]` : "", round.comment || ""].filter(Boolean).join(" "),
+    deliveryDate: reviewDate,
+  };
 
   const canvasStyle = "border:1.5px dashed #CBD5E1;border-radius:8px;background:#FAFAFA;cursor:crosshair;touch-action:none;width:100%;height:90px;display:block;";
 
@@ -1985,12 +2039,13 @@ function openDeliveryFormModal(view, state, request) {
       <!-- ข้อมูลคำร้อง -->
       <div style="background:#F0F6FF;border-radius:8px;padding:12px 14px;margin-bottom:14px;">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;">
-          <div><span style="color:#64748B;font-size:11px;">เลขที่คำร้อง</span><br><b>${escapeHtml(request.requestNo)}</b></div>
+          <div><span style="color:#64748B;font-size:11px;">TRANS NO</span><br><b>${escapeHtml(round.transNo)}</b></div>
           <div><span style="color:#64748B;font-size:11px;">โครงการ</span><br><b>${escapeHtml(request.projectName || "—")}</b></div>
           <div><span style="color:#64748B;font-size:11px;">Drawing No.</span><br><b>${escapeHtml(request.drawingNo || "—")}</b></div>
           <div><span style="color:#64748B;font-size:11px;">Drawing Name</span><br><b>${escapeHtml(request.drawingName || "—")}</b></div>
-          <div><span style="color:#64748B;font-size:11px;">Revise</span><br><b>${escapeHtml(request.currentRevise || request.reviseNumber || "R01")}</b></div>
-          <div><span style="color:#64748B;font-size:11px;">วันที่ส่งมอบ</span><br><b>${checkerDate}</b></div>
+          <div><span style="color:#64748B;font-size:11px;">Revise</span><br><b>${escapeHtml(round.rev)}</b></div>
+          <div><span style="color:#64748B;font-size:11px;">ผลการตรวจของผู้ร้องขอ (${escapeHtml(reviewDate)})</span><br><b style="color:${round.code === "AP" ? "#0b7a3b" : "#b45309"}">${escapeHtml(FM009_STATUS_TEXT[round.code] || round.code)}</b></div>
+          ${extra.note ? `<div style="grid-column:1/-1"><span style="color:#64748B;font-size:11px;">Note</span><br>${escapeHtml(extra.note)}</div>` : ""}
         </div>
       </div>
 
@@ -2061,7 +2116,7 @@ function openDeliveryFormModal(view, state, request) {
         label: "👁️ Preview PDF",
         className: "secondary-button",
         onClick: (close) => {
-          renderDeliveryPreview(request, issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, today);
+          renderDeliveryPreview(request, issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, today, extra);
           return false; // ไม่ปิด modal
         },
       },
@@ -2077,7 +2132,7 @@ function openDeliveryFormModal(view, state, request) {
           try {
             await exportDeliveryPDF(view, state, request, {
               issuedName, issuedDate, checkerName, checkerDate,
-              reviewName, reviewDate, approvedName, today,
+              reviewName, reviewDate, approvedName, today, ...extra,
             });
             close();
           } catch (err) {
@@ -2148,14 +2203,14 @@ window.clearDeliverySig = function(sigNum) {
   if (statusEl) { statusEl.textContent = "วาดลายเซ็น"; statusEl.style.color = "#94A3B8"; }
 };
 
-function renderDeliveryPreview(request, issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, today) {
+function renderDeliveryPreview(request, issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, today, extra = {}) {
   const approvedName = document.getElementById("deliveryApprovedName")?.value.trim() || "—";
   const preview = document.getElementById("deliveryPdfPreview");
   const section = document.getElementById("deliveryPreviewSection");
   if (!preview || !section) return;
   section.style.display = "block";
   ensureFm009Assets();
-  preview.innerHTML = `<div class="fm009-scale">${buildDeliveryHTML(request, { issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, approvedName, today, deliveryDate: checkerDate })}</div>`;
+  preview.innerHTML = `<div class="fm009-scale">${buildDeliveryHTML(request, { issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, approvedName, today, deliveryDate: checkerDate, ...extra })}</div>`;
   const page = preview.querySelector(".fm009");
   const fit = () => { if (page) page.style.zoom = String(Math.min(1, (preview.clientWidth - 2) / page.offsetWidth)); };
   fit(); requestAnimationFrame(fit);
@@ -2203,6 +2258,8 @@ const FM009_CSS = `
   .fm009-legend .g { display:grid; grid-template-columns:30% 42% 28%; }
   .fm009-note { font-weight:700; margin:1mm 0 5mm; }
   .fm009-dots { border-bottom:1pt dotted #000; height:5.6mm; font-weight:400; }
+  .fm009-notebox { position:relative; }
+  .fm009-notetext { position:absolute; inset:0; font-weight:400; line-height:5.6mm; padding-top:0.6mm; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; }
   .fm009-signs { display:grid; grid-template-columns:1fr 1fr; column-gap:14mm; row-gap:6mm; }
   .fm009-sign .who { font-weight:700; margin-bottom:2mm; }
   .fm009-sign .row { display:flex; align-items:flex-end; gap:1mm; }
@@ -2235,7 +2292,9 @@ function ensureFm009Assets(doc = document) {
 function buildDeliveryHTML(request, d) {
   const logoUrl = new URL("./PPC NEW-2024 - R1.png", document.baseURI).href;
   const forCode = fm009ForCode(request.requestType);
-  const rev = request.currentRevise || request.reviseNumber || "0";
+  const rev = d.rev || cleanRev(request.currentRevise || request.reviseNumber);
+  const statusCode = d.statusCode || "AP";
+  const transNo = d.transNo || `${request.requestNo}-Rev.${rev}`;
   const forList = [["I", "INFORMATION"], ["R", "REVIEW"], ["A", "APPROVAL"], ["C", "CONSTRUCTION"], ["E", "REQUESTED"], ["Q", "QUOTATION"], ["B", "AS BUILT"]];
   const forItem = ([c, label]) => `<span class="${c === forCode ? "on" : ""}">${c === forCode ? "☑" : ""}${c}－${label}</span>`;
   const attach = ["DRAWING", "SPECIFICATION", "INSTRUCTION", "PHOTOCOPY OF LETTER", "CALCULATION", "ADMINISTRATION"];
@@ -2244,7 +2303,7 @@ function buildDeliveryHTML(request, d) {
   const leftRows = ["", "", ...attach.map((a, i) => `${box(i === 0)}${a}`)];
   const rightRows = [`FOR ： ${forItem(forList[0])}`, ...forList.slice(1).map(forItem), ""];
   const rows = [...Array(7)].map((_, i) => i === 0
-    ? `<tr><td class="c">1</td><td>${escapeHtml(request.drawingNo || request.requestNo)}</td><td class="c">${escapeHtml(rev)}</td><td>${escapeHtml(request.drawingName || "—")}</td><td class="c">${forCode}</td><td class="c"><b>AP</b></td></tr>`
+    ? `<tr><td class="c">1</td><td>${escapeHtml(request.drawingNo || request.requestNo)}</td><td class="c">${escapeHtml(rev)}</td><td>${escapeHtml(request.drawingName || "—")}</td><td class="c">${forCode}</td><td class="c"><b>${escapeHtml(statusCode)}</b></td></tr>`
     : `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("");
   const sign = (who, { sig = "", name = "", date = "", dept = "", system = false } = {}) => `
     <div class="fm009-sign">
@@ -2268,7 +2327,7 @@ function buildDeliveryHTML(request, d) {
       </div>
 
       <div class="fm009-line"><span>PROJECT :</span><span class="fm009-u" style="flex:1.45">${escapeHtml(request.projectName || "")}</span>
-        <span style="margin-left:3mm">TRANS NO :</span><span class="fm009-u" style="flex:1">${escapeHtml(request.requestNo)}</span></div>
+        <span style="margin-left:3mm">TRANS NO :</span><span class="fm009-u" style="flex:1">${escapeHtml(transNo)}</span></div>
       <div class="fm009-line"><span>DATE :</span><span class="fm009-u" style="width:52mm">${escapeHtml(d.deliveryDate && d.deliveryDate !== "—" ? d.deliveryDate : d.today)}</span></div>
 
       <div class="fm009-attach">
@@ -2288,7 +2347,8 @@ function buildDeliveryHTML(request, d) {
         <div>X : Rejected</div>
       </div>
       <div class="fm009-note">Note:
-        <div class="fm009-dots">${escapeHtml(d.note || "")}</div><div class="fm009-dots"></div><div class="fm009-dots"></div>
+        <div class="fm009-notebox"><div class="fm009-dots"></div><div class="fm009-dots"></div><div class="fm009-dots"></div>
+          ${d.note ? `<div class="fm009-notetext">${escapeHtml(d.note)}</div>` : ""}</div>
       </div>
 
       <div class="fm009-signs">
@@ -2318,7 +2378,7 @@ async function exportDeliveryPDF(view, state, request, d) {
       .fm009 { height:297mm; overflow:hidden; }
       * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     </style>
-  </head><body>${buildDeliveryHTML(request, { ...d, deliveryDate: d.checkerDate })}</body></html>`;
+  </head><body>${buildDeliveryHTML(request, { deliveryDate: d.checkerDate, ...d })}</body></html>`;
 
   printFrame.contentDocument.open();
   printFrame.contentDocument.write(html);
@@ -2339,7 +2399,7 @@ async function exportDeliveryPDF(view, state, request, d) {
   try {
     await patchRequest(request, {
       deliveryFormGeneratedAt: now,
-    }, `สร้างใบส่งมอบงาน FM-ENG-009`);
+    }, `สร้างใบทวนสอบและอนุมัติแบบ FM-ENG-009 ${d.transNo || ""}`);
     showToast("สร้างใบส่งมอบสำเร็จ — กด Print หรือ Save as PDF ในหน้าต่างที่เปิดขึ้น", "success");
   } catch (err) {
     console.warn("บันทึก deliveryFormGeneratedAt ไม่สำเร็จ:", err.message);
@@ -2515,8 +2575,7 @@ function renderMyRequestsSection(view, state) {
     if (deliveryBtn) {
       const req = state.requests.find((i) => i.requestNo === deliveryBtn.dataset.deliveryForm);
       if (req) {
-        if (req.deliveryFormUrl) window.open(req.deliveryFormUrl, "_blank", "noopener,noreferrer");
-        else openDeliveryFormModal(view, state, req);
+        openTransmittalPicker(view, state, req);
       }
       return;
     }

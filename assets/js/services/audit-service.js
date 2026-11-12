@@ -106,3 +106,73 @@ export function mergeHistory(auditEntries, derived) {
   });
   return [...auditEntries, ...extra].sort((a, b) => new Date(b.actionAt || 0) - new Date(a.actionAt || 0));
 }
+
+// ══════════════════════════════════════════════════════════════
+// ใบทวนสอบและอนุมัติแบบ FM-ENG-009 — 1 ใบต่อการตอบกลับของผู้ร้องขอ 1 ครั้ง (อนุมัติ / ขอแก้ไข / Reject)
+//  - บันทึกข้อมูลรอบนั้นไว้ใน AuditLog (detail = JSON) → สร้างฟอร์มย้อนหลังได้ทุกรอบ แม้คำร้องถูกแก้ต่อ
+//  - TRANS NO = เลขที่คำร้อง-Rev.<rev> (ถ้า Rev ซ้ำกันหลายรอบ ต่อท้าย -2, -3 ...)
+// ══════════════════════════════════════════════════════════════
+export const TRANSMITTAL_ACTION = "ใบทวนสอบและอนุมัติแบบ FM-ENG-009";
+const RESULT_CODE = { approve: "AP", approved: "AP", revise: "RC", reject: "X" };
+
+export const cleanRev = (rev) => String(rev ?? "").trim().replace(/^rev\.?\s*/i, "") || "0";
+
+/** บันทึกรอบการตอบกลับ (เรียกหลังผู้ร้องขออนุมัติ/ขอแก้ไข/Reject สำเร็จ) */
+export function writeTransmittal(request, { action, comment = "", source = "", at = new Date().toISOString() }) {
+  const round = {
+    v: 1,
+    code: RESULT_CODE[action] || "AP",
+    rev: cleanRev(request.currentRevise || request.reviseNumber),
+    at,
+    by: state.user?.name || request.requesterName || "",
+    comment,
+    source,
+    issuedName: request.assignedToName || "",
+    issuedAt: request.deptFinishedAt || request.approvedLv2At || "",
+    checkerName: request.mgrApprovedBy || "",
+    checkerAt: request.mgrApprovedAt || request.deliveredAt || "",
+  };
+  return writeAudit({ requestNo: request.requestNo, action: TRANSMITTAL_ACTION, detail: JSON.stringify(round) });
+}
+
+/**
+ * ทุกรอบที่ผู้ร้องขอตอบกลับ เรียงเก่า → ใหม่ (สำหรับเลือกพิมพ์ FM-ENG-009 แยกใบ)
+ * รอบก่อนมีระบบนี้: ดูจาก AuditLog "ผู้ร้องขอตรวจรับ: ..." และวันเวลาในตัวคำร้อง
+ */
+export async function getTransmittals(request) {
+  let audit = [];
+  try { audit = await getAuditHistory(request.requestNo); } catch (_) { audit = []; }
+  const near = (a, b) => Math.abs(new Date(a).getTime() - new Date(b).getTime()) < 5 * 60 * 1000;
+  const rounds = [];
+  audit.filter((e) => e.action === TRANSMITTAL_ACTION).forEach((e) => {
+    try { rounds.push({ ...JSON.parse(e.detail), at: JSON.parse(e.detail).at || e.actionAt }); } catch (_) { /* ข้อมูลเสีย */ }
+  });
+  // รอบเก่า (ก่อนบันทึก FM-ENG-009) จาก AuditLog
+  audit.forEach((e) => {
+    const m = String(e.action).match(/ผู้ร้องขอตรวจรับ:\s*(approve|revise|reject)/i);
+    if (!m || rounds.some((r) => near(r.at, e.actionAt))) return;
+    const code = RESULT_CODE[m[1].toLowerCase()];
+    rounds.push({ code, rev: "", at: e.actionAt, by: e.userName, comment: code === "AP" ? "" : (e.detail || ""), legacy: true });
+  });
+  // รอบล่าสุดจากตัวคำร้อง (กรณี AuditLog ไม่มี) + ตรวจรับอัตโนมัติเมื่อครบกำหนด
+  const rev = cleanRev(request.currentRevise || request.reviseNumber);
+  if (request.reviewedAt && request.reviewResult && !rounds.some((r) => near(r.at, request.reviewedAt))) {
+    const code = RESULT_CODE[request.reviewResult] || "AP";
+    rounds.push({ code, rev, at: request.reviewedAt, by: request.requesterName, comment: code === "RC" ? (request.reviseComment || request.revisionReason || "") : code === "X" ? (request.deliveryRejectReason || "") : "", source: code === "RC" ? request.revisionSource || "" : "", legacy: true });
+  }
+  if (request.doneAt && !rounds.some((r) => r.code === "AP" && near(r.at, request.doneAt))) {
+    rounds.push({ code: "AP", rev, at: request.doneAt, by: request.autoApproved ? "ตรวจรับอัตโนมัติ (ครบกำหนด)" : request.requesterName, comment: request.autoApproved ? "ตรวจรับอัตโนมัติเมื่อครบกำหนด" : "", legacy: true, auto: Boolean(request.autoApproved) });
+  }
+  rounds.sort((a, b) => new Date(a.at) - new Date(b.at));
+  // รอบเก่าที่ไม่รู้ Rev: ใช้ Rev ของรอบถัดไปที่รู้ (ส่งมอบก่อนแก้ไข) ไม่งั้นใช้ Rev ปัจจุบัน
+  rounds.forEach((r, i) => { if (!r.rev) r.rev = rounds.slice(i + 1).find((x) => x.rev)?.rev || rev; });
+  const seen = new Map();
+  rounds.forEach((r, i) => {
+    r.no = i + 1;
+    const base = `${request.requestNo}-Rev.${r.rev}`;
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    r.transNo = n > 1 ? `${base}-${n}` : base;
+  });
+  return rounds;
+}
