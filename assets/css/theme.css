@@ -3799,3 +3799,16 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .iso-list.is-grid .iso-name b { font-size: 16px; }
 [data-theme] .iso-list.is-grid .iso-meta { margin-top: auto; font-size: 12px; color: var(--muted); padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
 [data-theme] .iso-list.is-grid .iso-actions { position: absolute; top: 12px; right: 12px; padding: 0; }
+
+/* ── รายการใบ FM-ENG-009 (1 ใบต่อการตอบกลับของผู้ร้องขอ) ── */
+[data-theme] .fm009-slot > span { display:block; font-weight:700; margin-bottom:8px; }
+[data-theme] .fm009-rounds { display:grid; gap:8px; }
+[data-theme] .fm009-round { display:flex; align-items:center; gap:12px; width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface-2, rgba(0,0,0,.02)); color:var(--text); font:inherit; text-align:left; cursor:pointer; transition:border-color .2s ease, transform .2s ease; }
+[data-theme] .fm009-round:hover { border-color:color-mix(in srgb, var(--primary, #0DB14B) 55%, var(--line)); transform:translateY(-1px); }
+[data-theme] .fm009-round-code { flex:none; display:grid; place-items:center; width:42px; height:42px; border-radius:10px; font-weight:800; font-size:14px; color:#fff; background:#16a34a; }
+[data-theme] .fm009-round.is-rc .fm009-round-code { background:#d97706; }
+[data-theme] .fm009-round.is-x .fm009-round-code { background:#dc2626; }
+[data-theme] .fm009-round-main { flex:1; min-width:0; display:grid; gap:2px; }
+[data-theme] .fm009-round-main small { color:var(--muted); font-size:12px; }
+[data-theme] .fm009-round-note { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+[data-theme] .fm009-round-go { flex:none; font-size:12px; font-weight:700; color:var(--primary, #0DB14B); white-space:nowrap; }

@@ -3,7 +3,7 @@ import { fields, lists, STATUS } from "../../../config/schema.js";
 import { sendMail, sendTeams1on1, sendTeamsWebhook, sendNewRequestWebhook, sendGroupWebhook } from "../graph.js";
 import { addItem, deleteItem, ensureSite, patchItem } from "../sharepoint.js";
 import { setRequests, state, updateRequest } from "../state.js";
-import { writeAudit } from "./audit-service.js";
+import { writeAudit, writeTransmittal } from "./audit-service.js";
 import { ensureRequestFolder, uploadRequestFiles, uploadSendworkFiles } from "./drawing-service.js";
 import { fileDeliveryToIso } from "./iso-service.js";
 import { getAllManagerEmails, getDrawingTeamMembers } from "./team-service.js";
@@ -1306,6 +1306,8 @@ export async function requesterReview(request, action, comment = "", revisionSou
   }
 
   await patchRequest(request, patch, `ผู้ร้องขอตรวจรับ: ${action}`);
+  // ใบทวนสอบและอนุมัติแบบ FM-ENG-009 ของรอบนี้ (ไม่รอ — พลาดก็ยังสร้างจากข้อมูลคำร้องได้)
+  writeTransmittal(request, { action, comment, source: revisionSource, at: now }).catch(() => {});
 
   // บันทึกหลักฐานแนบแยกต่างหาก (best-effort) — ถ้าฟิลด์ยาวเกิน/พลาด จะไม่กระทบการส่งกลับหลัก
   if (evidenceLinks.length) {
