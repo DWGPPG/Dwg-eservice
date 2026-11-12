@@ -2753,6 +2753,11 @@ html.signing-in #auth-panel > * {
     background: transparent;
   }
 
+  /* ย่ออยู่ + เอาเมาส์ชี้ → แถบขยาย และดันเนื้อหาไปทางขวา (ไม่ซ้อนทับ) */
+  [data-theme] body.sidebar-collapsed:has(.sidebar:is(:hover, :has(:focus-visible))) {
+    --sidebar-col: 272px;
+  }
+
   /* ย่ออยู่ + เอาเมาส์ชี้ → ขยายทับเนื้อหา */
   [data-theme] body.sidebar-collapsed .sidebar:is(:hover, :has(:focus-visible)) {
     width: 260px;
@@ -3767,3 +3772,30 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .iso-req:hover { background: rgba(34, 211, 238, 0.22); color: #fff; }
 [data-theme="light"] .iso-req { color: #0e7490; background: rgba(14, 116, 144, 0.08); border-color: rgba(14, 116, 144, 0.35); }
 [data-theme] .iso-reqs small { color: var(--muted, #94a3b8); font-size: 0.75rem; }
+
+/* ── แถบสลับ คู่มือ / เอกสาร ISO: การ์ดสองใบกะทัดรัด (แทนแถบยาวเต็มจอ) ── */
+[data-theme] .guide-modes { display: inline-flex; flex-wrap: wrap; gap: 10px; width: fit-content; max-width: 100%; align-self: flex-start; justify-self: start; padding: 6px; border-radius: 18px; }
+[data-theme] .guide-mode { flex: 0 1 auto; min-width: 220px; display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 10px; min-height: 0; border: 1px solid transparent; border-radius: 14px; text-align: left; color: var(--text); transition: background .2s ease, border-color .2s ease, box-shadow .2s ease, transform .2s ease; }
+[data-theme] .guide-mode:hover { background: color-mix(in srgb, var(--primary, #0DB14B) 8%, transparent); transform: translateY(-1px); }
+[data-theme] .guide-mode-icon { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; font-size: 22px; background: color-mix(in srgb, var(--text) 6%, transparent); transition: background .2s ease; }
+[data-theme] .guide-mode-text { display: grid; gap: 2px; min-width: 0; }
+[data-theme] .guide-mode-text b { font-size: 15px; font-weight: 800; }
+[data-theme] .guide-mode-text small { font-size: 12px; font-weight: 500; color: var(--muted); }
+[data-theme] .guide-mode.is-active { background: linear-gradient(135deg, color-mix(in srgb, var(--primary, #0DB14B) 22%, transparent), color-mix(in srgb, #3b82f6 14%, transparent)); border-color: color-mix(in srgb, var(--primary, #0DB14B) 60%, transparent); color: var(--text); box-shadow: 0 6px 22px -10px color-mix(in srgb, var(--primary, #0DB14B) 70%, transparent); }
+[data-theme] .guide-mode.is-active .guide-mode-icon { background: var(--primary, #0DB14B); box-shadow: 0 0 16px -2px color-mix(in srgb, var(--primary, #0DB14B) 70%, transparent); }
+[data-theme] .guide-mode.is-active .guide-mode-text small { color: color-mix(in srgb, var(--text) 75%, transparent); }
+@media (max-width: 560px) {
+  [data-theme] .guide-modes { display: flex; width: auto; }
+  [data-theme] .guide-mode { flex: 1 1 100%; min-width: 0; }
+}
+
+/* ── หน้าแรกเอกสาร ISO: โฟลเดอร์หลักเป็นการ์ดตาราง ── */
+[data-theme] .iso-list.is-grid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+[data-theme] .iso-list.is-grid .iso-row { position: relative; flex-direction: column; align-items: stretch; gap: 0; border-radius: 16px; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+[data-theme] .iso-list.is-grid .iso-row:hover { transform: translateY(-2px); box-shadow: 0 10px 26px -14px color-mix(in srgb, var(--primary, #0DB14B) 70%, transparent); }
+[data-theme] .iso-list.is-grid .iso-open { flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px 16px 14px; height: 100%; }
+[data-theme] .iso-list.is-grid .iso-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; font-size: 24px; background: color-mix(in srgb, #f59e0b 14%, transparent); }
+[data-theme] .iso-list.is-grid .iso-name { display: grid; gap: 3px; }
+[data-theme] .iso-list.is-grid .iso-name b { font-size: 16px; }
+[data-theme] .iso-list.is-grid .iso-meta { margin-top: auto; font-size: 12px; color: var(--muted); padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+[data-theme] .iso-list.is-grid .iso-actions { position: absolute; top: 12px; right: 12px; padding: 0; }
