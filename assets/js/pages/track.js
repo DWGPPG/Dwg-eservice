@@ -1951,7 +1951,7 @@ function cssEscape(value) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// DELIVERY FORM — ใบส่งมอบงาน FM-SEN-009
+// DELIVERY FORM — ใบส่งมอบงาน FM-ENG-009 Rev.03
 // ══════════════════════════════════════════════════════════════
 
 let deliverySig2 = null; // Reviewed by (ผู้ร้องขอ)
@@ -2005,7 +2005,7 @@ function openDeliveryFormModal(view, state, request) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(issuedDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
-          <div style="font-size:10px;color:#94A3B8;margin-top:4px;text-align:center;">ระบบบันทึกอัตโนมัติ</div>
+          <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
         <!-- Checker by (อัตโนมัติ) -->
@@ -2016,7 +2016,7 @@ function openDeliveryFormModal(view, state, request) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(checkerDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
-          <div style="font-size:10px;color:#94A3B8;margin-top:4px;text-align:center;">ระบบบันทึกอัตโนมัติ</div>
+          <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
         <!-- Reviewed by (วาดเอง) -->
@@ -2045,14 +2045,14 @@ function openDeliveryFormModal(view, state, request) {
 
       <div id="deliveryPreviewSection" style="display:none;margin-top:14px;">
         <div style="font-size:12px;font-weight:600;color:#334155;margin-bottom:8px;">Preview ใบส่งมอบ</div>
-        <div id="deliveryPdfPreview" style="background:#fff;border:1px solid #E2E8F0;border-radius:8px;padding:20px;font-family:Arial,sans-serif;font-size:10px;color:#111;"></div>
+        <div id="deliveryPdfPreview" style="background:#e5e7eb;border:1px solid #E2E8F0;border-radius:8px;padding:0;overflow:hidden;"></div>
       </div>
 
     </div>
   `;
 
   openModal({
-    title: "📄 ใบส่งมอบงาน FM-SEN-009",
+    title: "📄 ใบส่งมอบงาน FM-ENG-009 (ทวนสอบและอนุมัติแบบ)",
     body,
     size: "large",
     actions: [
@@ -2154,110 +2154,152 @@ function renderDeliveryPreview(request, issuedName, issuedDate, checkerName, che
   const section = document.getElementById("deliveryPreviewSection");
   if (!preview || !section) return;
   section.style.display = "block";
-  preview.innerHTML = buildDeliveryHTML(request, { issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, approvedName, today });
+  ensureFm009Assets();
+  preview.innerHTML = `<div class="fm009-scale">${buildDeliveryHTML(request, { issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, approvedName, today, deliveryDate: checkerDate })}</div>`;
+  const page = preview.querySelector(".fm009");
+  const fit = () => { if (page) page.style.zoom = String(Math.min(1, (preview.clientWidth - 2) / page.offsetWidth)); };
+  fit(); requestAnimationFrame(fit);
   preview.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+// ── FM-ENG-009 Rev.03 "ทวนสอบและอนุมัติแบบ" — จัดตามไฟล์ Word ต้นฉบับ (A4, ขอบ 12.7 มม., TH Sarabun 14pt) ──
+const FM009_CODE = "FM-ENG-009 Rev.03 (31/08/2569)";
+const FM009_FONT_URL = "https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap";
+const FM009_SYSTEM_NOTE = "อนุมัติผ่านระบบ PPG DWG eService";
+
+/** FOR ตามประเภทงาน: Proposal = Q · ขออนุญาต = A · ก่อสร้าง = C · As-Built = B · อื่นๆ = I */
+function fm009ForCode(type) {
+  const t = String(type || "");
+  if (/Proposal/i.test(t)) return "Q";
+  if (/ขออนุญาต/.test(t)) return "A";
+  if (/As-?Built/i.test(t)) return "B";
+  if (/ก่อสร้าง/.test(t)) return "C";
+  return "I";
+}
+
+const FM009_CSS = `
+  .fm009 { box-sizing:border-box; width:210mm; min-height:297mm; padding:12.7mm; background:#fff; color:#000;
+    font-family:"TH SarabunPSK","TH Sarabun New","Sarabun",sans-serif; font-size:10.5pt; line-height:1.35; display:flex; flex-direction:column; }
+  .fm009 * { box-sizing:border-box; }
+  .fm009 b { font-weight:700; }
+  .fm009-head { display:grid; grid-template-columns:1fr 1fr 1fr; align-items:center; margin-bottom:5mm; }
+  .fm009-head img { height:13mm; }
+  .fm009-head .t { text-align:center; font-weight:700; font-size:14pt; }
+  .fm009-head .pg { text-align:right; }
+  .fm009-line { display:flex; align-items:flex-end; gap:2mm; margin-bottom:2.2mm; font-weight:700; }
+  .fm009-u { border-bottom:0.8pt solid #000; min-height:1.3em; padding:0 2mm; font-weight:400; }
+  .fm009-attach { display:grid; grid-template-columns:57% 43%; font-weight:700; margin:1mm 0 3mm; }
+  .fm009-attach .l div:not(:first-child) { padding-left:9mm; }
+  .fm009-attach .r div:not(:first-child) { padding-left:13mm; }
+  .fm009-attach .on { text-decoration:underline; }
+  .fm009-box { display:inline-block; width:7mm; text-align:center; font-weight:700; }
+  .fm009-tbl { width:100%; border-collapse:collapse; table-layout:fixed; margin:0 0 1.5mm; }
+  .fm009-tbl th, .fm009-tbl td { border:0.8pt solid #000; padding:0.6mm 1.2mm; height:6.4mm; vertical-align:middle; }
+  .fm009 .fm009-tbl th, .fm009 .fm009-tbl td { background:#fff !important; color:#000 !important; text-transform:none !important; letter-spacing:0 !important; font-size:10.5pt !important; font-family:inherit !important; box-shadow:none !important; }
+  .fm009 .fm009-tbl th { font-weight:700 !important; text-align:center; line-height:1.15; }
+  .fm009-tbl td.c { text-align:center; }
+  .fm009-legend { font-weight:700; margin-bottom:1mm; }
+  .fm009-legend .h u { text-decoration:underline; }
+  .fm009-legend .g { display:grid; grid-template-columns:30% 42% 28%; }
+  .fm009-note { font-weight:700; margin:1mm 0 5mm; }
+  .fm009-dots { border-bottom:1pt dotted #000; height:5.6mm; font-weight:400; }
+  .fm009-signs { display:grid; grid-template-columns:1fr 1fr; column-gap:14mm; row-gap:6mm; }
+  .fm009-sign .who { font-weight:700; margin-bottom:2mm; }
+  .fm009-sign .row { display:flex; align-items:flex-end; gap:1mm; }
+  .fm009-sign .sig { flex:1.25; border-bottom:1pt dotted #000; height:11mm; display:flex; align-items:flex-end; justify-content:center; }
+  .fm009-sign .sig img { max-height:10.5mm; max-width:100%; }
+  .fm009-sign .dt { flex:1; border-bottom:1pt dotted #000; text-align:center; font-weight:400; white-space:nowrap; }
+  .fm009-sign .lbl { font-weight:700; white-space:nowrap; }
+  .fm009-sign .nm { display:flex; align-items:flex-end; margin-top:3mm; font-weight:400; }
+  .fm009-sign .nm span.u { flex:1; border-bottom:0.8pt solid #000; text-align:center; min-height:1.3em; }
+  .fm009-sign .dept { margin-top:1.5mm; text-align:center; font-family:"Times New Roman",serif; font-size:8pt; }
+  .fm009-sign .dept span { border-bottom:1pt dotted #000; padding:0 3mm; }
+  .fm009-sys { font-size:9pt; font-weight:700; color:#0b7a3b; white-space:nowrap; line-height:1.3; text-align:center; padding-bottom:0.5mm; }
+  .fm009-sys small { display:block; font-weight:400; color:#333; font-size:7.5pt; line-height:1.3; }
+  .fm009-foot { margin-top:auto; padding-top:4mm; display:flex; justify-content:space-between; }
+`;
+
+function ensureFm009Assets(doc = document) {
+  if (!doc.getElementById("fm009-font")) {
+    const link = doc.createElement("link");
+    link.id = "fm009-font"; link.rel = "stylesheet"; link.href = FM009_FONT_URL;
+    doc.head.appendChild(link);
+  }
+  if (!doc.getElementById("fm009-css")) {
+    const style = doc.createElement("style");
+    style.id = "fm009-css"; style.textContent = FM009_CSS;
+    doc.head.appendChild(style);
+  }
+}
+
 function buildDeliveryHTML(request, d) {
-  const logoUrl = "./PPC NEW-2024 - R1.png";
-  const sig2 = deliverySig2 ? `<img src="${deliverySig2}" style="max-height:28px;max-width:90%;">` : "";
-  const sig3 = deliverySig3 ? `<img src="${deliverySig3}" style="max-height:28px;max-width:90%;">` : "";
+  const logoUrl = new URL("./PPC NEW-2024 - R1.png", document.baseURI).href;
+  const forCode = fm009ForCode(request.requestType);
+  const rev = request.currentRevise || request.reviseNumber || "0";
+  const forList = [["I", "INFORMATION"], ["R", "REVIEW"], ["A", "APPROVAL"], ["C", "CONSTRUCTION"], ["E", "REQUESTED"], ["Q", "QUOTATION"], ["B", "AS BUILT"]];
+  const forItem = ([c, label]) => `<span class="${c === forCode ? "on" : ""}">${c === forCode ? "☑" : ""}${c}－${label}</span>`;
+  const attach = ["DRAWING", "SPECIFICATION", "INSTRUCTION", "PHOTOCOPY OF LETTER", "CALCULATION", "ADMINISTRATION"];
+  const box = (on) => `（<span class="fm009-box">${on ? "✓" : "&nbsp;"}</span>）`;
+  // ซ้าย: หัวข้อ + 6 รายการ · ขวา: FOR + 7 รายการ (เรียงบรรทัดตรงกับต้นฉบับ)
+  const leftRows = ["", "", ...attach.map((a, i) => `${box(i === 0)}${a}`)];
+  const rightRows = [`FOR ： ${forItem(forList[0])}`, ...forList.slice(1).map(forItem), ""];
+  const rows = [...Array(7)].map((_, i) => i === 0
+    ? `<tr><td class="c">1</td><td>${escapeHtml(request.drawingNo || request.requestNo)}</td><td class="c">${escapeHtml(rev)}</td><td>${escapeHtml(request.drawingName || "—")}</td><td class="c">${forCode}</td><td class="c"><b>AP</b></td></tr>`
+    : `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("");
+  const sign = (who, { sig = "", name = "", date = "", dept = "", system = false } = {}) => `
+    <div class="fm009-sign">
+      <div class="who">${who} :</div>
+      <div class="row">
+        <span class="sig">${system ? `<span class="fm009-sys">✔ ${FM009_SYSTEM_NOTE}<small>(ลงนามอิเล็กทรอนิกส์ — ไม่ต้องเซ็นมือ)</small></span>` : sig}</span>
+        <span class="lbl">Date :</span><span class="dt">${escapeHtml(date && date !== "—" ? date : "")}</span>
+      </div>
+      <div class="nm">(<span class="u">${escapeHtml(name && name !== "—" ? name : "")}</span>)</div>
+      <div class="dept"><span>${escapeHtml(dept) || "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}</span> Division / Department</div>
+    </div>`;
+  const sig2 = deliverySig2 ? `<img src="${deliverySig2}" alt="">` : "";
+  const sig3 = deliverySig3 ? `<img src="${deliverySig3}" alt="">` : "";
 
   return `
-    <div style="font-family:Arial,sans-serif;font-size:10px;color:#111;max-width:560px;margin:0 auto;">
-      <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
-        <tr>
-          <td style="width:35%;"><img src="${logoUrl}" style="max-height:40px;" onerror="this.style.display='none'"></td>
-          <td style="text-align:center;font-size:13px;font-weight:700;">ทวนสอบและอนุมัติแบบ</td>
-          <td style="text-align:right;font-size:9px;color:#555;">FM-SEN-009 Rev.02<br>หน้า 1 / 1</td>
-        </tr>
-      </table>
-      <div style="height:2px;background:#1a6cc8;margin-bottom:10px;"></div>
-
-      <table style="width:100%;margin-bottom:8px;">
-        <tr>
-          <td style="font-size:10px;"><b>PROJECT :</b> ${escapeHtml(request.projectName || "—")}</td>
-          <td style="font-size:10px;text-align:right;"><b>TRANS NO :</b> ${escapeHtml(request.requestNo)}</td>
-        </tr>
-        <tr><td colspan="2" style="font-size:10px;"><b>DATE :</b> ${escapeHtml(d.today)}</td></tr>
-      </table>
-
-      <div style="font-size:10px;margin-bottom:6px;"><b>PLEASE FIND ATTACHED THE FOLLOWING :</b> &nbsp; <b>FOR : A — APPROVAL</b></div>
-
-      <table style="width:100%;border-collapse:collapse;margin-bottom:10px;font-size:9px;">
-        <thead>
-          <tr style="background:#1a6cc8;color:#fff;">
-            <th style="padding:4px 6px;text-align:left;width:24px;">Item</th>
-            <th style="padding:4px 6px;text-align:left;">Document / Drawing No.</th>
-            <th style="padding:4px 6px;width:36px;">Rev.</th>
-            <th style="padding:4px 6px;text-align:left;">Title</th>
-            <th style="padding:4px 6px;width:28px;">For</th>
-            <th style="padding:4px 6px;width:54px;">Approval Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="background:#F5F8FE;">
-            <td style="padding:4px 6px;border:0.5px solid #ddd;">1</td>
-            <td style="padding:4px 6px;border:0.5px solid #ddd;">${escapeHtml(request.drawingNo || "—")}</td>
-            <td style="padding:4px 6px;border:0.5px solid #ddd;text-align:center;">${escapeHtml(request.currentRevise || request.reviseNumber || "R01")}</td>
-            <td style="padding:4px 6px;border:0.5px solid #ddd;">${escapeHtml(request.drawingName || "—")}</td>
-            <td style="padding:4px 6px;border:0.5px solid #ddd;text-align:center;">A</td>
-            <td style="padding:4px 6px;border:0.5px solid #ddd;text-align:center;font-weight:700;color:#1a6cc8;">AP</td>
-          </tr>
-          ${[2,3,4,5,6,7].map(() => `<tr><td style="border:0.5px solid #ddd;padding:4px 6px;">&nbsp;</td><td style="border:0.5px solid #ddd;">&nbsp;</td><td style="border:0.5px solid #ddd;">&nbsp;</td><td style="border:0.5px solid #ddd;">&nbsp;</td><td style="border:0.5px solid #ddd;">&nbsp;</td><td style="border:0.5px solid #ddd;">&nbsp;</td></tr>`).join("")}
-        </tbody>
-      </table>
-
-      <div style="font-size:8.5px;font-weight:700;margin-bottom:4px;">***Approval Status*** — AP: Approved &nbsp; AC: Approved with Comment &nbsp; RC: Return for Correction &nbsp; X: Rejected</div>
-      <div style="border:0.5px solid #ddd;border-radius:3px;padding:5px;font-size:9px;color:#555;min-height:24px;margin-bottom:10px;">Note: ................................................................</div>
-
-      <table style="width:100%;border-collapse:collapse;font-size:9px;">
-        <tr>
-          <td style="width:50%;border:0.5px solid #ccc;padding:8px;vertical-align:top;">
-            <div style="font-weight:700;margin-bottom:6px;">Issued by :</div>
-            <div style="min-height:28px;border-bottom:0.5px solid #ccc;margin-bottom:4px;display:flex;align-items:center;">
-              <span style="color:#555;font-size:8px;font-style:italic;">(ชื่อ-นามสกุล)</span>
-            </div>
-            <div style="font-weight:700;">${escapeHtml(d.issuedName)}</div>
-            <div style="color:#555;">วันที่: ${escapeHtml(d.issuedDate)}</div>
-            <div style="color:#888;">Division / Department: Drawing</div>
-          </td>
-          <td style="width:50%;border:0.5px solid #ccc;padding:8px;vertical-align:top;">
-            <div style="font-weight:700;margin-bottom:6px;">Checker by :</div>
-            <div style="min-height:28px;border-bottom:0.5px solid #ccc;margin-bottom:4px;display:flex;align-items:center;">
-              <span style="color:#555;font-size:8px;font-style:italic;">(ชื่อ-นามสกุล)</span>
-            </div>
-            <div style="font-weight:700;">${escapeHtml(d.checkerName)}</div>
-            <div style="color:#555;">วันที่: ${escapeHtml(d.checkerDate)}</div>
-            <div style="color:#888;">Division / Department: Drawing</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="width:50%;border:0.5px solid #ccc;padding:8px;vertical-align:top;">
-            <div style="font-weight:700;margin-bottom:6px;">Reviewed by :</div>
-            <div style="min-height:32px;border-bottom:0.5px solid #ccc;margin-bottom:4px;display:flex;align-items:center;">
-              ${sig2 || `<span style="color:#555;font-size:8px;font-style:italic;">(ลายเซ็น)</span>`}
-            </div>
-            <div style="font-weight:700;">${escapeHtml(d.reviewName)}</div>
-            <div style="color:#555;">วันที่: ${escapeHtml(d.reviewDate)}</div>
-          </td>
-          <td style="width:50%;border:0.5px solid #ccc;padding:8px;vertical-align:top;">
-            <div style="font-weight:700;margin-bottom:6px;">Approved by :</div>
-            <div style="min-height:32px;border-bottom:0.5px solid #ccc;margin-bottom:4px;display:flex;align-items:center;">
-              ${sig3 || `<span style="color:#555;font-size:8px;font-style:italic;">(ลายเซ็น)</span>`}
-            </div>
-            <div style="font-weight:700;">${escapeHtml(d.approvedName)}</div>
-            <div style="color:#555;">วันที่: ${escapeHtml(d.today)}</div>
-          </td>
-        </tr>
-      </table>
-
-      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:8px;color:#888;">
-        <span>Form Page 1 / 1</span>
-        <span>FM-SEN-009 Rev.02 (01/08/2568)</span>
+    <div class="fm009">
+      <div class="fm009-head">
+        <div><img src="${logoUrl}" alt="PRIME POWER CONSTRUCTION" onerror="this.style.display='none'"></div>
+        <div class="t">ทวนสอบและอนุมัติแบบ</div>
+        <div class="pg">หน้า 1 / 1</div>
       </div>
-    </div>
-  `;
+
+      <div class="fm009-line"><span>PROJECT :</span><span class="fm009-u" style="flex:1.45">${escapeHtml(request.projectName || "")}</span>
+        <span style="margin-left:3mm">TRANS NO :</span><span class="fm009-u" style="flex:1">${escapeHtml(request.requestNo)}</span></div>
+      <div class="fm009-line"><span>DATE :</span><span class="fm009-u" style="width:52mm">${escapeHtml(d.deliveryDate && d.deliveryDate !== "—" ? d.deliveryDate : d.today)}</span></div>
+
+      <div class="fm009-attach">
+        <div class="l"><div>PLEASE FIND ATTACHED THE FOLLOWING ：</div>${leftRows.slice(1).map((r) => `<div>${r || "&nbsp;"}</div>`).join("")}</div>
+        <div class="r">${rightRows.map((r) => `<div>${r || "&nbsp;"}</div>`).join("")}</div>
+      </div>
+
+      <table class="fm009-tbl">
+        <colgroup><col style="width:7%"><col style="width:29.2%"><col style="width:6.9%"><col style="width:26.9%"><col style="width:5.1%"><col style="width:24.9%"></colgroup>
+        <thead><tr><th>Item<br>No</th><th>Document no.<br>Drawing no.</th><th>Rev.</th><th>Title</th><th>For</th><th>Approval Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+
+      <div class="fm009-legend">
+        <div class="h">***<u>Approval Status</u>***</div>
+        <div class="g"><span>AP: Approved</span><span>AC: Approved with Comment</span><span>RC: Return for Correction</span></div>
+        <div>X : Rejected</div>
+      </div>
+      <div class="fm009-note">Note:
+        <div class="fm009-dots">${escapeHtml(d.note || "")}</div><div class="fm009-dots"></div><div class="fm009-dots"></div>
+      </div>
+
+      <div class="fm009-signs">
+        ${sign("Issued by", { name: d.issuedName, date: d.issuedDate, dept: "Drawing", system: true })}
+        ${sign("Checker by", { name: d.checkerName, date: d.checkerDate, dept: "Drawing", system: true })}
+        ${sign("Reviewed by", { sig: sig2, name: d.reviewName, date: d.reviewDate })}
+        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.today })}
+      </div>
+
+      <div class="fm009-foot"><span>Form Page 1 / 1</span><span>${FM009_CODE}</span></div>
+    </div>`;
 }
 
 async function exportDeliveryPDF(view, state, request, d) {
@@ -2268,19 +2310,24 @@ async function exportDeliveryPDF(view, state, request, d) {
   printFrame.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:210mm;height:297mm;border:none;";
   document.body.appendChild(printFrame);
 
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-    <style>
-      body { margin:15mm; font-family:Arial,sans-serif; font-size:10px; }
-      @media print { body { margin:10mm; } }
-      @page { size:A4; margin:10mm; }
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(request.requestNo)} — FM-ENG-009</title>
+    <link rel="stylesheet" href="${FM009_FONT_URL}">
+    <style>${FM009_CSS}
+      html, body { margin:0; padding:0; background:#fff; }
+      @page { size:A4; margin:0; }
+      .fm009 { height:297mm; overflow:hidden; }
+      * { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
     </style>
-  </head><body>${buildDeliveryHTML(request, d)}</body></html>`;
+  </head><body>${buildDeliveryHTML(request, { ...d, deliveryDate: d.checkerDate })}</body></html>`;
 
   printFrame.contentDocument.open();
   printFrame.contentDocument.write(html);
   printFrame.contentDocument.close();
 
-  await new Promise(r => setTimeout(r, 500));
+  // รอฟอนต์ + โลโก้โหลดครบก่อนสั่งพิมพ์ (ไม่งั้นพิมพ์ออกมาเป็นฟอนต์สำรอง/ไม่มีโลโก้)
+  await new Promise(r => setTimeout(r, 300));
+  try { await Promise.race([printFrame.contentDocument.fonts.ready, new Promise(r => setTimeout(r, 2500))]); } catch (_) { /* ignore */ }
+  await Promise.all([...printFrame.contentDocument.images].map((img) => img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; setTimeout(r, 2500); })));
 
   printFrame.contentWindow.focus();
   printFrame.contentWindow.print();
@@ -2292,7 +2339,7 @@ async function exportDeliveryPDF(view, state, request, d) {
   try {
     await patchRequest(request, {
       deliveryFormGeneratedAt: now,
-    }, `สร้างใบส่งมอบงาน FM-SEN-009`);
+    }, `สร้างใบส่งมอบงาน FM-ENG-009`);
     showToast("สร้างใบส่งมอบสำเร็จ — กด Print หรือ Save as PDF ในหน้าต่างที่เปิดขึ้น", "success");
   } catch (err) {
     console.warn("บันทึก deliveryFormGeneratedAt ไม่สำเร็จ:", err.message);
