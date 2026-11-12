@@ -123,8 +123,14 @@ export function renderGuide(view) {
   if (!canIso) guideMode = "manual";
   const modeBar = canIso ? `
       <div class="guide-modes" role="tablist" aria-label="เลือกหมวดคู่มือ">
-        <button type="button" role="tab" class="guide-mode ${guideMode === "manual" ? "is-active" : ""}" data-guide-mode="manual">📘 คู่มือการใช้งานระบบ</button>
-        <button type="button" role="tab" class="guide-mode ${guideMode === "iso" ? "is-active" : ""}" data-guide-mode="iso">📁 เอกสาร ISO</button>
+        <button type="button" role="tab" aria-selected="${guideMode === "manual"}" class="guide-mode ${guideMode === "manual" ? "is-active" : ""}" data-guide-mode="manual">
+          <span class="guide-mode-icon" aria-hidden="true">📘</span>
+          <span class="guide-mode-text"><b>คู่มือการใช้งานระบบ</b><small>ขั้นตอนส่งคำร้อง · ติดตามงาน · อนุมัติ</small></span>
+        </button>
+        <button type="button" role="tab" aria-selected="${guideMode === "iso"}" class="guide-mode ${guideMode === "iso" ? "is-active" : ""}" data-guide-mode="iso">
+          <span class="guide-mode-icon" aria-hidden="true">📁</span>
+          <span class="guide-mode-text"><b>เอกสาร ISO</b><small>ระเบียบปฏิบัติ · แบบฟอร์ม · เอกสารโครงการ</small></span>
+        </button>
       </div>` : "";
   const bindModes = () => view.querySelectorAll("[data-guide-mode]").forEach((btn) => btn.addEventListener("click", () => {
     if (guideMode === btn.dataset.guideMode) return;

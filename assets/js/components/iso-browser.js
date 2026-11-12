@@ -253,7 +253,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     const list = items.filter(matches);
     const filtered = filter.q || filter.type !== "all";
     host.innerHTML = list.length
-      ? `${filtered ? `<p class="iso-count">${list.length} จาก ${items.length} รายการ · <button type="button" class="iso-crumb" data-iso-scope="all">ค้นทุกโฟลเดอร์ย่อย ›</button></p>` : ""}<ul class="iso-list">${list.map((it) => rowHtml(it)).join("")}</ul>`
+      ? `${filtered ? `<p class="iso-count">${list.length} จาก ${items.length} รายการ · <button type="button" class="iso-crumb" data-iso-scope="all">ค้นทุกโฟลเดอร์ย่อย ›</button></p>` : ""}<ul class="iso-list${!ui.path && !filtered && list.every((it) => it.isFolder) ? " is-grid" : ""}">${list.map((it) => rowHtml(it)).join("")}</ul>`
       : filtered
         ? `<p class="iso-empty">ไม่พบในโฟลเดอร์นี้ — <button type="button" class="iso-crumb" data-iso-scope="all">ค้นทุกโฟลเดอร์ย่อย ›</button></p>`
         : `<p class="iso-empty">โฟลเดอร์ว่าง${editable ? " — ลากไฟล์มาวางที่นี่ หรือกดอัปโหลดไฟล์" : ""}</p>`;
