@@ -6,7 +6,7 @@
 
 import { ensureDriveFolder, graphFetch, uploadDriveFile } from "../graph.js";
 import { ensureSite } from "../sharepoint.js";
-import { readZipEntries } from "./xlsx-reader.js";
+import { buildZip, readZipEntries } from "./xlsx-reader.js";
 import { requestFolderPath } from "./drawing-service.js";
 
 export const ISO_ROOT = "ISO-DWG";
@@ -184,6 +184,60 @@ export async function promotePresale(presalePath) {
 export async function renameIsoItem(itemId, newName) {
   const id = await siteId();
   return graphFetch(`/sites/${id}/drive/items/${itemId}`, { method: "PATCH", body: JSON.stringify({ name: safeName(newName) }) });
+}
+
+/** ลิงก์ดาวน์โหลดไฟล์ (ขอใหม่ทุกครั้ง — ลิงก์จาก SharePoint หมดอายุในราว 1 ชั่วโมง) */
+export async function isoDownloadUrl(itemId) {
+  const id = await siteId();
+  const item = await graphFetch(`/sites/${id}/drive/items/${itemId}`);
+  const url = item?.["@microsoft.graph.downloadUrl"];
+  if (!url) throw new Error("ไม่พบลิงก์ดาวน์โหลดของไฟล์นี้");
+  return url;
+}
+
+export const ZIP_LIMIT_BYTES = 2 * 1024 * 1024 * 1024; // ZIP ในเบราว์เซอร์ — ใหญ่กว่านี้ให้ดาวน์โหลดจาก SharePoint
+
+/** ไฟล์ทั้งหมดในโฟลเดอร์ (ทุกชั้น) → [{ id, path, size, modified, downloadUrl }] */
+export async function listIsoTree(itemId) {
+  const id = await siteId();
+  const out = [];
+  const walk = async (folderId, prefix) => {
+    let next = `/sites/${id}/drive/items/${folderId}/children?$top=200`;
+    while (next) {
+      const res = await graphFetch(next);
+      for (const it of res?.value || []) {
+        if (/^(thumbs\.db|desktop\.ini|\.ds_store)$/i.test(it.name)) continue;
+        if (it.folder) await walk(it.id, `${prefix}${it.name}/`);
+        else if (it.file) out.push({ id: it.id, path: `${prefix}${it.name}`, size: it.size || 0, modified: it.lastModifiedDateTime || "", downloadUrl: it["@microsoft.graph.downloadUrl"] || "" });
+      }
+      next = res?.["@odata.nextLink"] || null;
+    }
+  };
+  await walk(itemId, "");
+  return out;
+}
+
+/** รวมไฟล์ในโฟลเดอร์เป็น ZIP (โครงสร้างโฟลเดอร์ย่อยครบ) — onProgress(n, total, name) */
+export async function zipIsoFolder(itemId, folderName, onProgress, files = null) {
+  files = files || await listIsoTree(itemId);
+  if (!files.length) throw new Error("โฟลเดอร์นี้ยังไม่มีไฟล์");
+  const entries = [];
+  let n = 0;
+  const queue = [...files];
+  const worker = async () => {
+    while (queue.length) {
+      const f = queue.shift();
+      let resp = f.downloadUrl ? await fetch(f.downloadUrl).catch(() => null) : null;
+      if (!resp || !resp.ok) resp = await fetch(await isoDownloadUrl(f.id)); // ลิงก์หมดอายุ → ขอใหม่
+      if (!resp.ok) throw new Error(`ดาวน์โหลดไม่สำเร็จ (${resp.status}): ${f.path}`);
+      entries.push({ name: `${folderName}/${f.path}`, data: new Uint8Array(await resp.arrayBuffer()), date: new Date(f.modified) });
+      n += 1;
+      onProgress?.(n, files.length, f.path);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, files.length) }, worker));
+  entries.sort((a, b) => a.name.localeCompare(b.name, "th", { numeric: true }));
+  return buildZip(entries);
 }
 
 export async function deleteIsoItem(itemId) {

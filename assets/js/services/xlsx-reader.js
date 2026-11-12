@@ -164,3 +164,52 @@ export async function readZipEntries(file) {
   if (!out.length) throw new Error("ไม่พบไฟล์ใน ZIP");
   return out;
 }
+
+// ── สร้างไฟล์ ZIP (แบบไม่บีบอัด — ไฟล์ PDF/DWG บีบอัดเพิ่มได้น้อยอยู่แล้ว) · ชื่อไฟล์ UTF-8 (ภาษาไทยเปิดใน Windows ได้) ──
+let crcTable = null;
+function crc32(data) {
+  if (!crcTable) {
+    crcTable = new Uint32Array(256);
+    for (let n = 0; n < 256; n += 1) {
+      let c = n;
+      for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      crcTable[n] = c >>> 0;
+    }
+  }
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i += 1) crc = crcTable[(crc ^ data[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/** files: [{ name: "โฟลเดอร์/ไฟล์.pdf", data: Uint8Array, date?: Date }] → Blob (application/zip) */
+export function buildZip(files) {
+  const enc = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  const dosTime = (d) => ((d.getHours() << 11) | (d.getMinutes() << 5) | Math.floor(d.getSeconds() / 2)) & 0xffff;
+  const dosDate = (d) => (((Math.max(1980, d.getFullYear()) - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xffff;
+  files.forEach((f) => {
+    const name = enc.encode(f.name);
+    const data = f.data || new Uint8Array(0);
+    const crc = crc32(data);
+    const d = f.date instanceof Date && !Number.isNaN(f.date.getTime()) ? f.date : new Date();
+    const head = new DataView(new ArrayBuffer(30));
+    head.setUint32(0, 0x04034b50, true); head.setUint16(4, 20, true); head.setUint16(6, 0x800, true); head.setUint16(8, 0, true);
+    head.setUint16(10, dosTime(d), true); head.setUint16(12, dosDate(d), true); head.setUint32(14, crc, true);
+    head.setUint32(18, data.length, true); head.setUint32(22, data.length, true); head.setUint16(26, name.length, true); head.setUint16(28, 0, true);
+    parts.push(head, name, data);
+    const cd = new DataView(new ArrayBuffer(46));
+    cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true); cd.setUint16(8, 0x800, true); cd.setUint16(10, 0, true);
+    cd.setUint16(12, dosTime(d), true); cd.setUint16(14, dosDate(d), true); cd.setUint32(16, crc, true);
+    cd.setUint32(20, data.length, true); cd.setUint32(24, data.length, true); cd.setUint16(28, name.length, true);
+    cd.setUint32(42, offset, true);
+    central.push(cd, name);
+    offset += 30 + name.length + data.length;
+  });
+  const cdSize = central.reduce((n, p) => n + p.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, end], { type: "application/zip" });
+}

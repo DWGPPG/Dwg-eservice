@@ -5,7 +5,7 @@
 import {
   DISCIPLINES, DRAWING_STAGES, PERMIT_FOLDERS, PERMIT_STAGE, categoryFoldersOf, ISO_ROOT_LABEL, ISO_SECTIONS, KINDS, PRESALE_STAGES, PROJECT_FOLDER, PROJECT_STAGES,
   auditKindFolder, createDrawingFolders, searchIso, createIsoFolder, createProjectFolder, createStandardTree, deleteIsoItem,
-  createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, buildIsoRequestIndex, requestsForIsoItem, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
+  createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, buildIsoRequestIndex, requestsForIsoItem, isoDownloadUrl, listIsoTree, zipIsoFolder, ZIP_LIMIT_BYTES, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
 import { projectKey } from "../utils.js";
@@ -26,7 +26,7 @@ const fileIcon = (name) => {
   if (["zip", "rar", "7z"].includes(ext)) return "🗜️";
   return "📄";
 };
-const sizeText = (b) => (!b ? "" : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+const sizeText = (b) => (!b ? "" : b > 1073741824 ? `${(b / 1073741824).toFixed(2)} GB` : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 const sectionOf = (name) => ISO_SECTIONS.find((s) => s.name === name);
 
 /** ตำแหน่งในโครงสร้าง 8-Project: { year, kind, project } */
@@ -135,6 +135,45 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     return `<span class="iso-reqs">${shown.map((r) => `<button type="button" class="iso-req" data-iso-req="${escapeHtml(r.requestNo)}" title="ดูรายละเอียดและประวัติคำร้อง ${escapeHtml(r.requestNo)}">📋 ${escapeHtml(r.requestNo)}</button>`).join("")}${list.length > shown.length ? `<small>+${list.length - shown.length}</small>` : ""}</span>`;
   }
 
+  // ── ดาวน์โหลด: ไฟล์ = ขอลิงก์ใหม่ทุกครั้ง (ลิงก์เดิมหมดอายุ ~1 ชม.) · โฟลเดอร์ = รวมเป็น ZIP ในเบราว์เซอร์ ──
+  const saveAs = (href, name) => {
+    const a = document.createElement("a");
+    a.href = href; a.download = name; a.rel = "noopener"; a.style.display = "none";
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { a.remove(); if (href.startsWith("blob:")) URL.revokeObjectURL(href); }, 60000);
+  };
+  async function downloadFile(btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try { saveAs(await isoDownloadUrl(btn.dataset.isoDl), btn.dataset.name); }
+    catch (error) { showToast(`ดาวน์โหลดไม่สำเร็จ: ${error.message}`, "error"); }
+    finally { btn.disabled = false; }
+  }
+  let zipping = false;
+  async function downloadFolder(btn) {
+    if (zipping) { showToast("กำลังเตรียม ZIP อีกโฟลเดอร์อยู่ — รอสักครู่", "info"); return; }
+    zipping = true;
+    btn.disabled = true;
+    const name = btn.dataset.name;
+    try {
+      progress(`📦 กำลังรวบรวมรายการไฟล์ใน ${name}...`);
+      const files = await listIsoTree(btn.dataset.isoZipDl);
+      if (!files.length) { showToast(`โฟลเดอร์ ${name} ยังไม่มีไฟล์`, "info"); return; }
+      const total = files.reduce((n, f) => n + f.size, 0);
+      if (total > ZIP_LIMIT_BYTES) { showToast(`โฟลเดอร์ใหญ่เกินไป (${sizeText(total)}) — เลือกโฟลเดอร์ย่อย หรือดาวน์โหลดจาก SharePoint`, "error"); return; }
+      if (total > 300 * 1024 * 1024 && !confirm(`โฟลเดอร์ ${name} มี ${files.length} ไฟล์ รวม ${sizeText(total)} — ดาวน์โหลดเป็น ZIP?`)) return;
+      const blob = await zipIsoFolder(btn.dataset.isoZipDl, safeName(name), (n, all, f) => progress(`📦 ดาวน์โหลด ${n}/${all} — ${f}`), files);
+      saveAs(URL.createObjectURL(blob), `${safeName(name)}.zip`);
+      showToast(`ดาวน์โหลด ${name}.zip แล้ว (${files.length} ไฟล์)`, "success");
+    } catch (error) {
+      showToast(`ดาวน์โหลดโฟลเดอร์ไม่สำเร็จ: ${error.message}`, "error");
+    } finally {
+      zipping = false;
+      btn.disabled = false;
+      progress("");
+    }
+  }
+
   function rowHtml(it, { showPath = false } = {}) {
     const sec = !ui.path && !showPath && it.isFolder ? sectionOf(it.name) : null;
     const where = showPath ? (it.path || ISO_ROOT_LABEL) : "";
@@ -150,7 +189,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
               <span class="iso-name"><b>${highlight(it.name)}</b>${sec ? `<small>${escapeHtml(sec.label)}</small>` : ""}${where ? `<small>📂 ${escapeHtml(where)}</small>` : ""}</span>
               <span class="iso-meta">${showPath ? "" : `${it.childCount} รายการ`}</span>
             </button>
-            <span class="iso-actions">${requestChips(it, showPath ? it.path : ui.path)}${actions}</span>
+            <span class="iso-actions">${requestChips(it, showPath ? it.path : ui.path)}<button type="button" class="small-button" data-iso-zip-dl="${it.id}" data-name="${escapeHtml(it.name)}" title="ดาวน์โหลดทั้งโฟลเดอร์เป็น ZIP">⬇️</button>${actions}</span>
           </li>`;
     }
     return `
@@ -162,7 +201,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
           </a>
           <span class="iso-actions">
             ${requestChips(it, showPath ? it.path : ui.path)}
-            ${it.downloadUrl ? `<a class="small-button" href="${escapeHtml(it.downloadUrl)}" download="${escapeHtml(it.name)}" title="ดาวน์โหลด">⬇️</a>` : ""}
+            <button type="button" class="small-button" data-iso-dl="${it.id}" data-name="${escapeHtml(it.name)}" title="ดาวน์โหลด">⬇️</button>
             ${showPath && it.path !== undefined ? `<button type="button" class="small-button" data-iso-go="${escapeHtml(it.path)}" title="เปิดโฟลเดอร์ที่เก็บไฟล์นี้">📂</button>` : ""}
             ${actions}
           </span>
@@ -248,8 +287,8 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
       ${toolbar()}
       ${guidePanel()}
       ${filterBar()}
-      <div class="iso-list-host"></div>
       <div class="iso-progress" hidden></div>
+      <div class="iso-list-host"></div>
       <div class="iso-audit"></div>`;
     drawList();
     if (filter.scope === "all" && filter.q) runSearch();
@@ -528,6 +567,10 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
   root.addEventListener("click", async (event) => {
     const goBtn = event.target.closest("[data-iso-go]");
     if (goBtn) { go(goBtn.dataset.isoGo); return; }
+    const dlBtn = event.target.closest("[data-iso-dl]");
+    if (dlBtn) { downloadFile(dlBtn); return; }
+    const zipBtn = event.target.closest("[data-iso-zip-dl]");
+    if (zipBtn) { downloadFolder(zipBtn); return; }
     const reqBtn = event.target.closest("[data-iso-req]");
     if (reqBtn) {
       const no = reqBtn.dataset.isoReq;
