@@ -132,17 +132,14 @@ export function getKnownRequesters(excludeEmail = "") {
 }
 
 // ── ตำแหน่ง / Division / Department (ภาษาอังกฤษ) ของทีม — ใช้ในใบทวนสอบ FM-ENG-009 ──
-//  เก็บใน List ตั้งค่า (คีย์ TeamPositionsEN = JSON ตามอีเมล) — ไม่ต้องเพิ่มคอลัมน์ใน DrawingTeam
-//  (ถ้า DrawingTeam มีคอลัมน์ PositionEN/SectionEN/DepartmentEN อยู่แล้ว ใช้ค่านั้นเป็นค่าสำรอง)
+//  หลัก: คอลัมน์ PositionEN / SectionEN / DepartmentEN ใน DrawingTeam · สำรอง: List ตั้งค่า (คีย์ TeamPositionsEN)
 export const TEAM_POS_KEY = "TeamPositionsEN";
 export function teamPositionsEN() {
   try { return JSON.parse(state.masterData?.settings?.[TEAM_POS_KEY] || "{}") || {}; } catch (_) { return {}; }
 }
 export function teamPositionOf(member) {
+  // คอลัมน์ใน DrawingTeam ก่อน (แก้ใน SharePoint ได้โดยตรง) แล้วค่อยใช้สำเนาใน List ตั้งค่า
   const own = teamPositionsEN()[String(member?.Email || member?.email || "").trim().toLowerCase()] || {};
-  return {
-    PositionEN: own.PositionEN ?? member?.PositionEN ?? "",
-    SectionEN: own.SectionEN ?? member?.SectionEN ?? "",
-    DepartmentEN: own.DepartmentEN ?? member?.DepartmentEN ?? "",
-  };
+  const pick = (k) => String(member?.[k] || "").trim() || own[k] || "";
+  return { PositionEN: pick("PositionEN"), SectionEN: pick("SectionEN"), DepartmentEN: pick("DepartmentEN") };
 }

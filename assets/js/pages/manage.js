@@ -166,8 +166,9 @@ const TABS = {
       { key: "DepartmentEN", label: "ฝ่าย (ภาษาอังกฤษ)", placeholder: "เช่น Drawing Department" },
       { key: "IsAdmin", label: "สิทธิ์ผู้จัดการ Lv.2 (อนุมัติ / ส่งมอบ / ดูรายงาน / จัดการข้อมูล)", type: "checkbox" },
     ],
-    toPayload: (v) => ({ Title0: v.Title0, Email: v.Email.toLowerCase(), Role: v.Role, DisplayLabel: v.DisplayLabel, IsAdmin: v.IsAdmin }),
-    // ตำแหน่ง EN เก็บใน List ตั้งค่า (ไม่ต้องมีสิทธิ์เพิ่มคอลัมน์ใน DrawingTeam)
+    // ตำแหน่ง EN: บันทึกลงคอลัมน์ PositionEN/SectionEN/DepartmentEN ใน DrawingTeam (ถ้าไม่มีคอลัมน์ ระบบข้ามให้เอง)
+    toPayload: (v) => ({ Title0: v.Title0, Email: v.Email.toLowerCase(), Role: v.Role, DisplayLabel: v.DisplayLabel, PositionEN: v.PositionEN, SectionEN: v.SectionEN, DepartmentEN: v.DepartmentEN, IsAdmin: v.IsAdmin }),
+    // + สำเนาใน List ตั้งค่า (สำรองกรณีคอลัมน์ไม่มี/ถูกลบ)
     afterSave: async (v) => {
       const map = teamPositionsEN();
       map[v.Email.toLowerCase()] = { PositionEN: String(v.PositionEN || "").trim(), SectionEN: String(v.SectionEN || "").trim(), DepartmentEN: String(v.DepartmentEN || "").trim() };
