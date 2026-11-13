@@ -16,6 +16,7 @@ import {
   updateWorkStatus,
 } from "../services/request-service.js";
 import { cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
+import { graphFetch } from "../graph.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
@@ -446,20 +447,11 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
             ${item.status === STATUS.MGR_REJECTED ? `<option value="${STATUS.MGR_REJECTED}" selected disabled>↩️ ถูกส่งกลับแก้ไข</option>` : ""}
             ${WORK_STATUS_OPTIONS.map((opt) => `<option value="${opt.value}" ${item.status === opt.value ? "selected" : ""}>${opt.label}</option>`).join("")}
           </select>
+          ${fm009Button(item)}
         ` : `
           <div style="display:inline-flex;align-items:center;gap:6px;">
             <span class="badge badge-${item.status}" style="white-space:nowrap;">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>
-            ${item.status === STATUS.DONE || item.reviewedAt ? `
-              <button type="button" data-delivery-form="${escapeHtml(item.requestNo)}"
-                title="ใบทวนสอบและอนุมัติแบบ FM-ENG-009 (1 ใบต่อการตอบกลับ อนุมัติ/ขอแก้ไข)"
-                style="background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:6px;display:inline-flex;align-items:center;color:${item.deliveryFormUrl ? "#0DB14B" : "#005DAC"};"
-                onmouseenter="this.style.background='#f0f6ff'" onmouseleave="this.style.background='none'">
-                ${item.deliveryFormUrl
-                  ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 18 15 15"/></svg>`
-                  : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="16"/><circle cx="12" cy="10" r="1" fill="currentColor"/></svg>`
-                }
-              </button>
-            ` : ""}
+            ${fm009Button(item)}
           </div>
         `}
         ${canTransferWork(item, state.user) ? `
@@ -553,14 +545,6 @@ function bindWorkbookEvents(view, state) {
       return;
     }
 
-    const deliveryBtn = event.target.closest("[data-delivery-form]");
-    if (deliveryBtn) {
-      const request = state.requests.find((i) => i.requestNo === deliveryBtn.dataset.deliveryForm);
-      if (request) {
-        openTransmittalPicker(view, state, request);
-      }
-      return;
-    }
 
     const sendworkButton = event.target.closest("[data-sendwork-open]");
     if (sendworkButton) {
@@ -1065,7 +1049,7 @@ function renderDeptRow(item) {
       <td data-label="ผู้ส่งคำร้อง">${escapeHtml(item.requesterName || "—")}</td>
       <td data-label="ผู้รับผิดชอบ">${escapeHtml(assigneeName(item) || "—")}</td>
       <td data-label="กำหนดส่ง" style="white-space:nowrap;">${formatDateOnly(item.dueDate)}</td>
-      <td data-label="สถานะ"><span class="badge badge-${item.status}" style="white-space:nowrap;">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+      <td data-label="สถานะ"><span class="fm009-status"><span class="badge badge-${item.status}" style="white-space:nowrap;">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${fm009Button(item)}</span></td>
       <td data-label="ไฟล์ / โฟลเดอร์" style="min-width:170px;">${renderReadOnlyFileCell(item)}</td>
     </tr>
   `;
@@ -1381,7 +1365,7 @@ function renderRequesterRow(item) {
       <td data-label="โครงการ"><strong>${escapeHtml(item.projectName || "-")}</strong></td>
       <td data-label="Drawing"><strong>${escapeHtml(item.drawingNo || "-")}</strong><small>${escapeHtml(item.drawingName || "")}</small></td>
       <td data-label="กำหนดส่ง">${formatDateOnly(item.dueDate)}</td>
-      <td data-label="สถานะ"><span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+      <td data-label="สถานะ"><span class="fm009-status"><span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${fm009Button(item)}</span></td>
       <td data-label="ไฟล์งาน">${item.pdfFileUrl ? `<a class="track-file-link" href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer">FILE</a>` : `<span class="track-no-file">-</span>`}</td>
     </tr>
   `;
@@ -1703,7 +1687,7 @@ function renderPublicTrack(view, state) {
                 <td><strong>${escapeHtml(item.projectName || "-")}</strong></td>
                 <td><strong>${escapeHtml(item.drawingNo || "-")}</strong></td>
                 <td>${formatDateOnly(item.dueDate)}</td>
-                <td><span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span></td>
+                <td><span class="fm009-status"><span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${fm009Button(item)}</span></td>
               </tr>
             `).join("") : `<tr><td colspan="5" class="track-empty">ยังไม่มีคำร้องในระบบ</td></tr>`}
           </tbody>
@@ -1958,11 +1942,89 @@ let deliveryDrawing2 = false;
 let deliveryDrawing3 = false;
 let deliveryCurrentCanvas = null;
 
+// ── ตำแหน่งในสายงาน (FM-ENG-009) ──
+//  ฝ่ายเขียนแบบ: คอลัมน์ Position ใน DrawingTeam (ถ้ามี) ไม่งั้นตาม Role
+//  ผู้ร้องขอ/ผู้อนุมัติ: จำค่าที่กรอกล่าสุดต่อชื่อ (เครื่องนี้) · ถ้าผู้ใช้เป็นผู้ร้องขอเอง ใช้ตำแหน่ง/แผนกจาก Microsoft 365
+const FM009_POS_KEY = "ppg-fm009-pos";
+var fm009Me = null; // { jobTitle, department } ของผู้ใช้ที่ล็อกอิน
+function fm009Memory() { try { return JSON.parse(localStorage.getItem(FM009_POS_KEY) || "{}"); } catch (_) { return {}; } }
+function fm009Remember(name, position, dept) {
+  if (!name || name === "—") return;
+  try {
+    const m = fm009Memory();
+    m[name.trim().toLowerCase()] = { position: position || "", dept: dept || "" };
+    localStorage.setItem(FM009_POS_KEY, JSON.stringify(m));
+  } catch (_) { /* storage ปิด */ }
+}
+function teamPosition(nameOrEmail, fallbackRole) {
+  const key = String(nameOrEmail || "").trim().toLowerCase();
+  const raw = (appState.masterData?.team || []).find((m) => [m.Email, m.Title0, m.Title].some((v) => String(v || "").trim().toLowerCase() === key));
+  const explicit = String(raw?.Position || raw?.JobTitle || "").trim();
+  if (explicit) return explicit;
+  const role = String(raw?.Role || fallbackRole || "");
+  return /manager/i.test(role) ? "ผู้จัดการฝ่ายเขียนแบบ" : "เจ้าหน้าที่เขียนแบบ";
+}
+function fm009DefaultPositions(request, { issuedName, checkerName, reviewName }) {
+  const mem = fm009Memory();
+  const recall = (name) => mem[String(name || "").trim().toLowerCase()] || {};
+  const isMe = String(appState.user?.email || "").toLowerCase() === String(request.requesterEmail || "").toLowerCase();
+  const rv = recall(reviewName);
+  const lastApproved = Object.entries(mem).find(([k]) => k === "__approved__")?.[1] || {};
+  return {
+    issued: recall(issuedName).position || teamPosition(request.assignedToEmail || issuedName, "Designer"),
+    checker: recall(checkerName).position || teamPosition(checkerName, "Manager"),
+    review: rv.position || (isMe ? fm009Me?.jobTitle || "" : ""),
+    reviewDept: rv.dept || (isMe ? fm009Me?.department || "" : ""),
+    approved: lastApproved.position || "",
+    approvedDept: lastApproved.dept || "",
+  };
+}
+function collectFm009Positions() {
+  const v = (id) => document.getElementById(id)?.value.trim() || "";
+  return {
+    posIssued: v("fm-pos-issued"), posChecker: v("fm-pos-checker"),
+    posReview: v("fm-pos-review"), deptReview: v("fm-dept-review"),
+    posApproved: v("fm-pos-approved"), deptApproved: v("fm-dept-approved"),
+  };
+}
+function loadFm009Me() {
+  if (fm009Me) return;
+  fm009Me = {};
+  graphFetch("/me?$select=jobTitle,department").then((me) => { fm009Me = { jobTitle: me?.jobTitle || "", department: me?.department || "" }; }).catch(() => {});
+}
+
+/** ปุ่มใบทวนสอบและอนุมัติแบบ FM-ENG-009 ข้างสถานะ — มีเมื่อผู้ร้องขอเคยตอบกลับ (อนุมัติ/ขอแก้ไข/Reject) */
+function fm009Button(item) {
+  if (!(item.status === STATUS.DONE || item.reviewedAt || item.doneAt)) return "";
+  return `<button type="button" class="fm009-btn" data-fm009-open="${escapeHtml(item.requestNo)}" title="ใบทวนสอบและอนุมัติแบบ FM-ENG-009 (1 ใบต่อการตอบกลับ อนุมัติ/ขอแก้ไข)" aria-label="ใบทวนสอบและอนุมัติแบบ FM-ENG-009">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><polyline points="9 15 12 18 15 15"/></svg><span>FM-009</span></button>`;
+}
+
+// ปุ่ม FM-ENG-009 ใช้ได้ทุกตาราง (ผู้ร้องขอ / ฝ่ายเขียนแบบ / ผู้จัดการ) — ผูกครั้งเดียวที่ document
+var fm009Bound = false;
+function bindFm009Buttons() {
+  if (fm009Bound) return;
+  fm009Bound = true;
+  document.addEventListener("click", async (event) => {
+    const btn = event.target.closest("[data-fm009-open]");
+    if (!btn || btn.disabled) return;
+    event.preventDefault();
+    const request = (appState.requests || []).find((r) => r.requestNo === btn.dataset.fm009Open);
+    if (!request) return;
+    btn.disabled = true;
+    btn.classList.add("is-loading");
+    try { await openTransmittalPicker(document.querySelector("#app-view"), appState, request); }
+    catch (error) { showToast(`เปิดใบทวนสอบไม่สำเร็จ: ${error.message}`, "error"); }
+    finally { btn.disabled = false; btn.classList.remove("is-loading"); }
+  });
+}
+bindFm009Buttons();
+
 const FM009_STATUS_TEXT = { AP: "AP — อนุมัติ (Approved)", AC: "AC — อนุมัติพร้อมความเห็น", RC: "RC — ส่งกลับแก้ไข (Return for Correction)", X: "X — ไม่อนุมัติ (Rejected)" };
 
 /** เลือกใบ FM-ENG-009 ของคำร้อง (1 ใบต่อการตอบกลับของผู้ร้องขอ 1 ครั้ง) — มีใบเดียวเปิดเลย */
 async function openTransmittalPicker(view, state, request) {
-  showToast("กำลังโหลดใบทวนสอบและอนุมัติแบบ...", "info");
+  loadFm009Me();
   const rounds = await getTransmittals(request);
   if (!rounds.length) { showToast("คำร้องนี้ยังไม่มีการตอบกลับจากผู้ร้องขอ (อนุมัติ/ขอแก้ไข)", "warning"); return; }
   if (rounds.length === 1) { openDeliveryFormModal(view, state, request, rounds[0]); return; }
@@ -2031,6 +2093,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
     deliveryDate: reviewDate,
   };
 
+  const pos = fm009DefaultPositions(request, { issuedName, checkerName, reviewName });
   const canvasStyle = "border:1.5px dashed #CBD5E1;border-radius:8px;background:#FAFAFA;cursor:crosshair;touch-action:none;width:100%;height:90px;display:block;";
 
   const body = `
@@ -2060,6 +2123,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(issuedDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
+          <input id="fm-pos-issued" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.issued)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
           <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
@@ -2071,6 +2135,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(checkerDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
+          <input id="fm-pos-checker" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.checker)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
           <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
@@ -2078,6 +2143,10 @@ function openDeliveryFormModal(view, state, request, round = null) {
         <div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px;">
           <div style="font-size:11px;font-weight:600;color:#0DB14B;margin-bottom:6px;">Reviewed by — ผู้ร้องขอ</div>
           <div style="font-size:11px;color:#334155;margin-bottom:4px;"><b>${escapeHtml(reviewName)}</b> · ${escapeHtml(reviewDate)}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+            <input id="fm-pos-review" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.review)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
+            <input id="fm-dept-review" type="text" placeholder="แผนก / ฝ่าย" value="${escapeHtml(pos.reviewDept)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
+          </div>
           <canvas id="deliverySig2" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig2Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2090,6 +2159,10 @@ function openDeliveryFormModal(view, state, request, round = null) {
           <div style="font-size:11px;font-weight:600;color:#0DB14B;margin-bottom:6px;">Approved by — ผู้จัดการผู้ร้องขอ</div>
           <input id="deliveryApprovedName" type="text" placeholder="กรอกชื่อผู้อนุมัติ..."
             style="width:100%;height:30px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+            <input id="fm-pos-approved" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.approved)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
+            <input id="fm-dept-approved" type="text" placeholder="แผนก / ฝ่าย" value="${escapeHtml(pos.approvedDept)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
+          </div>
           <canvas id="deliverySig3" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig3Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2132,7 +2205,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
           try {
             await exportDeliveryPDF(view, state, request, {
               issuedName, issuedDate, checkerName, checkerDate,
-              reviewName, reviewDate, approvedName, today, ...extra,
+              reviewName, reviewDate, approvedName, today, ...extra, ...collectFm009Positions(),
             });
             close();
           } catch (err) {
@@ -2210,7 +2283,7 @@ function renderDeliveryPreview(request, issuedName, issuedDate, checkerName, che
   if (!preview || !section) return;
   section.style.display = "block";
   ensureFm009Assets();
-  preview.innerHTML = `<div class="fm009-scale">${buildDeliveryHTML(request, { issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, approvedName, today, deliveryDate: checkerDate, ...extra })}</div>`;
+  preview.innerHTML = `<div class="fm009-scale">${buildDeliveryHTML(request, { issuedName, issuedDate, checkerName, checkerDate, reviewName, reviewDate, approvedName, today, deliveryDate: checkerDate, ...extra, ...collectFm009Positions() })}</div>`;
   const page = preview.querySelector(".fm009");
   const fit = () => { if (page) page.style.zoom = String(Math.min(1, (preview.clientWidth - 2) / page.offsetWidth)); };
   fit(); requestAnimationFrame(fit);
@@ -2269,6 +2342,9 @@ const FM009_CSS = `
   .fm009-sign .lbl { font-weight:700; white-space:nowrap; }
   .fm009-sign .nm { display:flex; align-items:flex-end; margin-top:3mm; font-weight:400; }
   .fm009-sign .nm span.u { flex:1; border-bottom:0.8pt solid #000; text-align:center; min-height:1.3em; }
+  .fm009-sign .pos { display:flex; align-items:flex-end; gap:2mm; margin-top:1.5mm; padding:0 4mm; font-weight:400; }
+  .fm009-sign .pos .lbl { font-weight:700; }
+  .fm009-sign .pos .u { flex:1; border-bottom:1pt dotted #000; text-align:center; min-height:1.3em; }
   .fm009-sign .dept { margin-top:1.5mm; text-align:center; font-family:"Times New Roman",serif; font-size:8pt; }
   .fm009-sign .dept span { border-bottom:1pt dotted #000; padding:0 3mm; }
   .fm009-sys { font-size:9pt; font-weight:700; color:#0b7a3b; white-space:nowrap; line-height:1.3; text-align:center; padding-bottom:0.5mm; }
@@ -2305,7 +2381,7 @@ function buildDeliveryHTML(request, d) {
   const rows = [...Array(7)].map((_, i) => i === 0
     ? `<tr><td class="c">1</td><td>${escapeHtml(request.drawingNo || request.requestNo)}</td><td class="c">${escapeHtml(rev)}</td><td>${escapeHtml(request.drawingName || "—")}</td><td class="c">${forCode}</td><td class="c"><b>${escapeHtml(statusCode)}</b></td></tr>`
     : `<tr><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("");
-  const sign = (who, { sig = "", name = "", date = "", dept = "", system = false } = {}) => `
+  const sign = (who, { sig = "", name = "", date = "", dept = "", position = "", system = false } = {}) => `
     <div class="fm009-sign">
       <div class="who">${who} :</div>
       <div class="row">
@@ -2313,6 +2389,7 @@ function buildDeliveryHTML(request, d) {
         <span class="lbl">Date :</span><span class="dt">${escapeHtml(date && date !== "—" ? date : "")}</span>
       </div>
       <div class="nm">(<span class="u">${escapeHtml(name && name !== "—" ? name : "")}</span>)</div>
+      <div class="pos"><span class="lbl">ตำแหน่ง</span><span class="u">${escapeHtml(position)}</span></div>
       <div class="dept"><span>${escapeHtml(dept) || "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}</span> Division / Department</div>
     </div>`;
   const sig2 = deliverySig2 ? `<img src="${deliverySig2}" alt="">` : "";
@@ -2352,10 +2429,10 @@ function buildDeliveryHTML(request, d) {
       </div>
 
       <div class="fm009-signs">
-        ${sign("Issued by", { name: d.issuedName, date: d.issuedDate, dept: "Drawing", system: true })}
-        ${sign("Checker by", { name: d.checkerName, date: d.checkerDate, dept: "Drawing", system: true })}
-        ${sign("Reviewed by", { sig: sig2, name: d.reviewName, date: d.reviewDate })}
-        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.today })}
+        ${sign("Issued by", { name: d.issuedName, date: d.issuedDate, dept: "Drawing", position: d.posIssued, system: true })}
+        ${sign("Checker by", { name: d.checkerName, date: d.checkerDate, dept: "Drawing", position: d.posChecker, system: true })}
+        ${sign("Reviewed by", { sig: sig2, name: d.reviewName, date: d.reviewDate, position: d.posReview, dept: d.deptReview })}
+        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.today, position: d.posApproved, dept: d.deptApproved })}
       </div>
 
       <div class="fm009-foot"><span>Form Page 1 / 1</span><span>${FM009_CODE}</span></div>
@@ -2363,6 +2440,11 @@ function buildDeliveryHTML(request, d) {
 }
 
 async function exportDeliveryPDF(view, state, request, d) {
+  fm009Remember(d.issuedName, d.posIssued, "");
+  fm009Remember(d.checkerName, d.posChecker, "");
+  fm009Remember(d.reviewName, d.posReview, d.deptReview);
+  fm009Remember(d.approvedName, d.posApproved, d.deptApproved);
+  fm009Remember("__approved__", d.posApproved, d.deptApproved);
   showToast("กำลัง generate PDF...", "info");
 
   // สร้าง iframe ชั่วคราวสำหรับ print
@@ -2570,15 +2652,6 @@ function renderMyRequestsSection(view, state) {
       return;
     }
 
-    // ใบส่งมอบ
-    const deliveryBtn = event.target.closest("[data-delivery-form]");
-    if (deliveryBtn) {
-      const req = state.requests.find((i) => i.requestNo === deliveryBtn.dataset.deliveryForm);
-      if (req) {
-        openTransmittalPicker(view, state, req);
-      }
-      return;
-    }
 
     // ปุ่ม data-review-action (จาก renderReviewCard)
     const button = event.target.closest("[data-review-action]");
