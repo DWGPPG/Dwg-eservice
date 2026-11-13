@@ -7,7 +7,8 @@ import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import { refreshNavBadges } from "../router.js";
 import { writeAudit } from "../services/audit-service.js";
-import { addItem, deleteItem, ensureColumns, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
+import { addItem, deleteItem, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
+import { TEAM_POS_KEY, teamPositionOf, teamPositionsEN } from "../services/team-service.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { bindLegacyTab, renderLegacyTab } from "./manage-legacy.js";
@@ -142,7 +143,7 @@ const TABS = {
     addLabel: "สมาชิก",
     icon: "👥",
     list: lists.team,
-    data: () => state.masterData.team,
+    data: () => (state.masterData.team || []).map((r) => ({ ...r, ...teamPositionOf(r) })),
     hideField: "IsActive",
     hideFieldInverted: true,
     teamPhotos: true,
@@ -165,8 +166,14 @@ const TABS = {
       { key: "DepartmentEN", label: "ฝ่าย (ภาษาอังกฤษ)", placeholder: "เช่น Drawing Department" },
       { key: "IsAdmin", label: "สิทธิ์ผู้จัดการ Lv.2 (อนุมัติ / ส่งมอบ / ดูรายงาน / จัดการข้อมูล)", type: "checkbox" },
     ],
+    // ตำแหน่ง EN: บันทึกลงคอลัมน์ PositionEN/SectionEN/DepartmentEN ใน DrawingTeam (ถ้าไม่มีคอลัมน์ ระบบข้ามให้เอง)
     toPayload: (v) => ({ Title0: v.Title0, Email: v.Email.toLowerCase(), Role: v.Role, DisplayLabel: v.DisplayLabel, PositionEN: v.PositionEN, SectionEN: v.SectionEN, DepartmentEN: v.DepartmentEN, IsAdmin: v.IsAdmin }),
-    ensureColumns: () => ensureColumns(lists.team, ["PositionEN", "SectionEN", "DepartmentEN"]),
+    // + สำเนาใน List ตั้งค่า (สำรองกรณีคอลัมน์ไม่มี/ถูกลบ)
+    afterSave: async (v) => {
+      const map = teamPositionsEN();
+      map[v.Email.toLowerCase()] = { PositionEN: String(v.PositionEN || "").trim(), SectionEN: String(v.SectionEN || "").trim(), DepartmentEN: String(v.DepartmentEN || "").trim() };
+      await saveSetting(TEAM_POS_KEY, JSON.stringify(map));
+    },
     validate: (v, item) => validateTeamMember(v, item),
     duplicateKey: (v) => norm(v.Email),
     searchText: (r) => `${r.Title0 || ""} ${r.Email || ""} ${r.Role || ""}`,
@@ -1071,6 +1078,7 @@ function openForm(key, item, rerender) {
               if (tab.ensure) await tab.ensure(); // List ใหม่ (ผู้รับผิดชอบโครงการ / วันลา) — สร้างให้ครั้งแรก
               await addItem(tab.list, payload);
             }
+            if (tab.afterSave) await tab.afterSave(values, item);
             await writeAudit({ action: `จัดการข้อมูล: ${isEdit ? "แก้ไข" : "เพิ่ม"}${tab.label}`, detail: summarize(payload) });
             if (tab.yearFilter && values.HolidayDate) ui.holidayYear = Number(values.HolidayDate.slice(0, 4)); // แสดงปีของวันที่เพิ่งบันทึก
             await reloadMasterData();

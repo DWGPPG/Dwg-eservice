@@ -17,7 +17,7 @@ import {
 } from "../services/request-service.js";
 import { cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
 import { graphFetch } from "../graph.js";
-import { assigneeName, getDrawingTeamMembers, getKnownRequesters } from "../services/team-service.js";
+import { assigneeName, getDrawingTeamMembers, getKnownRequesters, teamPositionOf } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 import { navigate } from "../router.js";
@@ -1960,7 +1960,8 @@ function fm009Remember(name, position, dept) {
 function teamPosition(nameOrEmail, fallbackRole) {
   const key = String(nameOrEmail || "").trim().toLowerCase();
   const raw = (appState.masterData?.team || []).find((m) => [m.Email, m.Title0, m.Title].some((v) => String(v || "").trim().toLowerCase() === key));
-  const line = [raw?.PositionEN, raw?.SectionEN, raw?.DepartmentEN].map((v) => String(v || "").trim()).filter(Boolean).join(" / ");
+  const en = raw ? teamPositionOf(raw) : {};
+  const line = [en.PositionEN, en.SectionEN, en.DepartmentEN].map((v) => String(v || "").trim()).filter(Boolean).join(" / ");
   if (line) return line;
   const manager = raw ? (raw.IsAdmin === true || raw.IsAdmin === "Yes") : /manager/i.test(fallbackRole || "");
   return manager ? "Drawing Manager / Drawing Department" : "Draftsman / Drawing Department";
