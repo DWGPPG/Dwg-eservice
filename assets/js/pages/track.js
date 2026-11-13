@@ -1988,6 +1988,33 @@ function loadFm009Me() {
   graphFetch("/me?$select=jobTitle,department").then((me) => { fm009Me = { jobTitle: me?.jobTitle || "", department: me?.department || "" }; }).catch(() => {});
 }
 
+// ── Note ของ FM-ENG-009: สาเหตุ 1.1–1.4 + เหตุผล ──
+const REVISION_SOURCE_TEXT = {
+  "1.1": "1.1 ความผิดพลาดจากฝ่ายเขียนแบบ",
+  "1.2": "1.2 ความผิดพลาดจากผู้ส่งคำร้อง",
+  "1.3": "1.3 ความผิดพลาดจากงานติดตั้งโครงการ",
+  "1.4": "1.4 ความผิดพลาดจากลูกค้า",
+};
+const sourceText = (src) => REVISION_SOURCE_TEXT[String(src || "").trim()] || String(src || "").trim();
+/**
+ * รอบส่งกลับแก้ไข (RC/X): สาเหตุ + เหตุผลที่ผู้ร้องขอกรอกตอนตรวจรับ
+ * รอบอนุมัติ (AP): ถ้าเป็นงาน Revise — สาเหตุ + เหตุผลของการ Revise ครั้งนี้ (จากคำร้อง)
+ */
+function fm009Note(request, round) {
+  const fmt = (label, src, reason) => {
+    const s = sourceText(src);
+    const r = String(reason || "").trim();
+    if (!s && !r) return "";
+    return `${label}${s ? ` สาเหตุ ${s}` : ""}${r ? ` — เหตุผล: ${r}` : ""}`;
+  };
+  if (round.code !== "AP") {
+    return fmt(round.code === "X" ? "Rejected:" : "ส่งกลับแก้ไข:", round.source || (round.legacy ? request.revisionSource : ""), round.comment || (round.legacy ? request.revisionReason || request.reviseComment : ""));
+  }
+  const revised = request.isRevision || request.revisionSource || request.revisionReason || (round.rev && round.rev !== "0");
+  const fromRequest = revised ? fmt(`Revise (Rev.${round.rev}):`, request.revisionSource, request.revisionReason || request.reviseComment) : "";
+  return [fromRequest, round.comment || ""].filter(Boolean).join(" · ");
+}
+
 /** ปุ่มใบทวนสอบและอนุมัติแบบ FM-ENG-009 ข้างสถานะ — มีเมื่อผู้ร้องขอเคยตอบกลับ (อนุมัติ/ขอแก้ไข/Reject) */
 function fm009Button(item) {
   if (!(item.status === STATUS.DONE || item.reviewedAt || item.doneAt)) return "";
@@ -2084,7 +2111,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
     transNo: round.transNo,
     rev: round.rev,
     statusCode: round.code,
-    note: round.code === "AP" ? (round.comment || "") : [round.source ? `[${round.source}]` : "", round.comment || ""].filter(Boolean).join(" "),
+    note: fm009Note(request, round),
     deliveryDate: reviewDate,
   };
 
