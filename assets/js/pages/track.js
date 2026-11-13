@@ -1956,7 +1956,7 @@ function fm009Remember(name, position, dept) {
     localStorage.setItem(FM009_POS_KEY, JSON.stringify(m));
   } catch (_) { /* storage ปิด */ }
 }
-/** "Position / Section / Department" ภาษาอังกฤษของทีมเขียนแบบ จากหน้าจัดการข้อมูล → ทีม & สิทธิ์ */
+/** "Position / Division / Department" ภาษาอังกฤษของทีมเขียนแบบ จากหน้าจัดการข้อมูล → ทีม & สิทธิ์ */
 function teamPosition(nameOrEmail, fallbackRole) {
   const key = String(nameOrEmail || "").trim().toLowerCase();
   const raw = (appState.masterData?.team || []).find((m) => [m.Email, m.Title0, m.Title].some((v) => String(v || "").trim().toLowerCase() === key));
@@ -2117,7 +2117,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(issuedDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
-          <input id="fm-pos-issued" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.issued)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
+          <input id="fm-pos-issued" type="text" placeholder="Position / Division / Department (EN)" value="${escapeHtml(pos.issued)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
           <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
@@ -2129,7 +2129,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(checkerDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
-          <input id="fm-pos-checker" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.checker)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
+          <input id="fm-pos-checker" type="text" placeholder="Position / Division / Department (EN)" value="${escapeHtml(pos.checker)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
           <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
@@ -2137,7 +2137,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
         <div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px;">
           <div style="font-size:11px;font-weight:600;color:#0DB14B;margin-bottom:6px;">Reviewed by — ผู้ร้องขอ</div>
           <div style="font-size:11px;color:#334155;margin-bottom:4px;"><b>${escapeHtml(reviewName)}</b> · ${escapeHtml(reviewDate)}</div>
-          <input id="fm-pos-review" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.review)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
+          <input id="fm-pos-review" type="text" placeholder="Position / Division / Department (EN)" value="${escapeHtml(pos.review)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
           <canvas id="deliverySig2" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig2Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2150,7 +2150,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
           <div style="font-size:11px;font-weight:600;color:#0DB14B;margin-bottom:6px;">Approved by — ผู้จัดการผู้ร้องขอ</div>
           <input id="deliveryApprovedName" type="text" placeholder="กรอกชื่อผู้อนุมัติ..."
             style="width:100%;height:30px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
-          <input id="fm-pos-approved" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.approved)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
+          <input id="fm-pos-approved" type="text" placeholder="Position / Division / Department (EN)" value="${escapeHtml(pos.approved)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
           <canvas id="deliverySig3" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig3Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2375,7 +2375,7 @@ function buildDeliveryHTML(request, d) {
         <span class="lbl">Date :</span><span class="dt">${escapeHtml(date && date !== "—" ? date : "")}</span>
       </div>
       <div class="nm">(<span class="u">${escapeHtml(name && name !== "—" ? name : "")}</span>)</div>
-      <div class="dept"><span class="u">${escapeHtml(position || dept) || "&nbsp;"}</span><small>Position / Section / Department</small></div>
+      <div class="dept"><span class="u">${escapeHtml(position || dept) || "&nbsp;"}</span><small>Position / Division / Department</small></div>
     </div>`;
   const sig2 = deliverySig2 ? `<img src="${deliverySig2}" alt="">` : "";
   const sig3 = deliverySig3 ? `<img src="${deliverySig3}" alt="">` : "";

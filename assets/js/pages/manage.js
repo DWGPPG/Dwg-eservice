@@ -161,7 +161,7 @@ const TABS = {
       { key: "Role", label: "สายงาน", type: "select", options: () => TEAM_ROLES, allowCustom: true },
       { key: "DisplayLabel", label: "ป้ายแสดงผล (ไม่บังคับ)", placeholder: "เช่น วิศวกรไฟฟ้าอาวุโส" },
       { key: "PositionEN", label: "ตำแหน่ง (ภาษาอังกฤษ — ใช้ในใบทวนสอบ FM-ENG-009)", placeholder: "เช่น Drawing Manager" },
-      { key: "SectionEN", label: "แผนก (ภาษาอังกฤษ)", placeholder: "เช่น Proposal Drawing Section" },
+      { key: "SectionEN", label: "แผนก / Division (ภาษาอังกฤษ)", placeholder: "เช่น Proposal Drawing Division" },
       { key: "DepartmentEN", label: "ฝ่าย (ภาษาอังกฤษ)", placeholder: "เช่น Drawing Department" },
       { key: "IsAdmin", label: "สิทธิ์ผู้จัดการ Lv.2 (อนุมัติ / ส่งมอบ / ดูรายงาน / จัดการข้อมูล)", type: "checkbox" },
     ],
