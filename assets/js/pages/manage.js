@@ -1069,6 +1069,7 @@ function openForm(key, item, rerender) {
           }
           try {
             const payload = clean(tab.toPayload(values));
+            if (tab.ensureColumns) await tab.ensureColumns(); // คอลัมน์ใหม่ใน List เดิม (เช่น ตำแหน่ง EN ของทีม)
             if (isEdit) {
               await patchItem(tab.list, item.id, payload);
             } else {
