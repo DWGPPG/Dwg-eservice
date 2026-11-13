@@ -275,6 +275,30 @@ export async function ensureList(listName, textColumns = []) {
   return created;
 }
 
+/** เพิ่มคอลัมน์ข้อความที่ยังไม่มีใน List เดิม (ครั้งเดียวต่อการเปิดเว็บ) */
+const ensuredColumns = new Set();
+export async function ensureColumns(listName, textColumns = []) {
+  const key = `${listName}:${textColumns.join(",")}`;
+  if (ensuredColumns.has(key)) return;
+  const siteId = await ensureSite();
+  const listId = await ensureListId(listName);
+  if (!listId) return;
+  const res = await graphFetch(`/sites/${siteId}/lists/${listId}/columns?$select=name,displayName`);
+  const have = new Set((res?.value || []).flatMap((c) => [c.name, c.displayName]));
+  for (const name of textColumns.filter((n) => !have.has(n))) {
+    try {
+      await graphFetch(`/sites/${siteId}/lists/${listId}/columns`, { method: "POST", body: JSON.stringify({ name, displayName: name, text: {} }) });
+    } catch (error) {
+      if (error.status === 403 || /accessDenied/i.test(error.message || "")) {
+        throw new Error(`ไม่มีสิทธิ์เพิ่มคอลัมน์ใน List "${listName}" — ให้เจ้าของ Site เพิ่มคอลัมน์ข้อความ (Single line of text): ${textColumns.join(", ")} แล้วลองใหม่`);
+      }
+      throw error;
+    }
+  }
+  ensuredColumns.add(key);
+  delete unknownFieldsCache[listName]; // คอลัมน์ใหม่ใช้ได้แล้ว
+}
+
 const ensureSettingsList = () => ensureList(lists.settings, [SETTING_VALUE_FIELD]);
 
 /** บันทึกค่าตั้งค่า 1 รายการ (สร้าง List/รายการให้อัตโนมัติถ้ายังไม่มี) */

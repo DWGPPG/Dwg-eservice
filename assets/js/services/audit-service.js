@@ -1,5 +1,6 @@
 import { fields, lists } from "../../../config/schema.js";
-import { addItem, getListItems } from "../sharepoint.js";
+import { addItem, ensureListId, ensureSite, getListItems } from "../sharepoint.js";
+import { graphFetch } from "../graph.js";
 import { state } from "../state.js";
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -26,6 +27,7 @@ export async function writeAudit({ requestNo, action, detail = "" }) {
     try {
       const saved = await addItem(lists.auditLog, item);
       auditCache = null; // ให้ประวัติที่เปิดดูครั้งถัดไปเห็นรายการใหม่
+      oneRequestCache.delete(requestNo);
       return saved;
     } catch (error) {
       if (RETRYABLE.test(String(error.message)) && attempt < WRITE_RETRY_MS.length) {
@@ -139,9 +141,47 @@ export function writeTransmittal(request, { action, comment = "", source = "", a
  * ทุกรอบที่ผู้ร้องขอตอบกลับ เรียงเก่า → ใหม่ (สำหรับเลือกพิมพ์ FM-ENG-009 แยกใบ)
  * รอบก่อนมีระบบนี้: ดูจาก AuditLog "ผู้ร้องขอตรวจรับ: ..." และวันเวลาในตัวคำร้อง
  */
+/**
+ * AuditLog ของคำร้องเดียว — กรองที่ SharePoint (เร็วกว่าโหลดทั้ง List มาก)
+ * ถ้า List ใหญ่และคอลัมน์ RequestId ไม่ได้ทำ Index แล้ว SharePoint ปฏิเสธ → ใช้วิธีเดิม (โหลดทั้ง List)
+ */
+const oneRequestCache = new Map(); // requestNo → { at, promise }
+async function auditForRequest(requestNo) {
+  if (auditCache && Date.now() - auditCache.at < AUDIT_TTL_MS) return getAuditHistory(requestNo);
+  const hit = oneRequestCache.get(requestNo);
+  if (hit && Date.now() - hit.at < AUDIT_TTL_MS) return hit.promise;
+  const promise = (async () => {
+    try {
+      const site = await ensureSite();
+      const listId = await ensureListId(lists.auditLog);
+      const no = String(requestNo).replace(/'/g, "''");
+      let url = `/sites/${site}/lists/${listId}/items?expand=fields&$top=200&$filter=fields/${fields.audit.requestId} eq '${no}'`;
+      const items = [];
+      while (url) {
+        const res = await graphFetch(url, { headers: { Prefer: "HonorNonIndexedQueriesWarningMayFailRandomly" } });
+        (res?.value || []).forEach((it) => items.push(it.fields || {}));
+        url = res?.["@odata.nextLink"] || null;
+      }
+      return items.map((item) => ({
+        action: item[fields.audit.title] || "",
+        userName: item[fields.audit.userName] || "",
+        userEmail: item[fields.audit.userEmail] || "",
+        detail: item[fields.audit.detail] || "",
+        actionAt: item[fields.audit.actionAt] || item.Created || "",
+      })).sort((a, b) => new Date(b.actionAt || 0) - new Date(a.actionAt || 0));
+    } catch (error) {
+      console.warn("กรอง AuditLog ไม่สำเร็จ — โหลดทั้ง List แทน:", error.message);
+      return getAuditHistory(requestNo);
+    }
+  })();
+  oneRequestCache.set(requestNo, { at: Date.now(), promise });
+  promise.catch(() => oneRequestCache.delete(requestNo));
+  return promise;
+}
+
 export async function getTransmittals(request) {
   let audit = [];
-  try { audit = await getAuditHistory(request.requestNo); } catch (_) { audit = []; }
+  try { audit = await auditForRequest(request.requestNo); } catch (_) { audit = []; }
   const near = (a, b) => Math.abs(new Date(a).getTime() - new Date(b).getTime()) < 5 * 60 * 1000;
   const rounds = [];
   audit.filter((e) => e.action === TRANSMITTAL_ACTION).forEach((e) => {

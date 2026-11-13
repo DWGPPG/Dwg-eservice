@@ -7,7 +7,7 @@ import { openModal } from "../components/modal.js";
 import { showToast } from "../components/toast.js";
 import { refreshNavBadges } from "../router.js";
 import { writeAudit } from "../services/audit-service.js";
-import { addItem, deleteItem, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
+import { addItem, deleteItem, ensureColumns, ensureList, getListItems, loadMasterData, patchItem, saveSetting } from "../sharepoint.js";
 import { VERSION_KEY, displayVersion, normalizeVersion } from "../services/app-settings.js";
 import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { bindLegacyTab, renderLegacyTab } from "./manage-legacy.js";
@@ -153,15 +153,20 @@ const TABS = {
       { label: "สายงาน", value: (r) => r.Role },
       { label: "สิทธิ์", html: (r) => teamRoleBadge(r) },
       { label: "ป้ายแสดงผล", value: (r) => r.DisplayLabel },
+      { label: "ตำแหน่ง / แผนก / ฝ่าย (EN)", value: (r) => [r.PositionEN, r.SectionEN, r.DepartmentEN].filter(Boolean).join(" / ") },
     ],
     form: [
       { key: "Title0", label: "ชื่อ-นามสกุล (ชื่อเล่น)", required: true, placeholder: "เช่น นาย สมชาย ใจดี (ชาย)" },
       { key: "Email", label: "อีเมล", required: true, type: "email", placeholder: `name@${appConfig.azure.allowedDomain}` },
       { key: "Role", label: "สายงาน", type: "select", options: () => TEAM_ROLES, allowCustom: true },
       { key: "DisplayLabel", label: "ป้ายแสดงผล (ไม่บังคับ)", placeholder: "เช่น วิศวกรไฟฟ้าอาวุโส" },
+      { key: "PositionEN", label: "ตำแหน่ง (ภาษาอังกฤษ — ใช้ในใบทวนสอบ FM-ENG-009)", placeholder: "เช่น Drawing Manager" },
+      { key: "SectionEN", label: "แผนก / Division (ภาษาอังกฤษ)", placeholder: "เช่น Proposal Drawing Division" },
+      { key: "DepartmentEN", label: "ฝ่าย (ภาษาอังกฤษ)", placeholder: "เช่น Drawing Department" },
       { key: "IsAdmin", label: "สิทธิ์ผู้จัดการ Lv.2 (อนุมัติ / ส่งมอบ / ดูรายงาน / จัดการข้อมูล)", type: "checkbox" },
     ],
-    toPayload: (v) => ({ Title0: v.Title0, Email: v.Email.toLowerCase(), Role: v.Role, DisplayLabel: v.DisplayLabel, IsAdmin: v.IsAdmin }),
+    toPayload: (v) => ({ Title0: v.Title0, Email: v.Email.toLowerCase(), Role: v.Role, DisplayLabel: v.DisplayLabel, PositionEN: v.PositionEN, SectionEN: v.SectionEN, DepartmentEN: v.DepartmentEN, IsAdmin: v.IsAdmin }),
+    ensureColumns: () => ensureColumns(lists.team, ["PositionEN", "SectionEN", "DepartmentEN"]),
     validate: (v, item) => validateTeamMember(v, item),
     duplicateKey: (v) => norm(v.Email),
     searchText: (r) => `${r.Title0 || ""} ${r.Email || ""} ${r.Role || ""}`,
@@ -1058,6 +1063,7 @@ function openForm(key, item, rerender) {
           }
           try {
             const payload = clean(tab.toPayload(values));
+            if (tab.ensureColumns) await tab.ensureColumns(); // คอลัมน์ใหม่ใน List เดิม (เช่น ตำแหน่ง EN ของทีม)
             if (isEdit) {
               await patchItem(tab.list, item.id, payload);
             } else {
