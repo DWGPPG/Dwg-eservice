@@ -1980,7 +1980,9 @@ function fm009DefaultPositions(request, { issuedName, checkerName, reviewName })
 }
 function collectFm009Positions() {
   const v = (id) => document.getElementById(id)?.value.trim() || "";
-  return { posIssued: v("fm-pos-issued"), posChecker: v("fm-pos-checker"), posReview: v("fm-pos-review"), posApproved: v("fm-pos-approved") };
+  const dateKey = v("fm-approved-date");
+  const approvedDate = dateKey ? new Date(`${dateKey}T00:00:00`).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }) : "";
+  return { posIssued: v("fm-pos-issued"), posChecker: v("fm-pos-checker"), posReview: v("fm-pos-review"), posApproved: v("fm-pos-approved"), approvedDate };
 }
 function loadFm009Me() {
   if (fm009Me) return;
@@ -2179,6 +2181,10 @@ function openDeliveryFormModal(view, state, request, round = null) {
           <input id="deliveryApprovedName" type="text" placeholder="กรอกชื่อผู้อนุมัติ..."
             style="width:100%;height:30px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
           <input id="fm-pos-approved" type="text" placeholder="Position / Division / Department (EN)" value="${escapeHtml(pos.approved)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:6px;">
+            <span style="white-space:nowrap;">📅 วันที่อนุมัติ</span>
+            <input id="fm-approved-date" type="date" value="${(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`; })()}" style="flex:1;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
+          </label>
           <canvas id="deliverySig3" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig3Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2445,7 +2451,7 @@ function buildDeliveryHTML(request, d) {
         ${sign("Issued by", { name: d.issuedName, date: d.issuedDate, position: d.posIssued || "Drawing Department", system: true })}
         ${sign("Checker by", { name: d.checkerName, date: d.checkerDate, position: d.posChecker || "Drawing Department", system: true })}
         ${sign("Reviewed by", { sig: sig2, name: d.reviewName, date: d.reviewDate, position: d.posReview })}
-        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.today, position: d.posApproved })}
+        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.approvedDate || d.today, position: d.posApproved })}
       </div>
 
       <div class="fm009-foot"><span>Form Page 1 / 1</span><span>${FM009_CODE}</span></div>
