@@ -1956,36 +1956,30 @@ function fm009Remember(name, position, dept) {
     localStorage.setItem(FM009_POS_KEY, JSON.stringify(m));
   } catch (_) { /* storage ปิด */ }
 }
+/** "Position / Section / Department" ภาษาอังกฤษของทีมเขียนแบบ จากหน้าจัดการข้อมูล → ทีม & สิทธิ์ */
 function teamPosition(nameOrEmail, fallbackRole) {
   const key = String(nameOrEmail || "").trim().toLowerCase();
   const raw = (appState.masterData?.team || []).find((m) => [m.Email, m.Title0, m.Title].some((v) => String(v || "").trim().toLowerCase() === key));
-  const explicit = String(raw?.Position || raw?.JobTitle || "").trim();
-  if (explicit) return explicit;
-  const role = String(raw?.Role || fallbackRole || "");
-  return /manager/i.test(role) ? "ผู้จัดการฝ่ายเขียนแบบ" : "เจ้าหน้าที่เขียนแบบ";
+  const line = [raw?.PositionEN, raw?.SectionEN, raw?.DepartmentEN].map((v) => String(v || "").trim()).filter(Boolean).join(" / ");
+  if (line) return line;
+  const manager = raw ? (raw.IsAdmin === true || raw.IsAdmin === "Yes") : /manager/i.test(fallbackRole || "");
+  return manager ? "Drawing Manager / Drawing Department" : "Draftsman / Drawing Department";
 }
 function fm009DefaultPositions(request, { issuedName, checkerName, reviewName }) {
   const mem = fm009Memory();
-  const recall = (name) => mem[String(name || "").trim().toLowerCase()] || {};
+  const recall = (name) => mem[String(name || "").trim().toLowerCase()]?.position || "";
   const isMe = String(appState.user?.email || "").toLowerCase() === String(request.requesterEmail || "").toLowerCase();
-  const rv = recall(reviewName);
-  const lastApproved = Object.entries(mem).find(([k]) => k === "__approved__")?.[1] || {};
+  const me = [fm009Me?.jobTitle, fm009Me?.department].filter(Boolean).join(" / ");
   return {
-    issued: recall(issuedName).position || teamPosition(request.assignedToEmail || issuedName, "Designer"),
-    checker: recall(checkerName).position || teamPosition(checkerName, "Manager"),
-    review: rv.position || (isMe ? fm009Me?.jobTitle || "" : ""),
-    reviewDept: rv.dept || (isMe ? fm009Me?.department || "" : ""),
-    approved: lastApproved.position || "",
-    approvedDept: lastApproved.dept || "",
+    issued: teamPosition(request.assignedToEmail || issuedName, "Designer"),
+    checker: teamPosition(checkerName, "Manager"),
+    review: recall(reviewName) || (isMe ? me : ""),
+    approved: recall("__approved__"),
   };
 }
 function collectFm009Positions() {
   const v = (id) => document.getElementById(id)?.value.trim() || "";
-  return {
-    posIssued: v("fm-pos-issued"), posChecker: v("fm-pos-checker"),
-    posReview: v("fm-pos-review"), deptReview: v("fm-dept-review"),
-    posApproved: v("fm-pos-approved"), deptApproved: v("fm-dept-approved"),
-  };
+  return { posIssued: v("fm-pos-issued"), posChecker: v("fm-pos-checker"), posReview: v("fm-pos-review"), posApproved: v("fm-pos-approved") };
 }
 function loadFm009Me() {
   if (fm009Me) return;
@@ -2123,7 +2117,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(issuedDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
-          <input id="fm-pos-issued" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.issued)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
+          <input id="fm-pos-issued" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.issued)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
           <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
@@ -2135,7 +2129,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
             <span style="color:#64748B;font-size:11px;">วันที่: ${escapeHtml(checkerDate)}</span><br>
             <span style="color:#94A3B8;font-size:10px;">Drawing Department</span>
           </div>
-          <input id="fm-pos-checker" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.checker)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
+          <input id="fm-pos-checker" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.checker)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-top:6px;box-sizing:border-box;" />
           <div style="font-size:10px;color:#0b7a3b;font-weight:600;margin-top:4px;text-align:center;">✔ อนุมัติผ่านระบบ PPG DWG eService</div>
         </div>
 
@@ -2143,10 +2137,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
         <div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px;">
           <div style="font-size:11px;font-weight:600;color:#0DB14B;margin-bottom:6px;">Reviewed by — ผู้ร้องขอ</div>
           <div style="font-size:11px;color:#334155;margin-bottom:4px;"><b>${escapeHtml(reviewName)}</b> · ${escapeHtml(reviewDate)}</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
-            <input id="fm-pos-review" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.review)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
-            <input id="fm-dept-review" type="text" placeholder="แผนก / ฝ่าย" value="${escapeHtml(pos.reviewDept)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
-          </div>
+          <input id="fm-pos-review" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.review)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
           <canvas id="deliverySig2" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig2Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2159,10 +2150,7 @@ function openDeliveryFormModal(view, state, request, round = null) {
           <div style="font-size:11px;font-weight:600;color:#0DB14B;margin-bottom:6px;">Approved by — ผู้จัดการผู้ร้องขอ</div>
           <input id="deliveryApprovedName" type="text" placeholder="กรอกชื่อผู้อนุมัติ..."
             style="width:100%;height:30px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
-            <input id="fm-pos-approved" type="text" placeholder="ตำแหน่ง" value="${escapeHtml(pos.approved)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
-            <input id="fm-dept-approved" type="text" placeholder="แผนก / ฝ่าย" value="${escapeHtml(pos.approvedDept)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;box-sizing:border-box;" />
-          </div>
+          <input id="fm-pos-approved" type="text" placeholder="Position / Section / Department (EN)" value="${escapeHtml(pos.approved)}" style="width:100%;height:28px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;" />
           <canvas id="deliverySig3" style="${canvasStyle}"></canvas>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
             <span id="deliverySig3Status" style="font-size:10px;color:#94A3B8;">วาดลายเซ็น</span>
@@ -2342,11 +2330,9 @@ const FM009_CSS = `
   .fm009-sign .lbl { font-weight:700; white-space:nowrap; }
   .fm009-sign .nm { display:flex; align-items:flex-end; margin-top:3mm; font-weight:400; }
   .fm009-sign .nm span.u { flex:1; border-bottom:0.8pt solid #000; text-align:center; min-height:1.3em; }
-  .fm009-sign .pos { display:flex; align-items:flex-end; gap:2mm; margin-top:1.5mm; padding:0 4mm; font-weight:400; }
-  .fm009-sign .pos .lbl { font-weight:700; }
-  .fm009-sign .pos .u { flex:1; border-bottom:1pt dotted #000; text-align:center; min-height:1.3em; }
-  .fm009-sign .dept { margin-top:1.5mm; text-align:center; font-family:"Times New Roman",serif; font-size:8pt; }
-  .fm009-sign .dept span { border-bottom:1pt dotted #000; padding:0 3mm; }
+  .fm009-sign .dept { margin-top:2mm; padding:0 4mm; text-align:center; }
+  .fm009-sign .dept .u { display:block; border-bottom:1pt dotted #000; min-height:1.3em; font-weight:400; font-size:9.5pt; line-height:1.3; }
+  .fm009-sign .dept small { display:block; font-family:"Times New Roman",serif; font-size:8pt; margin-top:0.5mm; }
   .fm009-sys { font-size:9pt; font-weight:700; color:#0b7a3b; white-space:nowrap; line-height:1.3; text-align:center; padding-bottom:0.5mm; }
   .fm009-sys small { display:block; font-weight:400; color:#333; font-size:7.5pt; line-height:1.3; }
   .fm009-foot { margin-top:auto; padding-top:4mm; display:flex; justify-content:space-between; }
@@ -2389,8 +2375,7 @@ function buildDeliveryHTML(request, d) {
         <span class="lbl">Date :</span><span class="dt">${escapeHtml(date && date !== "—" ? date : "")}</span>
       </div>
       <div class="nm">(<span class="u">${escapeHtml(name && name !== "—" ? name : "")}</span>)</div>
-      <div class="pos"><span class="lbl">ตำแหน่ง</span><span class="u">${escapeHtml(position)}</span></div>
-      <div class="dept"><span>${escapeHtml(dept) || "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}</span> Division / Department</div>
+      <div class="dept"><span class="u">${escapeHtml(position || dept) || "&nbsp;"}</span><small>Position / Section / Department</small></div>
     </div>`;
   const sig2 = deliverySig2 ? `<img src="${deliverySig2}" alt="">` : "";
   const sig3 = deliverySig3 ? `<img src="${deliverySig3}" alt="">` : "";
@@ -2429,10 +2414,10 @@ function buildDeliveryHTML(request, d) {
       </div>
 
       <div class="fm009-signs">
-        ${sign("Issued by", { name: d.issuedName, date: d.issuedDate, dept: "Drawing", position: d.posIssued, system: true })}
-        ${sign("Checker by", { name: d.checkerName, date: d.checkerDate, dept: "Drawing", position: d.posChecker, system: true })}
-        ${sign("Reviewed by", { sig: sig2, name: d.reviewName, date: d.reviewDate, position: d.posReview, dept: d.deptReview })}
-        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.today, position: d.posApproved, dept: d.deptApproved })}
+        ${sign("Issued by", { name: d.issuedName, date: d.issuedDate, position: d.posIssued || "Drawing Department", system: true })}
+        ${sign("Checker by", { name: d.checkerName, date: d.checkerDate, position: d.posChecker || "Drawing Department", system: true })}
+        ${sign("Reviewed by", { sig: sig2, name: d.reviewName, date: d.reviewDate, position: d.posReview })}
+        ${sign("Approved by", { sig: sig3, name: d.approvedName, date: d.today, position: d.posApproved })}
       </div>
 
       <div class="fm009-foot"><span>Form Page 1 / 1</span><span>${FM009_CODE}</span></div>
@@ -2440,11 +2425,9 @@ function buildDeliveryHTML(request, d) {
 }
 
 async function exportDeliveryPDF(view, state, request, d) {
-  fm009Remember(d.issuedName, d.posIssued, "");
-  fm009Remember(d.checkerName, d.posChecker, "");
-  fm009Remember(d.reviewName, d.posReview, d.deptReview);
-  fm009Remember(d.approvedName, d.posApproved, d.deptApproved);
-  fm009Remember("__approved__", d.posApproved, d.deptApproved);
+  fm009Remember(d.reviewName, d.posReview, "");
+  fm009Remember(d.approvedName, d.posApproved, "");
+  fm009Remember("__approved__", d.posApproved, "");
   showToast("กำลัง generate PDF...", "info");
 
   // สร้าง iframe ชั่วคราวสำหรับ print
