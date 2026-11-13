@@ -1,5 +1,7 @@
 import { STATUS, STATUS_LABELS } from "../../../config/schema.js";
 import { renderIsoBrowser } from "../components/iso-browser.js";
+import { renderSharedIsoBrowser } from "../components/iso-shared-browser.js";
+import { loadAccess, sharesForUser } from "../services/iso-access.js";
 import { state } from "../state.js";
 
 // โหมดหน้าคู่มือ: "manual" = คู่มือการใช้งานระบบ · "iso" = เอกสาร ISO (ฝ่ายเขียนแบบ/ผู้จัดการ)
@@ -118,9 +120,21 @@ const roleRows = [
 // RENDER
 // ══════════════════════════════════════════════════════════════
 
+// ผู้ร้องขอเห็นแท็บ "เอกสาร ISO" เมื่อมีโฟลเดอร์ที่แชร์ให้ (โหลดเบื้องหลัง แล้ววาดใหม่)
+var sharedIsoCount = 0;
+
 export function renderGuide(view) {
-  const canIso = ["designer", "manager"].includes(state.user?.role);
+  const isStaff = ["designer", "manager"].includes(state.user?.role);
+  const canIso = isStaff || sharedIsoCount > 0;
   if (!canIso) guideMode = "manual";
+  if (!isStaff) {
+    loadAccess().then((m) => {
+      const n = sharesForUser(m).length;
+      if (n === sharedIsoCount) return;
+      sharedIsoCount = n;
+      if (view.isConnected && view.querySelector(".guide-page")) renderGuide(view);
+    }).catch(() => {});
+  }
   const modeBar = canIso ? `
       <div class="guide-modes" role="tablist" aria-label="เลือกหมวดคู่มือ">
         <button type="button" role="tab" aria-selected="${guideMode === "manual"}" class="guide-mode ${guideMode === "manual" ? "is-active" : ""}" data-guide-mode="manual">
@@ -129,7 +143,7 @@ export function renderGuide(view) {
         </button>
         <button type="button" role="tab" aria-selected="${guideMode === "iso"}" class="guide-mode ${guideMode === "iso" ? "is-active" : ""}" data-guide-mode="iso">
           <span class="guide-mode-icon" aria-hidden="true">📁</span>
-          <span class="guide-mode-text"><b>เอกสาร ISO</b><small>ระเบียบปฏิบัติ · แบบฟอร์ม · เอกสารโครงการ</small></span>
+          <span class="guide-mode-text"><b>เอกสาร ISO</b><small>${isStaff ? "ระเบียบปฏิบัติ · แบบฟอร์ม · เอกสารโครงการ" : `เอกสารที่แชร์ให้คุณ ${sharedIsoCount} โฟลเดอร์`}</small></span>
         </button>
       </div>` : "";
   const bindModes = () => view.querySelectorAll("[data-guide-mode]").forEach((btn) => btn.addEventListener("click", () => {
@@ -150,7 +164,8 @@ export function renderGuide(view) {
         <div class="guide-iso-host"></div>
       </section>`;
     bindModes();
-    renderIsoBrowser(view.querySelector(".guide-iso-host"), { editable: false });
+    if (isStaff) renderIsoBrowser(view.querySelector(".guide-iso-host"), { editable: false });
+    else renderSharedIsoBrowser(view.querySelector(".guide-iso-host"));
     return;
   }
 

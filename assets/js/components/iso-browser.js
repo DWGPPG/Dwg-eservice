@@ -8,6 +8,8 @@ import {
   createFilingContext, disciplineOfCategory, drawingFolderName, ensureAllProjectFolders, fileDeliveryToIso, importIsoZip, stageOfRequestType, joinPath, listIso, buildIsoRequestIndex, requestsForIsoItem, isoDownloadUrl, listIsoTree, zipIsoFolder, ZIP_LIMIT_BYTES, promotePresale, renameIsoItem, safeName, uploadIsoFiles,
 } from "../services/iso-service.js";
 import { state } from "../state.js";
+import { loadAccess, refreshAllShares, SHARE_MODES, shareFolder, unshareFolder } from "../services/iso-access.js";
+import { getKnownRequesters } from "../services/team-service.js";
 import { projectKey } from "../utils.js";
 import { writeAudit } from "../services/audit-service.js";
 import { escapeHtml, formatDate } from "../utils.js";
@@ -44,6 +46,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
   const body = root.querySelector(".iso-body");
   let items = [];
   let busy = false;
+  let access = null; // รายการแชร์ (เฉพาะหน้าจัดการ)
 
   const go = (path) => { ui.path = path; filter.q = ""; filter.results = null; filter.scope = "here"; load(); };
 
@@ -57,6 +60,7 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     }
     if (items === null && ui.path) { ui.path = ""; return load(); } // โฟลเดอร์ถูกลบไปแล้ว → กลับราก
     draw();
+    if (editable) loadAccess().then((m) => { access = m; drawList(); body.querySelector("[data-iso-act='shares'] b")?.replaceChildren(String(Object.keys(m.shares || {}).length)); }).catch(() => {});
   }
 
   function crumbs() {
@@ -83,6 +87,8 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
         ${inDiscipline ? `<button type="button" class="secondary-button" data-iso-act="drawing">📐 เพิ่ม Drawing</button>
         <button type="button" class="secondary-button" data-iso-act="pull" title="สร้างโฟลเดอร์ตามรายการ Drawing ของโครงการในระบบ e-Service">📥 ดึงรายการ Drawing จากระบบ</button>` : ""}
         ${!ui.path || ui.path.startsWith(PROJECT_FOLDER) ? `<button type="button" class="secondary-button" data-iso-act="backfill" title="คัดลอกไฟล์งานที่ส่งมอบแล้วในระบบ e-Service ลงโฟลเดอร์ ISO ของแต่ละโครงการ">🔄 จัดเก็บไฟล์งานย้อนหลัง</button>` : ""}
+        ${ui.path ? `<button type="button" class="secondary-button" data-iso-act="share" title="ให้ผู้ร้องขอ/บุคคลเปิดดูโฟลเดอร์นี้ได้ (กำหนดได้ว่าดาวน์โหลดได้หรือไม่)">👥 แชร์โฟลเดอร์นี้</button>` : ""}
+        <button type="button" class="secondary-button" data-iso-act="shares" title="โฟลเดอร์ที่แชร์ให้ผู้ร้องขอ/บุคคล">🔐 การแชร์ทั้งหมด (<b>${access ? Object.keys(access.shares || {}).length : "…"}</b>)</button>
         ${!ui.path ? `<button type="button" class="secondary-button" data-iso-act="standard" title="สร้างโฟลเดอร์ 1-SP … 8-Project และปีปัจจุบัน (โฟลเดอร์ที่มีอยู่แล้วไม่ถูกแตะ)">🏗️ สร้างโครงสร้างมาตรฐาน</button>` : ""}
         <input type="file" multiple hidden data-iso-file />
         <input type="file" accept=".zip,application/zip" hidden data-iso-zip />
@@ -174,6 +180,123 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
     }
   }
 
+  function shareBadge(path) {
+    const s = access?.shares?.[path];
+    if (!s) return "";
+    const who = s.everyone ? "ผู้ร้องขอทุกคน" : `${(s.users || []).length} คน`;
+    return `<small class="iso-shared ${s.mode === "view" ? "is-view" : ""}">👥 แชร์ให้ ${who} · ${SHARE_MODES[s.mode]?.short || ""}</small>`;
+  }
+
+  // ── แชร์โฟลเดอร์ให้ผู้ร้องขอ/บุคคล ──
+  function openShareForm(path) {
+    const cur = access?.shares?.[path] || { mode: "view", everyone: false, users: [] };
+    const picked = new Set((cur.users || []).map((u) => u.email.toLowerCase()));
+    const people = getKnownRequesters(state.user?.email || "");
+    (cur.users || []).forEach((u) => { if (!people.some((p) => p.email.toLowerCase() === u.email.toLowerCase())) people.unshift({ name: u.name, email: u.email }); });
+    openModal({
+      title: "👥 แชร์โฟลเดอร์เอกสาร ISO",
+      body: `
+        <p class="iso-share-path">📁 ${escapeHtml(path)}</p>
+        <fieldset class="field iso-kind"><span>สิทธิ์</span>
+          ${Object.entries(SHARE_MODES).map(([k, m]) => `<label><input type="radio" name="iso-share-mode" value="${k}" ${cur.mode === k ? "checked" : ""} /> ${escapeHtml(m.label)}</label>`).join("")}
+        </fieldset>
+        <label class="iso-share-all"><input type="checkbox" id="iso-share-everyone" ${cur.everyone ? "checked" : ""} /> ผู้ร้องขอ<b>ทุกคน</b>ในระบบ</label>
+        <div class="iso-share-people">
+          <input type="search" id="iso-share-q" placeholder="🔍 ค้นหาชื่อ / อีเมล..." autocomplete="off" />
+          <div class="iso-share-list">${people.map((p) => `
+            <label data-q="${escapeHtml(`${p.name} ${p.email}`.toLowerCase())}"><input type="checkbox" value="${escapeHtml(p.email)}" data-name="${escapeHtml(p.name || p.email)}" ${picked.has(p.email.toLowerCase()) ? "checked" : ""} />
+              <span><b>${escapeHtml(p.name || p.email)}</b><small>${escapeHtml(p.email)}</small></span></label>`).join("")}</div>
+          <label class="field"><span>อีเมลเพิ่มเติม (คั่นด้วย , หรือขึ้นบรรทัดใหม่)</span><textarea id="iso-share-extra" rows="2" placeholder="name@primepower.co.th"></textarea></label>
+        </div>
+        <p class="manage-hint">ผู้ที่ได้รับสิทธิ์จะเห็นโฟลเดอร์นี้ (รวมโฟลเดอร์ย่อย) ในเมนู <b>คู่มือ → เอกสาร ISO</b> · โหมด "ดูอย่างเดียว" เปิดผ่านตัวดูของ SharePoint ที่ปิดปุ่มดาวน์โหลด/พิมพ์ · ไฟล์ที่เพิ่มทีหลังกด <b>🔐 การแชร์ทั้งหมด → 🔄 อัปเดตไฟล์ที่แชร์</b></p>`,
+      actions: [
+        { label: "ยกเลิก", className: "secondary-button" },
+        ...(access?.shares?.[path] ? [{
+          label: "🚫 เลิกแชร์",
+          className: "secondary-button danger",
+          onClick: async (close) => {
+            close();
+            await run(`เลิกแชร์ ${path}`, async () => { await unshareFolder(path); access = await loadAccess(); showToast("เลิกแชร์แล้ว", "success"); });
+          },
+        }] : []),
+        {
+          label: "💾 บันทึกการแชร์",
+          className: "primary-button",
+          onClick: async (close) => {
+            const mode = document.querySelector('input[name="iso-share-mode"]:checked')?.value || "view";
+            const everyone = Boolean(document.querySelector("#iso-share-everyone")?.checked);
+            const users = [...document.querySelectorAll(".iso-share-list input:checked")].map((i) => ({ email: i.value, name: i.dataset.name }));
+            String(document.querySelector("#iso-share-extra")?.value || "").split(/[\s,;]+/).map((e) => e.trim()).filter((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))
+              .forEach((email) => { if (!users.some((u) => u.email.toLowerCase() === email.toLowerCase())) users.push({ email, name: email }); });
+            if (!everyone && !users.length) { showToast("กรุณาเลือกผู้ที่จะแชร์ให้ หรือเลือก 'ผู้ร้องขอทุกคน'", "warning"); return; }
+            close();
+            await run(`แชร์ ${path}`, async () => {
+              progress("📂 กำลังรวบรวมไฟล์ในโฟลเดอร์...");
+              const res = await shareFolder(path, { mode, everyone, users }, (n, total, name) => progress(`🔗 สร้างลิงก์ ${n}/${total} — ${name}`));
+              access = await loadAccess();
+              if (res.failures.length) shareReport("แชร์แล้ว แต่บางไฟล์สร้างลิงก์ไม่สำเร็จ", res.failures);
+              else showToast(`แชร์แล้ว (${res.files} ไฟล์ · ${SHARE_MODES[mode].short})`, "success");
+            });
+          },
+        },
+      ],
+    });
+    const q = document.querySelector("#iso-share-q");
+    q?.addEventListener("input", () => {
+      const v = q.value.trim().toLowerCase();
+      document.querySelectorAll(".iso-share-list label").forEach((l) => { l.hidden = Boolean(v) && !l.dataset.q.includes(v); });
+    });
+  }
+
+  function shareReport(title, failures) {
+    setTimeout(() => openModal({
+      title: `⚠️ ${title} (${failures.length})`,
+      body: `<div class="track-table-wrap iso-report"><table class="manage-table"><thead><tr><th>ไฟล์</th><th>สาเหตุ</th></tr></thead>
+        <tbody>${failures.map((f) => `<tr class="is-fail"><td>${escapeHtml(f.p)}</td><td>${escapeHtml(f.error)}</td></tr>`).join("")}</tbody></table></div>
+        <p class="manage-hint">ไฟล์ที่ไม่สำเร็จจะไม่แสดงให้ผู้ได้รับสิทธิ์เห็น — ลองกด 🔄 อัปเดตไฟล์ที่แชร์ อีกครั้ง · ถ้ายังไม่ได้ อาจเป็นเพราะบัญชีของคุณไม่มีสิทธิ์สร้างลิงก์แชร์ใน SharePoint</p>`,
+      actions: [{ label: "ปิด", className: "secondary-button" }],
+    }), 300);
+  }
+
+  function openShareList() {
+    const entries = Object.entries(access?.shares || {}).sort((a, b) => a[0].localeCompare(b[0], "th", { numeric: true }));
+    openModal({
+      title: `🔐 โฟลเดอร์ที่แชร์ (${entries.length})`,
+      body: entries.length ? `<div class="iso-share-rows">${entries.map(([path, s]) => `
+          <div class="iso-share-row">
+            <span><b>📁 ${escapeHtml(path)}</b>
+              <small>${escapeHtml(SHARE_MODES[s.mode]?.short || "")} · ${s.everyone ? "ผู้ร้องขอทุกคน" : escapeHtml((s.users || []).map((u) => u.name || u.email).join(", "))}</small>
+              <small>${(s.items || []).filter((x) => !x.isFolder).length} ไฟล์ · โดย ${escapeHtml(s.by || "-")} · ${escapeHtml(formatDate(s.at))}</small></span>
+            <button type="button" class="small-button" data-share-edit="${escapeHtml(path)}">✏️ แก้ไข</button>
+            <button type="button" class="small-button" data-iso-go-share="${escapeHtml(path)}">📂 เปิด</button>
+          </div>`).join("")}</div>` : `<p class="iso-empty">ยังไม่ได้แชร์โฟลเดอร์ใด — เปิดโฟลเดอร์แล้วกด 👥 แชร์โฟลเดอร์นี้</p>`,
+      actions: [
+        { label: "ปิด", className: "secondary-button" },
+        ...(entries.length ? [{
+          label: "🔄 อัปเดตไฟล์ที่แชร์",
+          className: "primary-button",
+          onClick: async (close) => {
+            close();
+            await run("อัปเดตไฟล์ที่แชร์", async () => {
+              const res = await refreshAllShares((i, n, path, f, total) => progress(`🔄 โฟลเดอร์ ${i}/${n} — ${path} · ไฟล์ ${f}/${total}`));
+              access = await loadAccess();
+              if (res.failures.length) shareReport("อัปเดตแล้ว แต่บางรายการไม่สำเร็จ", res.failures);
+              else showToast(`อัปเดตไฟล์ที่แชร์แล้ว (${res.folders} โฟลเดอร์)`, "success");
+            });
+          },
+        }] : []),
+      ],
+    });
+    document.querySelectorAll("#modal-root [data-share-edit]").forEach((b) => b.addEventListener("click", () => {
+      document.querySelector("#modal-root .modal header .icon-button")?.click();
+      openShareForm(b.dataset.shareEdit);
+    }));
+    document.querySelectorAll("#modal-root [data-iso-go-share]").forEach((b) => b.addEventListener("click", () => {
+      document.querySelector("#modal-root .modal header .icon-button")?.click();
+      go(b.dataset.isoGoShare);
+    }));
+  }
+
   function rowHtml(it, { showPath = false } = {}) {
     const sec = !ui.path && !showPath && it.isFolder ? sectionOf(it.name) : null;
     const where = showPath ? (it.path || ISO_ROOT_LABEL) : "";
@@ -186,10 +309,10 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
           <li class="iso-row is-folder">
             <button type="button" class="iso-open" data-iso-go="${escapeHtml(target)}">
               <span class="iso-icon">📁</span>
-              <span class="iso-name"><b>${highlight(it.name)}</b>${sec ? `<small>${escapeHtml(sec.label)}</small>` : ""}${where ? `<small>📂 ${escapeHtml(where)}</small>` : ""}</span>
+              <span class="iso-name"><b>${highlight(it.name)}</b>${sec ? `<small>${escapeHtml(sec.label)}</small>` : ""}${where ? `<small>📂 ${escapeHtml(where)}</small>` : ""}${shareBadge(target)}</span>
               <span class="iso-meta">${showPath ? "" : `${it.childCount} รายการ`}</span>
             </button>
-            <span class="iso-actions">${requestChips(it, showPath ? it.path : ui.path)}<button type="button" class="small-button" data-iso-zip-dl="${it.id}" data-name="${escapeHtml(it.name)}" title="ดาวน์โหลดทั้งโฟลเดอร์เป็น ZIP">⬇️</button>${actions}</span>
+            <span class="iso-actions">${requestChips(it, showPath ? it.path : ui.path)}<button type="button" class="small-button" data-iso-zip-dl="${it.id}" data-name="${escapeHtml(it.name)}" title="ดาวน์โหลดทั้งโฟลเดอร์เป็น ZIP">⬇️</button>${editable && !showPath ? `<button type="button" class="small-button" data-iso-share="${escapeHtml(target)}" title="แชร์โฟลเดอร์ให้ผู้ร้องขอ/บุคคล">👥</button>` : ""}${actions}</span>
           </li>`;
     }
     return `
@@ -579,7 +702,11 @@ export function renderIsoBrowser(container, { editable = false } = {}) {
       return;
     }
     if (!editable) return;
+    const shareBtn = event.target.closest("[data-iso-share]");
+    if (shareBtn) { openShareForm(shareBtn.dataset.isoShare); return; }
     const act = event.target.closest("[data-iso-act]")?.dataset.isoAct;
+    if (act === "share") { openShareForm(ui.path); return; }
+    if (act === "shares") { openShareList(); return; }
     if (act === "upload") body.querySelector("[data-iso-file]")?.click();
     if (act === "zip") body.querySelector("[data-iso-zip]")?.click();
     if (act === "project") openProjectForm();
