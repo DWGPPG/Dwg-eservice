@@ -352,6 +352,7 @@ export function renderKpiListPage(view, state) {
     view.innerHTML = `
       <section class="content-section kpi-list-page">
         <div class="kpi-list-head">
+          <a class="secondary-button kpi-back" href="#/dashboard">← กลับหน้าภาพรวม</a>
           <h2>${def.title.replace(/ทั้งหมด.*$/, "")}</h2>
           <span class="kpi-list-total" data-kpi-count></span>
         </div>
