@@ -6,7 +6,7 @@ import { renderDashboard } from "./pages/dashboard.js";
 import { renderSubmit } from "./pages/submit.js";
 import { renderTrack } from "./pages/track.js";
 import { renderAdmin } from "./pages/admin.js";
-import { renderReport } from "./pages/report.js";
+import { renderKpiListPage, renderReport } from "./pages/report.js";
 import { renderGuide } from "./pages/guide.js";
 import { renderManage } from "./pages/manage.js";
 import { adminPendingCount, mgrReviewPendingCount } from "./services/notification-service.js";
@@ -19,7 +19,10 @@ const routes = {
   "/report": renderReport,
   "/guide": renderGuide,
   "/manage": renderManage,
+  "/kpi-list": renderKpiListPage, // รายการทั้งหมดของ KPI (เปิดแท็บใหม่) — ไม่อยู่ในเมนู
 };
+// หน้าที่ไม่อยู่ในเมนู: เปิดได้เมื่อผู้ใช้เข้าหน้าหลักของมันได้
+const HIDDEN_ROUTES = { "/kpi-list": "/dashboard" };
 
 export function initRouter() {
   renderNav();
@@ -35,8 +38,9 @@ export function navigate() {
   if (!state.account) return; // ยังไม่ login — ไม่ render อะไรทั้งนั้น
   renderNav();
   document.body.classList.remove("nav-open");
-  const requestedRoute = location.hash.replace("#", "");
+  const [requestedRoute, routeQuery = ""] = location.hash.replace("#", "").split("?");
   const route = normalizeRoute(requestedRoute);
+  state.routeQuery = new URLSearchParams(route === requestedRoute ? routeQuery : "");
   if (requestedRoute !== route) {
     history.replaceState(null, "", `${location.pathname}${location.search}#${route}`);
   }
@@ -67,6 +71,7 @@ export function navigate() {
 
 function normalizeRoute(route) {
   const allowedRoutes = availableNavItems().map((item) => item.route);
+  if (routes[route] && HIDDEN_ROUTES[route] && allowedRoutes.includes(HIDDEN_ROUTES[route])) return route;
   return routes[route] && allowedRoutes.includes(route) ? route : "/dashboard";
 }
 
