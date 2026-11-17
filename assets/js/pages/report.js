@@ -160,6 +160,7 @@ function pBox(title, content, span = "") {
 //  ข้อมูลชุดล่าสุดที่วาด KPI เก็บไว้ที่ kpiLists · คลิกผูกที่ document ครั้งเดียว
 // ══════════════════════════════════════════════════════════════
 var kpiLists = { all: [], overdue: [], cancel: [], revision: [] };
+var kpiArgs = { period: "all", person: "", from: "", to: "" }; // ตัวกรองของ KPI ที่แสดงอยู่ (ส่งต่อให้แท็บใหม่)
 var kpiClickBound = false;
 const REV_SRC = {
   "1.1": { t: "1.1 ฝ่ายเขียนแบบ", c: "background:#FEE2E2;color:#991B1B" },
@@ -277,12 +278,139 @@ function openDrawingHistory(drawingNo, projectName) {
   document.querySelector("#modal-root .modal")?.classList.add("kpi-modal-wide");
 }
 
+// ══════════════════════════════════════════════════════════════
+// หน้า "รายการ KPI" (แท็บใหม่) — #/kpi-list?kind=revision|cancel|overdue&period=&person=&from=&to=
+// ══════════════════════════════════════════════════════════════
+const KIND_TABS = [["revision", "🔁 งานที่ถูกแก้ไข"], ["cancel", "🚫 งานที่ถูกยกเลิก"], ["overdue", "⏰ งานเกินกำหนด (ค้างอยู่)"]];
+
+function periodRange(period) {
+  const now = new Date();
+  const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (period === "month") return [ymd(new Date(now.getFullYear(), now.getMonth(), 1)), ymd(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+  if (period === "quarter") { const q = Math.floor(now.getMonth() / 3) * 3; return [ymd(new Date(now.getFullYear(), q, 1)), ymd(new Date(now.getFullYear(), q + 3, 0))]; }
+  if (period === "year") return [`${now.getFullYear()}-01-01`, `${now.getFullYear()}-12-31`];
+  return ["", ""];
+}
+
+export function renderKpiListPage(view, state) {
+  const q = state.routeQuery || new URLSearchParams();
+  const team = getDrawingTeamMembers();
+  // คำนวณชุดข้อมูลแบบเดียวกับหน้า KPI (ทั้งหมด) แล้วกรองในหน้านี้
+  renderKpiDashboard(state.requests || [], team, "all", null, null, state.masterData?.holidays || []);
+  const [pf, pt] = periodRange(q.get("period"));
+  const f = {
+    kind: KIND_TABS.some(([k]) => k === q.get("kind")) ? q.get("kind") : "revision",
+    q: "", project: "", person: q.get("person") || "", cause: "",
+    from: q.get("from") || pf, to: q.get("to") || pt,
+  };
+  document.title = "รายการ KPI ฝ่ายเขียนแบบ — PPG Drawing";
+
+  const causeOf = (kind, it) => kind === "revision" ? (it.r.revisionSource || "ไม่ระบุ") : kind === "cancel" ? (it.meta?.code && it.meta.code !== "—" ? `${it.meta.code} ${it.meta.short}` : "ไม่ระบุ") : (it.late > 7 ? "เกิน 7 วัน" : it.late > 3 ? "4–7 วัน" : "1–3 วัน");
+  const causeLabel = (kind, c) => kind === "revision" ? (REV_SRC[c]?.t || c) : c;
+
+  function filtered() {
+    const def = KPI_LIST_DEF[f.kind];
+    const from = f.from ? new Date(`${f.from}T00:00:00`) : null;
+    const to = f.to ? new Date(`${f.to}T23:59:59`) : null;
+    const text = f.q.trim().toLowerCase();
+    return [...(kpiLists[f.kind] || [])].filter((it) => {
+      const r = it.r;
+      if (f.project && r.projectName !== f.project) return false;
+      if (f.person && String(r.assignedToEmail || "").toLowerCase() !== f.person.toLowerCase()) return false;
+      if (f.cause && causeOf(f.kind, it) !== f.cause) return false;
+      const d = new Date(r.submittedAt || r.dueDate);
+      if (from && !(d >= from)) return false;
+      if (to && !(d <= to)) return false;
+      if (text && !`${r.requestNo} ${r.drawingNo || ""} ${r.drawingName || ""} ${r.projectName || ""} ${personOf(r)} ${def.text(it)}`.toLowerCase().includes(text)) return false;
+      return true;
+    }).sort(def.sort);
+  }
+
+  function rowsHtml(items) {
+    const def = KPI_LIST_DEF[f.kind];
+    return items.map((it) => {
+      const { r } = it;
+      return `<tr>
+        <td><button type="button" class="kpi-req-link" data-kpi-req="${escapeHtml(r.requestNo)}">${escapeHtml(r.requestNo)}</button></td>
+        <td><button type="button" class="kpi-dwg-link" data-kpi-drawing="${escapeHtml(r.drawingNo || "")}" data-kpi-project="${escapeHtml(r.projectName || "")}">${escapeHtml(r.drawingNo || "—")}</button><div class="kpi-sub">${escapeHtml(r.drawingName || "")}</div></td>
+        <td>${escapeHtml(r.projectName || "—")}</td>
+        <td>${escapeHtml(personOf(r))}</td>
+        <td>${thDate(r.submittedAt)}</td>
+        ${def.cells(it).map((c) => `<td>${c}</td>`).join("")}
+      </tr>`;
+    }).join("");
+  }
+
+  function draw() {
+    const base = kpiLists[f.kind] || [];
+    const projects = [...new Set(base.map((it) => it.r.projectName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "th"));
+    const causes = [...new Set(base.map((it) => causeOf(f.kind, it)))].sort();
+    const people = team.filter((m) => base.some((it) => String(it.r.assignedToEmail || "").toLowerCase() === m.email.toLowerCase()));
+    if (f.project && !projects.includes(f.project)) f.project = "";
+    if (f.cause && !causes.includes(f.cause)) f.cause = "";
+    const def = KPI_LIST_DEF[f.kind];
+    view.innerHTML = `
+      <section class="content-section kpi-list-page">
+        <div class="kpi-list-head">
+          <h2>${def.title.replace(/ทั้งหมด.*$/, "")}</h2>
+          <span class="kpi-list-total" data-kpi-count></span>
+        </div>
+        <div class="kpi-kind-tabs" role="tablist">${KIND_TABS.map(([k, l]) => `<button type="button" class="kpi-kind ${f.kind === k ? "is-active" : ""}" data-kind="${k}">${l} <b>${(kpiLists[k] || []).length}</b></button>`).join("")}</div>
+        <div class="kpi-list-filters">
+          <input type="search" data-f="q" value="${escapeHtml(f.q)}" placeholder="🔍 ค้นหาเลขคำร้อง / Drawing / โครงการ / ผู้รับผิดชอบ / เหตุผล..." autocomplete="off" />
+          <select data-f="project"><option value="">ทุกโครงการ</option>${projects.map((p) => `<option ${f.project === p ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select>
+          <select data-f="person"><option value="">ทุกผู้รับผิดชอบ</option>${people.map((m) => `<option value="${escapeHtml(m.email)}" ${f.person.toLowerCase() === m.email.toLowerCase() ? "selected" : ""}>${escapeHtml(shortPersonName(m.name))}</option>`).join("")}</select>
+          <select data-f="cause"><option value="">${f.kind === "overdue" ? "ทุกระดับความล่าช้า" : "ทุกสาเหตุ"}</option>${causes.map((c) => `<option value="${escapeHtml(c)}" ${f.cause === c ? "selected" : ""}>${escapeHtml(causeLabel(f.kind, c))}</option>`).join("")}</select>
+          <label>ส่งคำร้องตั้งแต่ <input type="date" data-f="from" value="${escapeHtml(f.from)}" /></label>
+          <label>ถึง <input type="date" data-f="to" value="${escapeHtml(f.to)}" /></label>
+          <button type="button" class="secondary-button" data-clear>ล้างตัวกรอง</button>
+        </div>
+        <p class="kpi-list-hint">คลิก<b>เลขคำร้อง</b>เพื่อดูรายละเอียดและประวัติคำร้อง · คลิก<b>เลข Drawing</b>เพื่อดูประวัติทุกคำร้องของ Drawing นั้น</p>
+        <div class="kpi-list-wrap kpi-list-wrap-page"><table class="kpi-list">
+          <thead><tr><th>เลขคำร้อง</th><th>Drawing</th><th>โครงการ</th><th>ผู้รับผิดชอบ</th><th>ส่งคำร้อง</th>${def.head.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+          <tbody data-kpi-body></tbody>
+        </table></div>
+      </section>`;
+    // ผูกกับ section ของหน้านี้ (วาดใหม่ = ผูกใหม่ · ไม่ค้างไปหน้าอื่น)
+    const page = view.querySelector(".kpi-list-page");
+    const onField = (e) => {
+      const k = e.target.dataset?.f;
+      if (!k) return;
+      f[k] = e.target.value;
+      drawRows();
+    };
+    page.addEventListener("input", onField);
+    page.addEventListener("change", onField);
+    page.addEventListener("click", (e) => {
+      const kind = e.target.closest("[data-kind]")?.dataset.kind;
+      if (kind && kind !== f.kind) { f.kind = kind; f.cause = ""; draw(); return; }
+      if (e.target.closest("[data-clear]")) { Object.assign(f, { q: "", project: "", person: "", cause: "", from: "", to: "" }); draw(); }
+    });
+    drawRows();
+  }
+
+  function drawRows() {
+    const items = filtered();
+    const body = view.querySelector("[data-kpi-body]");
+    if (body) body.innerHTML = rowsHtml(items) || `<tr><td colspan="${5 + KPI_LIST_DEF[f.kind].head.length}" class="kpi-empty">ไม่พบรายการตามตัวกรอง</td></tr>`;
+    const c = view.querySelector("[data-kpi-count]");
+    if (c) c.textContent = `แสดง ${items.length.toLocaleString("th-TH")} จาก ${(kpiLists[f.kind] || []).length.toLocaleString("th-TH")} รายการ`;
+  }
+
+  draw();
+}
+
 function bindKpiClicks() {
   if (kpiClickBound) return;
   kpiClickBound = true;
   document.addEventListener("click", (event) => {
     const more = event.target.closest("[data-kpi-more]");
-    if (more) { openKpiList(more.dataset.kpiMore); return; }
+    if (more) {
+      // เปิดรายการทั้งหมดในแท็บใหม่ (กรอง/ค้นหาได้) — ตัวกรองเริ่มต้นตาม KPI ที่ดูอยู่
+      const q = new URLSearchParams({ kind: more.dataset.kpiMore, ...Object.fromEntries(Object.entries(kpiArgs).filter(([, v]) => v)) });
+      window.open(`${location.pathname}${location.search}#/kpi-list?${q}`, "_blank", "noopener");
+      return;
+    }
     const reqBtn = event.target.closest("[data-kpi-req]");
     if (reqBtn) {
       const request = (kpiLists.all || []).find((r) => r.requestNo === reqBtn.dataset.kpiReq);
@@ -305,6 +433,8 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
   const countWD = (from, to) => workingDaysUntil(from, to, holidaySet) ?? 0;
   const rows      = filterByKpiPeriod(allRequests, period, person, customRange);
   kpiLists = { all: allRequests, overdue: [], cancel: [], revision: [] };
+  const ymd = (d) => (d instanceof Date && !Number.isNaN(d.getTime()) ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "");
+  kpiArgs = { period, person: person?.email || "", from: ymd(customRange?.from), to: ymd(customRange?.to) };
   bindKpiClicks();
   const total     = rows.length;
   const done      = rows.filter((r) => r.status === STATUS.DONE).length;

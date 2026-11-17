@@ -39,4 +39,5 @@ export const PAGE_TITLES = {
   "/report": "รายงาน",
   "/manage": "จัดการข้อมูลระบบ",
   "/guide": "คู่มือการใช้งาน",
+  "/kpi-list": "รายการ KPI ฝ่ายเขียนแบบ",
 };

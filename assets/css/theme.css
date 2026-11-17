@@ -3846,7 +3846,7 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 .kpi-more:hover { filter:brightness(.92); }
 .kpi-dwg-link, .kpi-req-link { display:block; max-width:170px; padding:0; border:0; background:none; font:inherit; font-size:12px; font-weight:700; color:#1D4ED8; text-align:left; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-decoration:underline dotted; text-underline-offset:3px; }
 .kpi-dwg-link:hover, .kpi-req-link:hover { color:#1E40AF; text-decoration-style:solid; }
-[data-theme="dark"] .modal .kpi-dwg-link, [data-theme="dark"] .modal .kpi-req-link { color:#93C5FD; }
+[data-theme="dark"] .modal .kpi-dwg-link, [data-theme="dark"] .modal .kpi-req-link, [data-theme="dark"] .kpi-list-page .kpi-dwg-link, [data-theme="dark"] .kpi-list-page .kpi-req-link { color:#93C5FD; }
 .kpi-list-q { width:100%; margin-bottom:8px; }
 .kpi-list-hint { margin:0 0 8px; font-size:12px; color:var(--muted, #64748B); }
 .kpi-list-wrap { max-height:62vh; overflow:auto; border:1px solid var(--line, #E2E8F0); border-radius:10px; }
@@ -3860,3 +3860,19 @@ body.cursor-fx-on .cursor-glow { opacity: 1; }
 [data-theme] .modal.kpi-modal-wide { width:min(1180px, 96vw); max-width:min(1180px, 96vw); }
 .kpi-list td:nth-child(3) { min-width:140px; }
 .kpi-list td:last-child, .kpi-list td:nth-last-child(2) { white-space:nowrap; }
+
+/* ── หน้า รายการ KPI (แท็บใหม่) ── */
+.kpi-list-page .kpi-list-head { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+.kpi-list-page .kpi-list-head h2 { margin:0; }
+.kpi-list-total { color:var(--muted, #64748B); font-size:13px; }
+.kpi-kind-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.kpi-kind { padding:8px 14px; border-radius:12px; border:1px solid var(--line, #E2E8F0); background:var(--surface-2, #F8FAFC); color:var(--text, #1E293B); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
+.kpi-kind b { margin-left:4px; padding:1px 8px; border-radius:999px; background:color-mix(in srgb, var(--text, #000) 8%, transparent); font-size:12px; }
+.kpi-kind.is-active { background:var(--primary, #0DB14B); color:#fff; border-color:transparent; }
+.kpi-kind.is-active b { background:rgba(255,255,255,.25); }
+.kpi-list-filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+.kpi-list-filters input[type="search"] { flex:1 1 320px; min-width:220px; }
+.kpi-list-filters select { flex:0 1 200px; }
+.kpi-list-filters label { display:flex; align-items:center; gap:6px; font-size:12.5px; white-space:nowrap; }
+.kpi-list-wrap-page { max-height:calc(100vh - 330px); min-height:300px; }
+.kpi-empty { text-align:center; padding:28px !important; color:var(--muted, #64748B); }
