@@ -2,6 +2,7 @@ import { appConfig } from "../../../config/config.js";
 import { CLOSED_STATUSES, STATUS, STATUS_LABELS, CANCEL_SOURCES, WASTED_HOURS_BY_STAGE, getCancelSource } from "../../../config/schema.js";
 import { getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDateOnly, workingDaysUntil } from "../utils.js";
+import { openModal } from "../components/modal.js";
 
 // ── ค่า OT rate เริ่มต้น (บาท/ชั่วโมง) สำหรับคำนวณ Overdue Cost
 // อัตราต้นทุนอยู่ที่ config.js (costRates) — ใช้ร่วมกับบทสรุปผู้บริหาร
@@ -154,6 +155,147 @@ function pBox(title, content, span = "") {
   </div>`;
 }
 
+// ══════════════════════════════════════════════════════════════
+// "ดูทั้งหมด" ของ Top 10 (เกินกำหนด / ยกเลิก / แก้ไข) + ประวัติย้อนหลังของ Drawing / คำร้อง
+//  ข้อมูลชุดล่าสุดที่วาด KPI เก็บไว้ที่ kpiLists · คลิกผูกที่ document ครั้งเดียว
+// ══════════════════════════════════════════════════════════════
+var kpiLists = { all: [], overdue: [], cancel: [], revision: [] };
+var kpiClickBound = false;
+const REV_SRC = {
+  "1.1": { t: "1.1 ฝ่ายเขียนแบบ", c: "background:#FEE2E2;color:#991B1B" },
+  "1.2": { t: "1.2 ผู้ส่งคำร้อง", c: "background:#FEF9C3;color:#854D0E" },
+  "1.3": { t: "1.3 งานติดตั้งโครงการ", c: "background:#FFEDD5;color:#9A3412" },
+  "1.4": { t: "1.4 ลูกค้า", c: "background:#DBEAFE;color:#1E40AF" },
+};
+const thDate = (iso) => (iso ? new Date(iso).toLocaleDateString("th-TH", { year: "2-digit", month: "short", day: "numeric" }) : "—");
+const revBadge = (src) => {
+  const m = REV_SRC[String(src || "").trim()];
+  return src ? `<span class="kpi-badge" style="${m?.c || "background:#F1F5F9;color:#475569"}">${escapeHtml(m?.t || src)}</span>` : `<span class="kpi-badge" style="background:#F1F5F9;color:#94A3B8">ไม่ระบุ</span>`;
+};
+const personOf = (r) => shortPersonName(r.assignedToName || r.assignedToEmail || "—");
+
+function closeOpenModal() { document.querySelector("#modal-root .modal header .icon-button")?.click(); }
+
+const KPI_LIST_DEF = {
+  revision: {
+    title: "🔁 รายการที่มีการแก้ไขทั้งหมด",
+    sort: (a, b) => new Date(b.r.reviewedAt || b.r.submittedAt || 0) - new Date(a.r.reviewedAt || a.r.submittedAt || 0),
+    head: ["สาเหตุ / เหตุผล", "Rev.", "วันที่"],
+    cells: ({ r }) => [
+      `${revBadge(r.revisionSource)}${r.revisionReason || r.reviseComment ? `<div class="kpi-note">${escapeHtml(r.revisionReason || r.reviseComment)}</div>` : ""}`,
+      escapeHtml(r.currentRevise || r.reviseNumber || "—"),
+      thDate(r.reviewedAt || r.submittedAt),
+    ],
+    text: ({ r }) => `${r.revisionSource || ""} ${r.revisionReason || ""} ${r.reviseComment || ""}`,
+  },
+  cancel: {
+    title: "🚫 รายการที่ถูกยกเลิกทั้งหมด",
+    sort: (a, b) => new Date(b.r.cancelledAt || b.r.submittedAt || 0) - new Date(a.r.cancelledAt || a.r.submittedAt || 0),
+    head: ["ต้นเหตุ / เหตุผล", "ยกเลิกเมื่อ", "โดย"],
+    cells: ({ r, meta }) => [
+      `<span class="kpi-badge" style="${meta?.badge || ""}">${escapeHtml(`${meta?.emoji || ""} ${meta?.code || ""} ${meta?.short || "ไม่ระบุ"}`)}</span>${r.rejectReason ? `<div class="kpi-note">${escapeHtml(r.rejectReason)}</div>` : ""}`,
+      thDate(r.cancelledAt),
+      escapeHtml(r.cancelledByName || "—"),
+    ],
+    text: ({ r, meta }) => `${meta?.short || ""} ${r.rejectReason || ""} ${r.cancelledByName || ""}`,
+  },
+  overdue: {
+    title: "⏰ รายการที่เกินกำหนดทั้งหมด (ค้างอยู่)",
+    sort: (a, b) => b.late - a.late,
+    head: ["ล่าช้า", "กำหนดส่ง", "สถานะ"],
+    cells: ({ r, late }) => [
+      `<b style="color:${late > 7 ? "#DC2626" : late > 3 ? "#EA580C" : "#CA8A04"}">${late} วัน</b>`,
+      thDate(r.dueDate),
+      escapeHtml(STATUS_LABELS[r.status] || r.status || ""),
+    ],
+    text: () => "",
+  },
+};
+
+function openKpiList(kind) {
+  const def = KPI_LIST_DEF[kind];
+  const items = [...(kpiLists[kind] || [])].sort(def.sort);
+  const row = (it) => {
+    const { r } = it;
+    return `<tr data-kpi-q="${escapeHtml(`${r.requestNo} ${r.drawingNo || ""} ${r.drawingName || ""} ${r.projectName || ""} ${personOf(r)} ${def.text(it)}`.toLowerCase())}">
+      <td><button type="button" class="kpi-req-link" data-kpi-req="${escapeHtml(r.requestNo)}">${escapeHtml(r.requestNo)}</button></td>
+      <td><button type="button" class="kpi-dwg-link" data-kpi-drawing="${escapeHtml(r.drawingNo || "")}" data-kpi-project="${escapeHtml(r.projectName || "")}">${escapeHtml(r.drawingNo || "—")}</button><div class="kpi-sub">${escapeHtml(r.drawingName || "")}</div></td>
+      <td>${escapeHtml(r.projectName || "—")}</td>
+      <td>${escapeHtml(personOf(r))}</td>
+      ${def.cells(it).map((c) => `<td>${c}</td>`).join("")}
+    </tr>`;
+  };
+  closeOpenModal();
+  openModal({
+    title: `${def.title} (${items.length})`,
+    body: `
+      <input type="search" class="kpi-list-q" placeholder="🔍 ค้นหาเลขคำร้อง / Drawing / โครงการ / ผู้รับผิดชอบ / เหตุผล..." autocomplete="off" />
+      <p class="kpi-list-hint">คลิก<b>เลขคำร้อง</b>เพื่อดูรายละเอียดและประวัติคำร้อง · คลิก<b>เลข Drawing</b>เพื่อดูประวัติทุกคำร้องของ Drawing นั้น</p>
+      <div class="kpi-list-wrap"><table class="kpi-list">
+        <thead><tr><th>เลขคำร้อง</th><th>Drawing</th><th>โครงการ</th><th>ผู้รับผิดชอบ</th>${def.head.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${items.map(row).join("") || `<tr><td colspan="${4 + def.head.length}">ไม่มีรายการ</td></tr>`}</tbody>
+      </table></div>`,
+    actions: [{ label: "ปิด", className: "secondary-button" }],
+  });
+  document.querySelector("#modal-root .modal")?.classList.add("kpi-modal-wide");
+  const q = document.querySelector("#modal-root .kpi-list-q");
+  q?.addEventListener("input", () => {
+    const v = q.value.trim().toLowerCase();
+    document.querySelectorAll("#modal-root .kpi-list tbody tr[data-kpi-q]").forEach((tr) => { tr.hidden = Boolean(v) && !tr.dataset.kpiQ.includes(v); });
+  });
+}
+
+/** ประวัติทุกคำร้องของ Drawing เดียวกัน (เรียงเก่า → ใหม่) */
+function openDrawingHistory(drawingNo, projectName) {
+  const n = (v) => String(v || "").trim().toLowerCase();
+  const list = (kpiLists.all || []).filter((r) => n(r.drawingNo) === n(drawingNo) && (!projectName || projectName === "—" || n(r.projectName) === n(projectName)))
+    .sort((a, b) => new Date(a.submittedAt || 0) - new Date(b.submittedAt || 0));
+  closeOpenModal();
+  openModal({
+    title: `📐 ประวัติ Drawing ${escapeHtml(drawingNo || "—")} (${list.length} คำร้อง)`,
+    body: `
+      <p class="kpi-list-hint">${escapeHtml(projectName || "")}${list[0]?.drawingName ? ` · ${escapeHtml(list[0].drawingName)}` : ""} — คลิกเลขคำร้องเพื่อดูรายละเอียดและประวัติของคำร้องนั้น</p>
+      <div class="kpi-list-wrap"><table class="kpi-list">
+        <thead><tr><th>#</th><th>เลขคำร้อง</th><th>ประเภท</th><th>Rev.</th><th>ส่งเมื่อ</th><th>สถานะ</th><th>การแก้ไข / ยกเลิก</th></tr></thead>
+        <tbody>${list.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td><button type="button" class="kpi-req-link" data-kpi-req="${escapeHtml(r.requestNo)}">${escapeHtml(r.requestNo)}</button></td>
+            <td>${escapeHtml(String(r.requestType || "").replace(/^[^\wก-๙]+/, ""))}</td>
+            <td>${escapeHtml(r.currentRevise || r.reviseNumber || "0")}</td>
+            <td>${thDate(r.submittedAt)}</td>
+            <td><span class="badge badge-${r.status}">${escapeHtml(STATUS_LABELS[r.status] || r.status || "")}</span></td>
+            <td>${r.status === STATUS.CANCELLED
+              ? `<span class="kpi-badge" style="background:#F3E8FF;color:#6B21A8">ยกเลิก</span>${r.rejectReason ? `<div class="kpi-note">${escapeHtml(r.rejectReason)}</div>` : ""}`
+              : (r.revisionSource || r.revisionReason || r.reviseComment)
+                ? `${revBadge(r.revisionSource)}${r.revisionReason || r.reviseComment ? `<div class="kpi-note">${escapeHtml(r.revisionReason || r.reviseComment)}</div>` : ""}`
+                : "—"}</td>
+          </tr>`).join("") || `<tr><td colspan="7">ไม่พบคำร้อง</td></tr>`}</tbody>
+      </table></div>`,
+    actions: [{ label: "ปิด", className: "secondary-button" }],
+  });
+  document.querySelector("#modal-root .modal")?.classList.add("kpi-modal-wide");
+}
+
+function bindKpiClicks() {
+  if (kpiClickBound) return;
+  kpiClickBound = true;
+  document.addEventListener("click", (event) => {
+    const more = event.target.closest("[data-kpi-more]");
+    if (more) { openKpiList(more.dataset.kpiMore); return; }
+    const reqBtn = event.target.closest("[data-kpi-req]");
+    if (reqBtn) {
+      const request = (kpiLists.all || []).find((r) => r.requestNo === reqBtn.dataset.kpiReq);
+      if (!request) return;
+      closeOpenModal();
+      import("./track.js").then((m) => m.openRequestDetail(request));
+      return;
+    }
+    const dwg = event.target.closest("[data-kpi-drawing]");
+    if (dwg) openDrawingHistory(dwg.dataset.kpiDrawing, dwg.dataset.kpiProject);
+  });
+}
+
 export function renderKpiDashboard(allRequests, team, period, person = null, customRange = null, holidays = []) {
   const holidaySet = new Set(
     holidays.map((h) => h.holidayDate || h.HolidayDate || "").filter(Boolean).map((d) => new Date(d).toDateString())
@@ -162,6 +304,8 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
   // วันทำงานที่ล่าช้า แบบไม่นับวันกำหนดส่งเอง (ส่งช้า 1 วัน = 1) — วันที่ผิดรูปแบบนับเป็น 0
   const countWD = (from, to) => workingDaysUntil(from, to, holidaySet) ?? 0;
   const rows      = filterByKpiPeriod(allRequests, period, person, customRange);
+  kpiLists = { all: allRequests, overdue: [], cancel: [], revision: [] };
+  bindKpiClicks();
   const total     = rows.length;
   const done      = rows.filter((r) => r.status === STATUS.DONE).length;
   const active    = rows.filter((r) => !CLOSED_STATUSES.includes(r.status)).length;
@@ -739,6 +883,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
         return { ...g, count: g.items.length,
           avgDays: Math.round(days.reduce((a,b)=>a+b,0)/days.length*10)/10, maxDays: Math.max(...days) };
       }).sort((a,b) => (b.avgDays - a.avgDays) || (b.count - a.count)).slice(0, 10);
+      kpiLists.overdue = currentOverdueRows.map((r) => ({ r, late: lateDaysOf(r) }));
       const maxAvg = Math.max(1, list[0]?.avgDays || 1);
 
       // แบ่งกลุ่มระดับความล่าช้า
@@ -769,6 +914,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
           <div style="background:#fff;border-radius:10px;border:1px solid #FED7AA;overflow:hidden;">
             <div style="padding:10px 14px;background:#FFEDD5;font-size:12px;font-weight:700;color:#9A3412;border-bottom:1px solid #FED7AA;">
               📐 Drawing ที่ค้างนานสุด (Top ${list.length})
+              <button type="button" class="kpi-more" data-kpi-more="overdue">ดูทั้งหมด ${currentOverdueRows.length} รายการ ›</button>
             </div>
             <div style="padding:6px 14px;background:#FFF7ED;border-bottom:1px solid #FED7AA;font-size:10px;color:#9A3412;">
               🔄 อัปเดตตามจริง — งานที่ฝ่ายกด<b>เสร็จสิ้น</b>แล้วจะหลุดออกจากตารางทันที
@@ -791,7 +937,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                     <tr style="background:${i%2===0?"#fff":"#FFF7ED"};border-bottom:1px solid #FFEDD5;">
                       <td style="padding:7px 10px;font-weight:700;color:${i<3?"#DC2626":"#C2410C"};font-size:12px;">${i+1}</td>
                       <td style="padding:7px 10px;">
-                        <div style="font-size:12px;font-weight:600;color:#1E293B;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(g.drawingNo)}">${escapeHtml(g.drawingNo)}</div>
+                        <button type="button" class="kpi-dwg-link" data-kpi-drawing="${escapeHtml(g.drawingNo)}" data-kpi-project="${escapeHtml(g.projectName)}" title="ดูประวัติ ${escapeHtml(g.drawingNo)}">${escapeHtml(g.drawingNo)}</button>
                         <div style="font-size:10px;color:#64748B;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(g.drawingName)}">${escapeHtml(g.drawingName)}</div>
                         <div style="font-size:10px;color:#94A3B8;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(g.projectName)}${g.count>1?` · ${g.count} รายการ`:""}</div>
                       </td>
@@ -984,6 +1130,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
 
       const UNKNOWN = { code: "—", short: "ยังไม่ระบุ", emoji: "⚫", badge: "background:#F1F5F9;color:#94A3B8", bar: "#CBD5E1", countsAsDeptFault: false, countsAsWasted: false };
       const metaOf = (r) => cancelMetaOf(r) || UNKNOWN;
+      kpiLists.cancel = cancelledAll.map((r) => ({ r, meta: metaOf(r) }));
       const srcTally = [...CANCEL_SOURCES, UNKNOWN].map((meta) => ({
         ...meta, n: cancelledAll.filter((r) => metaOf(r).code === meta.code).length,
       })).filter((x) => x.n > 0).sort((a, b) => b.n - a.n);
@@ -1005,6 +1152,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
           <div style="background:#fff;border-radius:10px;border:1px solid #E9D5FF;overflow:hidden;">
             <div style="padding:10px 14px;background:#F3E8FF;font-size:12px;font-weight:700;color:#6B21A8;border-bottom:1px solid #E9D5FF;">
               📐 รายการยกเลิกล่าสุด (Top ${sorted.length})
+              <button type="button" class="kpi-more" data-kpi-more="cancel">ดูทั้งหมด ${cancelledAll.length} รายการ ›</button>
             </div>
             <div style="padding:6px 14px;background:#FAF5FF;border-bottom:1px solid #E9D5FF;font-size:10px;color:#6B21A8;">
               🔒 <b>เก็บถาวรเป็น KPI</b> — ล่าสุดอยู่อันดับ 1 มีรายการใหม่จะดันอันดับเดิมลง
@@ -1028,7 +1176,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                     <tr style="background:${i%2===0?"#fff":"#FAF5FF"};border-bottom:1px solid #F3E8FF;">
                       <td style="padding:7px 10px;font-weight:700;color:${i===0?"#7C3AED":"#A78BFA"};font-size:12px;">${i+1}</td>
                       <td style="padding:7px 10px;">
-                        <div style="font-size:12px;font-weight:600;color:#1E293B;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.drawingNo || "—")}">${escapeHtml(r.drawingNo || "—")}</div>
+                        <button type="button" class="kpi-dwg-link" data-kpi-req="${escapeHtml(r.requestNo)}" title="ดูรายละเอียด/ประวัติ ${escapeHtml(r.requestNo)}">${escapeHtml(r.drawingNo || r.requestNo)}</button>
                         <div style="font-size:10px;color:#64748B;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.rejectReason || r.drawingName || "")}">${escapeHtml(r.drawingName || "—")}</div>
                         <div style="font-size:10px;color:#94A3B8;">${when ? escapeHtml(new Date(when).toLocaleDateString("th-TH",{year:"2-digit",month:"short",day:"numeric"})) : "—"}${i===0?` · <b style="color:#7C3AED;">ล่าสุด</b>`:""}</div>
                       </td>
@@ -1147,6 +1295,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
         (r.reviseNumber && r.reviseNumber !== "0" && r.reviseNumber !== "")
       );
       if (!revRows.length) return "";
+      kpiLists.revision = revRows.map((r) => ({ r }));
 
       // ── LEFT: Top 10 Drawing ที่แก้บ่อยสุด ──
       const drawingMap = {};
@@ -1193,6 +1342,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
           <div style="background:#fff;border-radius:10px;border:1px solid #FDE68A;overflow:hidden;">
             <div style="padding:10px 14px;background:#FEF3C7;font-size:12px;font-weight:700;color:#92400E;border-bottom:1px solid #FDE68A;">
               📐 Drawing ที่แก้ไขบ่อยสุด (Top ${top10Drawings.length})
+              <button type="button" class="kpi-more" data-kpi-more="revision">ดูทั้งหมด ${revRows.length} รายการ ›</button>
             </div>
             <div style="padding:6px 14px;background:#FFFBEB;border-bottom:1px solid #FDE68A;display:flex;flex-wrap:wrap;gap:8px;">
               <span style="font-size:10px;font-weight:600;color:#78350F;margin-right:2px;">สาเหตุ:</span>
@@ -1219,7 +1369,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                     <tr style="background:${i%2===0?"#fff":"#FFFBEB"};border-bottom:1px solid #FEF3C7;">
                       <td style="padding:7px 10px;font-weight:700;color:#D97706;font-size:12px;">${i+1}</td>
                       <td style="padding:7px 10px;">
-                        <div style="font-size:12px;font-weight:600;color:#1E293B;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.drawingNo)}">${escapeHtml(d.drawingNo)}</div>
+                        <button type="button" class="kpi-dwg-link" data-kpi-drawing="${escapeHtml(d.drawingNo)}" data-kpi-project="${escapeHtml(d.projectName)}" title="ดูประวัติ ${escapeHtml(d.drawingNo)}">${escapeHtml(d.drawingNo)}</button>
                         <div style="font-size:10px;color:#64748B;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(d.drawingName)}">${escapeHtml(d.drawingName)}</div>
                         <div style="font-size:10px;color:#94A3B8;">${escapeHtml(d.projectName)}</div>
                       </td>
