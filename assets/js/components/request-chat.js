@@ -30,6 +30,16 @@ function toText(html) {
   return (doc.body.textContent || "").replace(/ /g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+/** หัวอ้างอิงคำร้อง (ก่อนเส้นคั่น) = สีขาว · ข้อความที่พิมพ์ = เขียวมิ้นต์สว่าง ให้แยกกันชัด */
+const SEP = /\n?─{4,}\n?/;
+function bubbleHtml(text) {
+  const br = (t) => escapeHtml(t).replace(/\n/g, "<br>");
+  const parts = String(text).split(SEP);
+  if (parts.length < 2) return `<span class="req-chat-text">${br(text)}</span>`;
+  const [head, ...rest] = parts;
+  return `<span class="req-chat-refhead">${br(head.trim())}</span><span class="req-chat-text">${br(rest.join("\n").trim())}</span>`;
+}
+
 const timeText = (iso) => {
   const d = new Date(iso);
   const today = new Date().toDateString() === d.toDateString();
@@ -113,7 +123,7 @@ export function openRequestChat(request, dialogEl = null) {
       const mine = m.from?.user?.id === myId;
       const text = toText(m.body?.content);
       return `<div class="req-chat-msg ${mine ? "is-mine" : ""}">
-        <div class="req-chat-bubble">${escapeHtml(text).replace(/\n/g, "<br>")}</div>
+        <div class="req-chat-bubble">${bubbleHtml(text)}</div>
         <small>${mine ? "คุณ" : escapeHtml(m.from?.user?.displayName || partner.name)} · ${escapeHtml(timeText(m.createdDateTime))}</small>
       </div>`;
     }).join("") : `<p class="req-chat-empty">${scope === "ref" ? `ยังไม่มีข้อความเกี่ยวกับ ${escapeHtml(ref)} — เริ่มพิมพ์ด้านล่างได้เลย` : "ยังไม่มีข้อความในแชทนี้"}</p>`;
