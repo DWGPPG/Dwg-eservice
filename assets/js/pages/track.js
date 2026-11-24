@@ -15,8 +15,9 @@ import {
   transferRequester,
   updateWorkStatus,
 } from "../services/request-service.js";
-import { cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
+import { auditForRequest, cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
 import { graphFetch } from "../graph.js";
+import { openRequestChat } from "../components/request-chat.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters, teamPositionOf } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
@@ -1804,6 +1805,7 @@ export function openRequestDetail(request) {
   if (canAct && modalRoot) bindDetailActions(modalRoot, request, closeDetail);
   loadAuditTimeline(request);
   loadTransmittalSlot(request);
+  openRequestChat(request, document.querySelector("#modal-root .modal"));
 }
 
 /** ปุ่มอัปเดตสถานะ / เสร็จสิ้นส่งงาน / ยกเลิก ใน popup รายละเอียด — ใช้ขั้นตอนเดียวกับตารางติดตามงาน */
@@ -1855,10 +1857,14 @@ async function loadAuditTimeline(request) {
 
   // ประวัติ = บันทึกใน AuditLog + ขั้นตอนหลักจากวันเวลาในตัวคำร้อง (ไม่ว่างแม้ AuditLog บางรายการหายไป)
   const derived = requestEvents(request);
+  // แสดงขั้นตอนหลักจากตัวคำร้องทันที แล้วเติมบันทึกละเอียดเมื่อโหลด AuditLog (เฉพาะคำร้องนี้) เสร็จ
+  if (derived.length) {
+    slot.innerHTML = mergeHistory([], derived).map(timelineEntry).join("") + `<div class="timeline-loading">⏳ กำลังโหลดบันทึกละเอียด...</div>`;
+  }
   let audit = [];
   let failed = false;
   try {
-    audit = (await getAuditHistory(request.requestNo)).filter((e) => e.action !== TRANSMITTAL_ACTION);
+    audit = (await auditForRequest(request.requestNo)).filter((e) => e.action !== TRANSMITTAL_ACTION);
   } catch (error) {
     failed = true;
     console.warn("โหลดประวัติคำร้องไม่สำเร็จ:", error.message);

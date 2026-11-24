@@ -162,6 +162,11 @@ function pBox(title, content, span = "") {
 var kpiLists = { all: [], overdue: [], cancel: [], revision: [] };
 var kpiArgs = { period: "all", person: "", from: "", to: "" }; // ตัวกรองของ KPI ที่แสดงอยู่ (ส่งต่อให้แท็บใหม่)
 var kpiClickBound = false;
+var kpiStateRef = null;
+// พื้นที่เลื่อนของหน้า (เนื้อหาเลื่อนใน .main-panel ไม่ใช่ทั้งหน้าต่าง)
+const scroller = () => document.querySelector(".main-panel, #main-panel") || document.scrollingElement || document.documentElement;
+const appStateRef = () => kpiStateRef;
+var kpiReturnY = null; // ตำแหน่งเลื่อนหน้าภาพรวมก่อนเปิดรายการ — กลับมาแล้วเลื่อนไปที่เดิม
 const REV_SRC = {
   "1.1": { t: "1.1 ฝ่ายเขียนแบบ", c: "background:#FEE2E2;color:#991B1B" },
   "1.2": { t: "1.2 ผู้ส่งคำร้อง", c: "background:#FEF9C3;color:#854D0E" },
@@ -292,7 +297,23 @@ function periodRange(period) {
   return ["", ""];
 }
 
+/** กลับหน้าภาพรวม (KPI) — ใช้ประวัติเบราว์เซอร์ถ้ามาจากหน้าภาพรวม แล้วเลื่อนกลับไปตำแหน่งเดิม */
+function backToDashboard() {
+  const y = kpiReturnY;
+  if (appStateRef()?.previousRoute === "/dashboard" && history.length > 1) history.back();
+  else location.hash = "#/dashboard";
+  if (y == null) return;
+  let tries = 0;
+  const restore = () => {
+    tries += 1;
+    if (document.querySelector(".kpi-tabs")) { scroller().scrollTop = y; return; }
+    if (tries < 40) setTimeout(restore, 100);
+  };
+  setTimeout(restore, 150);
+}
+
 export function renderKpiListPage(view, state) {
+  kpiStateRef = state;
   const q = state.routeQuery || new URLSearchParams();
   const team = getDrawingTeamMembers();
   // คำนวณชุดข้อมูลแบบเดียวกับหน้า KPI (ทั้งหมด) แล้วกรองในหน้านี้
@@ -352,7 +373,7 @@ export function renderKpiListPage(view, state) {
     view.innerHTML = `
       <section class="content-section kpi-list-page">
         <div class="kpi-list-head">
-          <a class="secondary-button kpi-back" href="#/dashboard">← กลับหน้าภาพรวม</a>
+          <button type="button" class="secondary-button kpi-back" data-kpi-back>← ย้อนกลับ</button>
           <h2>${def.title.replace(/ทั้งหมด.*$/, "")}</h2>
           <span class="kpi-list-total" data-kpi-count></span>
         </div>
@@ -383,6 +404,7 @@ export function renderKpiListPage(view, state) {
     page.addEventListener("input", onField);
     page.addEventListener("change", onField);
     page.addEventListener("click", (e) => {
+      if (e.target.closest("[data-kpi-back]")) { backToDashboard(); return; }
       const kind = e.target.closest("[data-kind]")?.dataset.kind;
       if (kind && kind !== f.kind) { f.kind = kind; f.cause = ""; draw(); return; }
       if (e.target.closest("[data-clear]")) { Object.assign(f, { q: "", project: "", person: "", cause: "", from: "", to: "" }); draw(); }
@@ -407,9 +429,11 @@ function bindKpiClicks() {
   document.addEventListener("click", (event) => {
     const more = event.target.closest("[data-kpi-more]");
     if (more) {
-      // เปิดรายการทั้งหมดในแท็บใหม่ (กรอง/ค้นหาได้) — ตัวกรองเริ่มต้นตาม KPI ที่ดูอยู่
+      // เปิดรายการทั้งหมดในแท็บเดิม (กรอง/ค้นหาได้ · ปุ่มย้อนกลับ/Back ของเบราว์เซอร์กลับมาที่ KPI) — ตัวกรองเริ่มต้นตาม KPI ที่ดูอยู่
       const q = new URLSearchParams({ kind: more.dataset.kpiMore, ...Object.fromEntries(Object.entries(kpiArgs).filter(([, v]) => v)) });
-      window.open(`${location.pathname}${location.search}#/kpi-list?${q}`, "_blank", "noopener");
+      kpiReturnY = scroller().scrollTop || 0;
+      location.hash = `#/kpi-list?${q}`;
+      scroller().scrollTop = 0;
       return;
     }
     const reqBtn = event.target.closest("[data-kpi-req]");

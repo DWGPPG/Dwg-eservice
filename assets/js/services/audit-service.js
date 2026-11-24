@@ -146,7 +146,7 @@ export function writeTransmittal(request, { action, comment = "", source = "", a
  * ถ้า List ใหญ่และคอลัมน์ RequestId ไม่ได้ทำ Index แล้ว SharePoint ปฏิเสธ → ใช้วิธีเดิม (โหลดทั้ง List)
  */
 const oneRequestCache = new Map(); // requestNo → { at, promise }
-async function auditForRequest(requestNo) {
+export async function auditForRequest(requestNo) {
   if (auditCache && Date.now() - auditCache.at < AUDIT_TTL_MS) return getAuditHistory(requestNo);
   const hit = oneRequestCache.get(requestNo);
   if (hit && Date.now() - hit.at < AUDIT_TTL_MS) return hit.promise;

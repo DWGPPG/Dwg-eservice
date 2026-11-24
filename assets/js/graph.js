@@ -548,3 +548,39 @@ export async function sendGroupWebhook(webhookUrl, payload) {
     return false;
   }
 }
+
+// ── แชท Teams 1:1 ในหน้ารายละเอียดคำร้อง ──
+let meCache = null;
+async function meOnce() {
+  if (!meCache) meCache = getMe().catch((e) => { meCache = null; throw e; });
+  return meCache;
+}
+const chatIdCache = new Map(); // email → chatId
+
+/** หา/สร้าง 1:1 chat กับ targetEmail → { chatId, myId } */
+export async function getChatWith(targetEmail) {
+  const key = String(targetEmail || "").trim().toLowerCase();
+  if (!key) throw new Error("ไม่มีอีเมลของคู่สนทนา");
+  const me = await meOnce();
+  if (key === String(me?.mail || me?.userPrincipalName || "").toLowerCase()) throw new Error("แชทกับตัวเองไม่ได้");
+  if (!chatIdCache.has(key)) {
+    const token = await acquireToken();
+    const id = await createOrFindChat(me.id, targetEmail, token);
+    if (!id) throw new Error("เปิดแชท Teams ไม่สำเร็จ");
+    chatIdCache.set(key, id);
+  }
+  return { chatId: chatIdCache.get(key), myId: me.id };
+}
+
+/** ข้อความล่าสุดในแชท (ใหม่ → เก่า) */
+export async function listChatMessages(chatId, top = 50) {
+  const res = await graphFetch(`/chats/${chatId}/messages?$top=${Math.min(50, top)}`);
+  return (res?.value || []).filter((m) => m.messageType === "message" && !m.deletedDateTime);
+}
+
+export function postChatMessage(chatId, html) {
+  return graphFetch(`/chats/${chatId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ body: { contentType: "html", content: `<div>${html}</div>` } }),
+  });
+}
