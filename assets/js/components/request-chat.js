@@ -36,6 +36,21 @@ const timeText = (iso) => {
   return d.toLocaleString("th-TH", today ? { hour: "2-digit", minute: "2-digit" } : { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 };
 
+/** ข้อมูลอ้างอิงของคำร้องที่แนบไปกับทุกข้อความ */
+function refLines(request) {
+  const type = String(request.requestType || "").trim();
+  return [
+    ["📋", "เลขคำขอ", request.requestNo],
+    ["📂", "ประเภทแบบ", type],
+    ["🏗️", "โครงการ", request.projectName],
+    ["📐", "Drawing No.", request.drawingNo],
+    ["📄", "Drawing Name", request.drawingName],
+  ].filter(([, , v]) => String(v || "").trim());
+}
+
+let reopenTab = null; // ปุ่ม "เปิดแชทอีกครั้ง" ขอบขวาจอ (หลังกด × ซ่อนแชท)
+function removeReopenTab() { reopenTab?.remove(); reopenTab = null; }
+
 export function closeRequestChat() {
   if (!current) return;
   clearTimeout(current.timer);
@@ -48,6 +63,7 @@ export function closeRequestChat() {
 /** เปิดแผงแชทของคำร้อง (เรียกหลังเปิดหน้าต่างรายละเอียดคำร้อง) */
 export function openRequestChat(request, dialogEl = null) {
   closeRequestChat();
+  removeReopenTab();
   const partner = partnerOf(request);
   if (!partner) return;
   const ref = request.requestNo;
@@ -58,7 +74,7 @@ export function openRequestChat(request, dialogEl = null) {
       <div><b>💬 แชท Teams</b><small>กับ ${escapeHtml(partner.name)}</small></div>
       <button type="button" class="req-chat-x" data-chat-close title="ซ่อนแชท">×</button>
     </header>
-    <div class="req-chat-ref">📋 อ้างอิงคำร้อง <b>${escapeHtml(ref)}</b>${request.drawingNo ? ` · ${escapeHtml(request.drawingNo)}` : ""}</div>
+    <div class="req-chat-ref">${refLines(request).map(([ic, label, v]) => `<div>${ic} ${escapeHtml(label)}: <b>${escapeHtml(v)}</b></div>`).join("")}</div>
     <div class="req-chat-filter" role="tablist">
       <button type="button" class="is-active" data-chat-scope="ref">เฉพาะคำร้องนี้</button>
       <button type="button" data-chat-scope="all">ทั้งหมดในแชท</button>
@@ -134,7 +150,8 @@ export function openRequestChat(request, dialogEl = null) {
     if (!text || !chatId) return;
     input.disabled = true;
     sendBtn.disabled = true;
-    const html = `📋 <b>${escapeHtml(ref)}</b>${request.drawingNo ? ` · ${escapeHtml(request.drawingNo)}` : ""}<br>${escapeHtml(text).replace(/\n/g, "<br>")}`;
+    const head = refLines(request).map(([ic, label, v]) => `${ic} <b>${escapeHtml(label)}:</b> ${escapeHtml(v)}`).join("<br>");
+    const html = `${head}<br>──────────<br>${escapeHtml(text).replace(/\n/g, "<br>")}`;
     try {
       const sent = await postChatMessage(chatId, html);
       if (sent) messages = [sent, ...messages];
@@ -154,7 +171,24 @@ export function openRequestChat(request, dialogEl = null) {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
   });
   panel.addEventListener("click", (e) => {
-    if (e.target.closest("[data-chat-close]")) { closeRequestChat(); return; }
+    if (e.target.closest("[data-chat-close]")) {
+      const dialog = dialogEl;
+      closeRequestChat();
+      // ยังเปิดหน้าต่างคำร้องอยู่ → มีปุ่มเปิดแชทอีกครั้งที่ขอบขวา
+      if (dialog?.isConnected) {
+        removeReopenTab();
+        reopenTab = document.createElement("button");
+        reopenTab.type = "button";
+        reopenTab.className = "req-chat-reopen";
+        reopenTab.innerHTML = "💬 <span>แชท Teams</span>";
+        reopenTab.title = `เปิดแชทกับ ${partner.name} อีกครั้ง`;
+        reopenTab.addEventListener("click", () => { removeReopenTab(); openRequestChat(request, dialog); });
+        document.body.appendChild(reopenTab);
+        const watch = new MutationObserver(() => { if (!dialog.isConnected) { removeReopenTab(); watch.disconnect(); } });
+        watch.observe(document.querySelector("#modal-root") || document.body, { childList: true, subtree: true });
+      }
+      return;
+    }
     const sc = e.target.closest("[data-chat-scope]");
     if (sc) {
       scope = sc.dataset.chatScope;
