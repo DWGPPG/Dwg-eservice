@@ -3905,3 +3905,7 @@ body.has-req-chat .modal-backdrop { padding-right: 396px; }
   body.has-req-chat .modal-backdrop { padding-right:20px; padding-bottom:calc(46vh + 20px); }
   .req-chat { top:auto; left:12px; right:12px; bottom:12px; width:auto; height:44vh; }
 }
+@media (min-width: 1101px) {
+  body.has-req-chat .modal-backdrop { justify-items:start; padding-left:max(20px, calc((100vw - 396px - min(1200px, 100vw - 436px)) / 2)); }
+  body.has-req-chat .modal-backdrop .modal { width:min(1200px, calc(100vw - 436px)) !important; max-width:calc(100vw - 436px) !important; }
+}
