@@ -3912,3 +3912,9 @@ body.has-req-chat .modal-backdrop { padding-right: 396px; }
 .req-chat-ref { display:grid; gap:2px; line-height:1.4; }
 .req-chat-reopen { position:fixed; z-index:31; right:0; top:50%; transform:translateY(-50%); writing-mode:vertical-rl; display:flex; align-items:center; gap:6px; padding:14px 8px; border:0; border-radius:14px 0 0 14px; background:#6264A7; color:#fff; font:inherit; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.3); }
 .req-chat-reopen:hover { background:#4F52B2; }
+/* แชท: หัวอ้างอิง = ขาว · ข้อความที่พิมพ์ = เขียวมิ้นต์สว่าง */
+.req-chat-bubble .req-chat-refhead { display:block; color:#FFFFFF; font-size:12px; opacity:.92; padding-bottom:6px; margin-bottom:6px; border-bottom:1px dashed rgba(255,255,255,.35); }
+.req-chat-bubble .req-chat-text { display:block; color:#6EE7B7; font-weight:700; font-size:13.5px; }
+.req-chat-bubble { background:#1F2937 !important; }
+.req-chat-msg.is-mine .req-chat-bubble { background:#4338CA !important; }
+.req-chat-msg.is-mine .req-chat-bubble .req-chat-text { color:#5EEAD4; }
