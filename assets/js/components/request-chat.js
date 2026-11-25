@@ -5,7 +5,7 @@
 //  - ดึงข้อความใหม่ทุก 5 วินาทีขณะเปิดอยู่ · ปิดหน้าต่างคำร้อง = ปิดแชท
 // ══════════════════════════════════════════════════════════════
 
-import { getChatWith, listChatMessages, postChatMessage } from "../graph.js";
+import { getChatWith, graphBlobUrl, listChatMessages, postChatMessage, uploadChatFile } from "../graph.js";
 import { state } from "../state.js";
 import { escapeHtml } from "../utils.js";
 
@@ -39,6 +39,36 @@ function bubbleHtml(text) {
   const [head, ...rest] = parts;
   return `<span class="req-chat-refhead">${br(head.trim())}</span><span class="req-chat-text">${br(rest.join("\n").trim())}</span>`;
 }
+
+/** รูปฝัง (hostedContents) + ไฟล์แนบ (reference) ของข้อความ */
+const INLINE_IMAGE_MAX = 3 * 1024 * 1024; // รูปใหญ่กว่านี้ส่งเป็นไฟล์แนบแทน
+function extrasHtml(m) {
+  const imgs = [];
+  try {
+    const doc = new DOMParser().parseFromString(String(m.body?.content || ""), "text/html");
+    doc.querySelectorAll("img[src]").forEach((img) => {
+      const src = img.getAttribute("src");
+      if (/^https:\/\/graph\.microsoft\.com\/.*hostedContents/i.test(src)) imgs.push(src);
+      else if (/hostedContents/i.test(src)) imgs.push(""); // เพิ่งส่ง — รอ URL จริงจากรอบดึงถัดไป
+    });
+  } catch (_) { /* ignore */ }
+  const files = (m.attachments || []).filter((a) => a.contentType === "reference" && a.contentUrl);
+  const icon = (n) => /\.(png|jpe?g|gif|webp|bmp)$/i.test(n) ? "🖼️" : /\.pdf$/i.test(n) ? "📕" : /\.(dwg|dxf)$/i.test(n) ? "📐" : /\.(xlsx?|csv)$/i.test(n) ? "📗" : /\.(docx?)$/i.test(n) ? "📘" : "📄";
+  return `${imgs.map((src) => src ? `<img class="req-chat-img" data-gsrc="${escapeHtml(src)}" alt="รูปภาพ" />` : `<span class="req-chat-file">🖼️ กำลังโหลดรูป...</span>`).join("")}
+    ${files.map((a) => `<a class="req-chat-file" href="${escapeHtml(a.contentUrl)}" target="_blank" rel="noopener noreferrer">${icon(a.name || "")} ${escapeHtml(a.name || "ไฟล์แนบ")}</a>`).join("")}`;
+}
+function hydrateImages(root) {
+  root.querySelectorAll("img[data-gsrc]:not([src])").forEach((img) => {
+    graphBlobUrl(img.dataset.gsrc).then((url) => { img.src = url; }).catch(() => { img.replaceWith(Object.assign(document.createElement("span"), { className: "req-chat-file", textContent: "🖼️ เปิดรูปไม่ได้" })); });
+  });
+}
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const fr = new FileReader();
+  fr.onload = () => resolve(String(fr.result).split(",")[1] || "");
+  fr.onerror = () => reject(fr.error);
+  fr.readAsDataURL(file);
+});
+const sizeText = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
 const timeText = (iso) => {
   const d = new Date(iso);
@@ -90,8 +120,11 @@ export function openRequestChat(request, dialogEl = null) {
       <button type="button" data-chat-scope="all">ทั้งหมดในแชท</button>
     </div>
     <div class="req-chat-msgs" aria-live="polite"><p class="req-chat-empty">⏳ กำลังเปิดแชท...</p></div>
+    <div class="req-chat-pending" hidden></div>
     <form class="req-chat-form">
-      <textarea rows="2" placeholder="พิมพ์ข้อความ... (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)" disabled></textarea>
+      <button type="button" class="req-chat-attach" data-chat-attach title="แนบรูปภาพ / ไฟล์ (หรือวางรูปด้วย Ctrl+V / ลากไฟล์มาวาง)" disabled>📎</button>
+      <input type="file" multiple hidden data-chat-file />
+      <textarea rows="2" placeholder="พิมพ์ข้อความ... (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · Ctrl+V วางรูป)" disabled></textarea>
       <button type="submit" class="primary-button" disabled>ส่ง</button>
     </form>
     <p class="req-chat-note">ข้อความส่งผ่าน Microsoft Teams (แชท 1:1) และแนบเลขคำร้องให้อัตโนมัติ</p>`;
@@ -100,7 +133,30 @@ export function openRequestChat(request, dialogEl = null) {
 
   const msgsEl = panel.querySelector(".req-chat-msgs");
   const input = panel.querySelector("textarea");
-  const sendBtn = panel.querySelector(".req-chat-form button");
+  const sendBtn = panel.querySelector(".req-chat-form button[type=submit]");
+  const attachBtn = panel.querySelector("[data-chat-attach]");
+  const fileInput = panel.querySelector("[data-chat-file]");
+  const pendingEl = panel.querySelector(".req-chat-pending");
+  let pending = []; // ไฟล์/รูปที่รอส่ง
+
+  function drawPending() {
+    pendingEl.hidden = !pending.length;
+    pendingEl.innerHTML = pending.map((f, i) => `
+      <span class="req-chat-chip">${/^image\//.test(f.type) ? "🖼️" : "📎"} ${escapeHtml(f.name)} <small>${sizeText(f.size)}</small>
+        <button type="button" data-chat-unpend="${i}" title="เอาออก">×</button></span>`).join("");
+  }
+  function addFiles(list) {
+    const files = [...(list || [])].filter((f) => f && f.size > 0);
+    files.forEach((f, i) => {
+      // รูปที่วางจากคลิปบอร์ดมักชื่อ image.png — ตั้งชื่อใหม่กันซ้ำ
+      if (/^image\.(png|jpe?g)$/i.test(f.name)) {
+        const ext = f.name.split(".").pop();
+        f = new File([f], `${ref}-${Date.now()}${i}.${ext}`, { type: f.type });
+      }
+      pending.push(f);
+    });
+    drawPending();
+  }
   let chatId = null;
   let myId = null;
   let scope = "ref";
@@ -115,7 +171,7 @@ export function openRequestChat(request, dialogEl = null) {
       .filter((m) => scope === "all" || toText(m.body?.content).includes(ref))
       .slice()
       .sort((a, b) => new Date(a.createdDateTime) - new Date(b.createdDateTime));
-    const sig = `${scope}|${shown.map((m) => m.id + (m.lastModifiedDateTime || "")).join(",")}`;
+    const sig = `${scope}|${shown.map((m) => m.id + (m.lastModifiedDateTime || "") + String(m.body?.content || "").length).join(",")}`;
     if (!force && sig === lastSig) return;
     lastSig = sig;
     const nearBottom = msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 60;
@@ -123,10 +179,11 @@ export function openRequestChat(request, dialogEl = null) {
       const mine = m.from?.user?.id === myId;
       const text = toText(m.body?.content);
       return `<div class="req-chat-msg ${mine ? "is-mine" : ""}">
-        <div class="req-chat-bubble">${bubbleHtml(text)}</div>
+        <div class="req-chat-bubble">${text ? bubbleHtml(text) : ""}${extrasHtml(m)}</div>
         <small>${mine ? "คุณ" : escapeHtml(m.from?.user?.displayName || partner.name)} · ${escapeHtml(timeText(m.createdDateTime))}</small>
       </div>`;
     }).join("") : `<p class="req-chat-empty">${scope === "ref" ? `ยังไม่มีข้อความเกี่ยวกับ ${escapeHtml(ref)} — เริ่มพิมพ์ด้านล่างได้เลย` : "ยังไม่มีข้อความในแชทนี้"}</p>`;
+    hydrateImages(msgsEl);
     if (nearBottom || force) msgsEl.scrollTop = msgsEl.scrollHeight;
   }
 
@@ -148,6 +205,7 @@ export function openRequestChat(request, dialogEl = null) {
     myId = res.myId;
     input.disabled = false;
     sendBtn.disabled = false;
+    attachBtn.disabled = false;
     messages = await listChatMessages(chatId, 50).catch(() => []);
     render(true);
     current.timer = setTimeout(poll, POLL_MS);
@@ -157,24 +215,71 @@ export function openRequestChat(request, dialogEl = null) {
 
   async function send() {
     const text = input.value.trim();
-    if (!text || !chatId) return;
+    if ((!text && !pending.length) || !chatId) return;
     input.disabled = true;
     sendBtn.disabled = true;
+    attachBtn.disabled = true;
+    const files = pending;
     const head = refLines(request).map(([ic, label, v]) => `${ic} <b>${escapeHtml(label)}:</b> ${escapeHtml(v)}`).join("<br>");
-    const html = `${head}<br>──────────<br>${escapeHtml(text).replace(/\n/g, "<br>")}`;
     try {
-      const sent = await postChatMessage(chatId, html);
+      const hostedContents = [];
+      const attachments = [];
+      let media = "";
+      for (let i = 0; i < files.length; i += 1) {
+        const f = files[i];
+        sendBtn.textContent = `${i + 1}/${files.length}`;
+        if (/^image\/(png|jpe?g|gif)$/i.test(f.type) && f.size <= INLINE_IMAGE_MAX) {
+          const id = String(hostedContents.length + 1);
+          hostedContents.push({ "@microsoft.graph.temporaryId": id, contentBytes: await fileToBase64(f), contentType: f.type });
+          media += `<br><img src="../hostedContents/${id}/$value" alt="${escapeHtml(f.name)}" style="max-width:360px" />`;
+        } else {
+          const up = await uploadChatFile(f, partner.email);
+          attachments.push({ id: up.attachmentId, contentType: "reference", contentUrl: up.webUrl, name: up.name });
+          media += `<attachment id="${up.attachmentId}"></attachment>`;
+        }
+      }
+      const body = text ? escapeHtml(text).replace(/\n/g, "<br>") : `📎 แนบ ${files.length} ไฟล์`;
+      const sent = await postChatMessage(chatId, `${head}<br>──────────<br>${body}${media}`, { attachments, hostedContents });
       if (sent) messages = [sent, ...messages];
       input.value = "";
+      pending = [];
+      drawPending();
       render(true);
     } catch (error) {
       alert(`ส่งข้อความไม่สำเร็จ: ${error.message}`);
     } finally {
+      sendBtn.textContent = "ส่ง";
       input.disabled = false;
       sendBtn.disabled = false;
+      attachBtn.disabled = false;
       input.focus();
     }
   }
+
+  attachBtn.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => { addFiles(fileInput.files); fileInput.value = ""; });
+  input.addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  });
+  panel.addEventListener("dragover", (e) => { if (e.dataTransfer?.types?.includes("Files")) { e.preventDefault(); panel.classList.add("is-drop"); } });
+  panel.addEventListener("dragleave", (e) => { if (!panel.contains(e.relatedTarget)) panel.classList.remove("is-drop"); });
+  panel.addEventListener("drop", (e) => {
+    if (!e.dataTransfer?.files?.length) return;
+    e.preventDefault();
+    panel.classList.remove("is-drop");
+    if (!attachBtn.disabled) addFiles(e.dataTransfer.files);
+  });
+  msgsEl.addEventListener("click", (e) => {
+    const img = e.target.closest(".req-chat-img[src]");
+    if (img) window.open(img.src, "_blank", "noopener");
+  });
+  pendingEl.addEventListener("click", (e) => {
+    const i = e.target.closest("[data-chat-unpend]")?.dataset.chatUnpend;
+    if (i === undefined) return;
+    pending.splice(Number(i), 1);
+    drawPending();
+  });
 
   panel.querySelector(".req-chat-form").addEventListener("submit", (e) => { e.preventDefault(); send(); });
   input.addEventListener("keydown", (e) => {
