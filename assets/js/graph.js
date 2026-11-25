@@ -578,9 +578,80 @@ export async function listChatMessages(chatId, top = 50) {
   return (res?.value || []).filter((m) => m.messageType === "message" && !m.deletedDateTime);
 }
 
-export function postChatMessage(chatId, html) {
-  return graphFetch(`/chats/${chatId}/messages`, {
-    method: "POST",
-    body: JSON.stringify({ body: { contentType: "html", content: `<div>${html}</div>` } }),
-  });
+/**
+ * ส่งข้อความเข้าแชท
+ * @param {{ attachments?: Array, hostedContents?: Array }} extra
+ *   attachments = ไฟล์ (ชนิด reference → ไฟล์ใน OneDrive) · hostedContents = รูปฝังในข้อความ (base64)
+ */
+export function postChatMessage(chatId, html, extra = {}) {
+  const payload = { body: { contentType: "html", content: `<div>${html}</div>` } };
+  if (extra.attachments?.length) payload.attachments = extra.attachments;
+  if (extra.hostedContents?.length) payload.hostedContents = extra.hostedContents;
+  return graphFetch(`/chats/${chatId}/messages`, { method: "POST", body: JSON.stringify(payload) });
+}
+
+/**
+ * อัปโหลดไฟล์แนบแชทไปที่ OneDrive ของผู้ส่ง (โฟลเดอร์เดียวกับที่ Teams ใช้) แล้วให้คู่สนทนาเปิดอ่านได้
+ * คืน { id, name, webUrl, attachmentId } — attachmentId ใช้ผูกไฟล์กับข้อความ Teams
+ */
+export async function uploadChatFile(file, shareWithEmail, onProgress = null) {
+  const token = await acquireToken();
+  if (!token) throw new Error("Missing Microsoft Graph access token");
+  const folder = "Microsoft Teams Chat Files";
+  const base = `${GRAPH_ROOT}/me/drive/root:/${encodeURIComponent(folder)}/${encodeURIComponent(file.name)}`;
+  let item;
+  if (file.size <= SMALL_FILE_LIMIT) {
+    const r = await fetch(`${base}:/content?@microsoft.graph.conflictBehavior=rename`, {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!r.ok) throw new Error(`อัปโหลด ${file.name} ไม่สำเร็จ (${r.status})`);
+    item = await r.json();
+    onProgress?.(100);
+  } else {
+    const s = await fetch(`${base}:/createUploadSession`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ item: { "@microsoft.graph.conflictBehavior": "rename", name: file.name } }),
+    });
+    if (!s.ok) throw new Error(`อัปโหลด ${file.name} ไม่สำเร็จ (${s.status})`);
+    const { uploadUrl } = await s.json();
+    for (let offset = 0; offset < file.size;) {
+      const end = Math.min(offset + CHUNK_SIZE, file.size);
+      const r = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Range": `bytes ${offset}-${end - 1}/${file.size}` },
+        body: file.slice(offset, end),
+      });
+      if (!r.ok && r.status !== 202) throw new Error(`อัปโหลด ${file.name} ไม่สำเร็จ (${r.status})`);
+      offset = end;
+      onProgress?.(Math.round((offset / file.size) * 100));
+      if (r.status === 200 || r.status === 201) item = await r.json();
+    }
+  }
+  if (!item?.id) throw new Error(`อัปโหลด ${file.name} ไม่สำเร็จ`);
+  // ให้คู่สนทนาเปิดไฟล์ได้ (ไม่ส่งอีเมลแจ้ง) — Teams ทำแบบเดียวกันตอนแนบไฟล์ในแชท
+  if (shareWithEmail) {
+    await graphFetch(`/me/drive/items/${item.id}/invite`, {
+      method: "POST",
+      body: JSON.stringify({ recipients: [{ email: shareWithEmail }], roles: ["read"], requireSignIn: true, sendInvitation: false }),
+    }).catch((e) => console.warn("ให้สิทธิ์ไฟล์แนบไม่สำเร็จ:", e.message));
+  }
+  const attachmentId = (String(item.eTag || "").match(/\{?([0-9a-f-]{36})\}?/i) || [])[1] || item.id;
+  return { id: item.id, name: item.name, webUrl: item.webUrl, attachmentId };
+}
+
+/** รูปในข้อความแชท (hostedContents ต้องใช้ token) → object URL สำหรับแสดงผล · จำไว้ใช้ซ้ำ */
+const blobUrlCache = new Map();
+export function graphBlobUrl(url) {
+  if (!blobUrlCache.has(url)) {
+    blobUrlCache.set(url, (async () => {
+      const token = await acquireToken();
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return URL.createObjectURL(await r.blob());
+    })().catch((e) => { blobUrlCache.delete(url); throw e; }));
+  }
+  return blobUrlCache.get(url);
 }
