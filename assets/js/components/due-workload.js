@@ -17,9 +17,9 @@ const norm = (v) => String(v || "").trim().toLowerCase();
 const thDate = (key) => new Date(`${key}T00:00:00`).toLocaleDateString("th-TH", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 
 function level(n) {
-  if (n >= 4) return { cls: "is-high", text: "ภาระงานสูง — เสี่ยงส่งไม่ทัน" };
-  if (n >= 2) return { cls: "is-mid", text: "ภาระงานปานกลาง" };
-  return { cls: "is-low", text: "ว่างพอรับงาน" };
+  if (n >= 5) return { cls: "is-high", text: "ภาระงานสูง — เสี่ยงส่งไม่ทัน" };
+  if (n === 4) return { cls: "is-mid", text: "ภาระงานปานกลาง" };
+  return { cls: "is-low", text: "ภาระงานปกติ" };
 }
 
 /** งานเดิมของคนนี้ที่ต้องส่งวันนั้น (ทุกประเภท ทุกโครงการ) */
@@ -69,7 +69,7 @@ export function dueWorkloadHtml(projectName, requestType, dueKeys) {
     </div>`;
   };
 
-  const anyHigh = owners.some((o) => dates.some((key) => existingFor(o.email, key).length + newCount(key) >= 4 || leaveOf(o.email, key)));
+  const anyHigh = owners.some((o) => dates.some((key) => existingFor(o.email, key).length + newCount(key) >= 5 || leaveOf(o.email, key)));
   return `<section class="dw-box">
     <div class="dw-title">📊 ภาระงานของผู้รับผิดชอบในวันกำหนดส่ง${proposal ? " <small>(งาน Proposal — แสดงผู้รับผิดชอบทุกคน)</small>" : ""}</div>
     <div class="dw-grid ${owners.length > 1 ? "is-multi" : ""}">${owners.map(card).join("")}</div>
