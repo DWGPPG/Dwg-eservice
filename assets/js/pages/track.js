@@ -18,7 +18,7 @@ import {
 import { auditForRequest, cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
 import { graphFetch } from "../graph.js";
 import { openRequestChat } from "../components/request-chat.js";
-import { bindDueChangeButtons, canRequestDueChange, dueCellHtml, dueChangeDetailHtml, onDueChange, openDueChangeRequestModal, pendingBannerHtml } from "../components/due-change.js";
+import { bindDueChangeButtons, canRequestDueChange, dueCellHtml, dueChangeDetailHtml, mgrBannerHtml, onDueChange, openDueChangeRequestModal, pendingBannerHtml } from "../components/due-change.js";
 import { refreshDueChanges } from "../services/due-change-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters, teamPositionOf } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
@@ -254,6 +254,7 @@ function renderWorkbookTrack(view, state) {
         <h2>ติดตามงาน <span class="requester-result-count">งานปัจจุบัน ${currentCount} รายการ</span></h2>
       </div>
       ${pendingBannerHtml()}
+      ${mgrBannerHtml()}
 
       <div class="track-filter-bar" style="flex-wrap:wrap;gap:8px;">
         <label class="track-search-field">

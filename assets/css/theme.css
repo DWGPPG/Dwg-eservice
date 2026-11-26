@@ -3971,3 +3971,11 @@ tr:has(.due-cell.is-pending) > td:first-child { box-shadow:inset 3px 0 0 #f59e0b
 .due-banner-item { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:6px 8px; border-radius:10px; background:rgba(245,158,11,.06); }
 .due-banner-info { flex:1; min-width:200px; font-size:12.5px; line-height:1.4; }
 .due-banner-info small { color:var(--muted, #94A3B8); }
+.due-chip.violet { background:rgba(139,92,246,.15); color:#6d28d9; border:1px solid rgba(139,92,246,.45); }
+[data-theme="dark"] .due-chip.violet { color:#c4b5fd; }
+.due-banner.is-mgr { background:rgba(139,92,246,.1); border-color:rgba(139,92,246,.45); }
+.due-banner.is-mgr .due-banner-item { background:rgba(139,92,246,.07); }
+.due-banner.is-mgr .due-banner-req { border-color:rgba(139,92,246,.6); background:rgba(139,92,246,.12); }
+.due-gate { margin-top:4px; padding:8px 10px; border-radius:10px; background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.35); font-size:12.5px; }
+.due-gate.is-mgr { background:rgba(139,92,246,.1); border-color:rgba(139,92,246,.45); }
+.due-gate small { color:var(--muted, #94A3B8); }

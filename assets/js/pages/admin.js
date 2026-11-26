@@ -26,6 +26,8 @@ import { isNotificationSupported, notificationPermission } from "../services/not
 import { escapeHtml, formatDate, projectKey, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
 import { openRequestDetail, openTransferRequesterModal } from "./track.js";
+import { bindDueChangeButtons, mgrBannerHtml, onDueChange } from "../components/due-change.js";
+import { refreshDueChanges } from "../services/due-change-service.js";
 
 let adminFilter = "all";
 let adminSearchQuery = "";
@@ -63,6 +65,12 @@ function sortNewestFirst(items) {
 
 export function renderAdmin(view, state) {
   const isManager = state.user?.role === "manager";
+  if (isManager) {
+    // คำขอเลื่อนกำหนดส่งที่รอผู้จัดการอนุมัติ
+    bindDueChangeButtons();
+    onDueChange(() => { if (state.currentRoute === "/admin") renderAdmin(view, state); });
+    refreshDueChanges().then((changed) => { if (changed && state.currentRoute === "/admin") renderAdmin(view, state); }).catch(() => {});
+  }
   selectedPickupIds.clear();
   if (isManager) {
     renderManagerAdmin(view, state);
@@ -287,6 +295,7 @@ function renderManagerAdmin(view, state) {
           <p>สิทธิ์: ผู้จัดการ Lv.2 — รับงาน, อนุมัติเริ่มงาน, ตรวจสอบและส่งมอบงาน</p>
         </div>
       </div>
+      ${mgrBannerHtml()}
 
       <div class="admin-jump-row" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 20px;padding-bottom:18px;border-bottom:1px solid #e2e8f0;">
         ${jumpButton("pickup-section",     "📥 รับงาน",                   pendingItems.length,  true, "pickup-bulk-button", "pickup-bulk-count")}
