@@ -1,5 +1,6 @@
 import { holidayName } from "../services/due-date.js";
 import { ownerNoticeHtml, ownerSummaryText } from "../services/owner-service.js";
+import { dueWorkloadHtml } from "../components/due-workload.js";
 import { COMPANY_GROUPS } from "../constants.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { lists } from "../../../config/schema.js";
@@ -1032,6 +1033,7 @@ function openConfirmSubmit(view, form, onModalClose) {
       ${confirmRow("ชื่อโครงการ", selectedProjectName)}
       ${ownerSummaryText(selectedProjectName, requestType) ? confirmRow("ผู้รับผิดชอบ", ownerSummaryText(selectedProjectName, requestType)) : ""}
       ${ownerNoticeHtml(selectedProjectName, requestType).includes("owner-notice-warn") ? ownerNoticeHtml(selectedProjectName, requestType) : ""}
+      ${dueWorkloadHtml(selectedProjectName, requestType, selectedDrawings.map((item) => getDetail(item.key).dueDate))}
       ${confirmRow("จำนวนคำร้องที่จะสร้าง", `${selectedDrawings.length} Drawing`)}
       <div class="confirm-batch-list">
         ${selectedDrawings.map((item, index) => {
@@ -1064,6 +1066,7 @@ function openConfirmSubmit(view, form, onModalClose) {
       },
     ],
   });
+  document.querySelector("#modal-root .modal")?.classList.add("dw-modal");
 }
 
 async function submitConfirmed(view, form) {
