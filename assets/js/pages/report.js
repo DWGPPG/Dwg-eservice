@@ -3,6 +3,7 @@ import { CLOSED_STATUSES, STATUS, STATUS_LABELS, CANCEL_SOURCES, WASTED_HOURS_BY
 import { getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDateOnly, workingDaysUntil } from "../utils.js";
 import { openModal } from "../components/modal.js";
+import { dueChangeStats } from "../services/due-change-service.js";
 
 // ── ค่า OT rate เริ่มต้น (บาท/ชั่วโมง) สำหรับคำนวณ Overdue Cost
 // อัตราต้นทุนอยู่ที่ config.js (costRates) — ใช้ร่วมกับบทสรุปผู้บริหาร
@@ -447,6 +448,33 @@ function bindKpiClicks() {
     const dwg = event.target.closest("[data-kpi-drawing]");
     if (dwg) openDrawingHistory(dwg.dataset.kpiDrawing, dwg.dataset.kpiProject);
   });
+}
+
+/** KPI การขอเลื่อนกำหนดส่ง (ISO 9001 — ติดตามแนวโน้มเพื่อปรับปรุง) */
+function dueChangeKpiHtml(rows) {
+  const st = dueChangeStats(rows);
+  if (!st.total) return "";
+  const pct = (n) => (st.total ? Math.round((n / st.total) * 100) : 0);
+  const people = Object.entries(st.byPerson).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const causes = Object.entries(st.byCause).sort((a, b) => b[1] - a[1]);
+  const card = (icon, label, v, sub, color) => `<div style="background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:12px 14px;"><div style="font-size:16px;">${icon}</div><div style="font-size:11px;color:#64748B;">${label}</div><div style="font-size:22px;font-weight:800;color:${color};">${v}</div><div style="font-size:10px;color:#94A3B8;">${sub}</div></div>`;
+  return `
+    <div style="background:#F5F3FF;border:1.5px solid #DDD6FE;border-radius:14px;padding:18px;margin-bottom:14px;">
+      <div style="font-size:14px;font-weight:700;color:#5B21B6;margin-bottom:12px;">📅 การขอเลื่อนกำหนดส่ง <span style="font-size:11px;font-weight:400;color:#7C3AED;margin-left:6px;">${st.total} คำร้อง · ${st.rounds} ครั้ง (ช่วงที่เลือก)</span></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:12px;">
+        ${card("✅", "ผู้ส่งคำร้องยอมรับ", st.accepted, `${pct(st.accepted)}% · รวม +${st.daysAccepted} วันทำการ`, "#059669")}
+        ${card("⛔", "ผู้ส่งคำร้องไม่ยอมรับ", st.rejected, `${pct(st.rejected)}%`, "#DC2626")}
+        ${card("🛡️", "ผู้จัดการไม่อนุมัติ", st.mgrRejected, `${pct(st.mgrRejected)}%`, "#7C3AED")}
+        ${card("⏳", "รอดำเนินการ", st.pending + st.mgrPending, `รอผู้ส่งยืนยัน ${st.pending} · รอผู้จัดการ ${st.mgrPending}`, "#D97706")}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;"><div style="font-size:12px;font-weight:700;color:#5B21B6;margin-bottom:6px;">👤 ผู้ขอเลื่อน</div>
+          ${people.map(([n, c]) => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #F1F5F9;"><span>${escapeHtml(n)}</span><b>${c}</b></div>`).join("")}</div>
+        <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;"><div style="font-size:12px;font-weight:700;color:#5B21B6;margin-bottom:6px;">🏷️ สาเหตุ</div>
+          ${causes.map(([n, c]) => `<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;border-bottom:1px solid #F1F5F9;"><span>${escapeHtml(n)}</span><b>${c}</b></div>`).join("")}
+          <div style="font-size:10px;color:#94A3B8;margin-top:6px;">สาเหตุ "ข้อมูลจากผู้ส่งคำร้องไม่ครบ" ไม่ควรนับเป็นความบกพร่องของผู้เขียนแบบ</div></div>
+      </div>
+    </div>`;
 }
 
 export function renderKpiDashboard(allRequests, team, period, person = null, customRange = null, holidays = []) {
@@ -940,6 +968,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
     </div>
     </div>
     <div class="kpi-pane" data-kpi-pane="overdue">
+    ${dueChangeKpiHtml(rows)}
     <!-- Row 3: OVERDUE KPI SECTION -->
     <div style="background:#FFF1F2;border:1.5px solid #FECACA;border-radius:14px;padding:20px;margin-bottom:14px;">
       <div style="font-size:14px;font-weight:700;color:#991B1B;margin-bottom:6px;">
