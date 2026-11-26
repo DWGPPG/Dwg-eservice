@@ -1,4 +1,13 @@
 import { leaveOf, ownerNoticeHtml, ownersFor } from "../services/owner-service.js";
+import { LEVELS, levelBadge, personLoad } from "../services/workload-service.js";
+import { toDateKey } from "../services/due-date.js";
+
+/** ภาระงานของผู้รับงานแต่ละคน (เกณฑ์กลาง) — ในหน้าต่างมอบหมาย/รับงาน/โอนงาน */
+function assignLoadHint(m, request) {
+  const key = request?.dueDate ? toDateKey(request.dueDate) : toDateKey(new Date());
+  const load = personLoad(m.email, key);
+  return `<small class="assign-load">${levelBadge(load.level)} ส่งวัน${request?.dueDate ? "กำหนดส่งนี้" : "นี้"} ${load.due} · ค้างทั้งหมด ${load.open}${load.factor < 1 ? " · ลา" : ""}</small>`;
+}
 import { checkOffDay, offDayText } from "../services/due-date.js";
 import { effectiveBootstrapEmails } from "../services/role-service.js";
 import { parseLinkEntries } from "../components/cloud-picker.js";
@@ -908,7 +917,7 @@ function openPickupAssignModal(view, state, request) {
             <span class="assignee-avatar">${escapeHtml(initials(m.name || m.email))}</span>
             <span>
               <strong>${escapeHtml(m.name || m.email)}${ownerEmails.has(m.email.toLowerCase()) ? ` <span class="owner-tag">${ownerTag}</span>` : ""}${leaveOf(m.email) ? ' <span class="owner-tag is-away">ลาวันนี้</span>' : ""}</strong>
-              <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>
+              <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>${assignLoadHint(m, request)}
             </span>
           </label>`).join("")}
       </div>
@@ -1318,7 +1327,7 @@ function openAssignModal(view, state, request, level) {
             <span class="assignee-avatar">${escapeHtml(initials(m.name || m.email))}</span>
             <span>
               <strong>${escapeHtml(m.name || m.email)}</strong>
-              <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>
+              <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>${assignLoadHint(m, request)}
             </span>
           </label>`).join("")}
       </div>
@@ -1385,7 +1394,7 @@ function openReassignModal(view, state, request) {
             <span class="assignee-avatar">${escapeHtml(initials(m.name || m.email))}</span>
             <span>
               <strong>${escapeHtml(m.name || m.email)}</strong>
-              <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>
+              <small>${escapeHtml(m.role || m.email || "ฝ่ายเขียนแบบ")}</small>${assignLoadHint(m, request)}
             </span>
           </label>`).join("")}
       </div>

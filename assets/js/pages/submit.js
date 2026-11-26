@@ -1,5 +1,9 @@
 import { holidayName } from "../services/due-date.js";
-import { ownerNoticeHtml, ownerSummaryText } from "../services/owner-service.js";
+import { ownerNoticeHtml, ownerSummaryText, ownersFor } from "../services/owner-service.js";
+import { dueWorkloadHtml } from "../components/due-workload.js";
+import { personLoad } from "../services/workload-service.js";
+import { getAllManagerEmails } from "../services/team-service.js";
+import { sendTeams1on1 } from "../graph.js";
 import { COMPANY_GROUPS } from "../constants.js";
 import { reviewIncomingFiles } from "../components/file-guard.js";
 import { lists } from "../../../config/schema.js";
@@ -1032,6 +1036,7 @@ function openConfirmSubmit(view, form, onModalClose) {
       ${confirmRow("ชื่อโครงการ", selectedProjectName)}
       ${ownerSummaryText(selectedProjectName, requestType) ? confirmRow("ผู้รับผิดชอบ", ownerSummaryText(selectedProjectName, requestType)) : ""}
       ${ownerNoticeHtml(selectedProjectName, requestType).includes("owner-notice-warn") ? ownerNoticeHtml(selectedProjectName, requestType) : ""}
+      ${dueWorkloadHtml(selectedProjectName, requestType, selectedDrawings.map((item) => getDetail(item.key).dueDate))}
       ${confirmRow("จำนวนคำร้องที่จะสร้าง", `${selectedDrawings.length} Drawing`)}
       <div class="confirm-batch-list">
         ${selectedDrawings.map((item, index) => {
@@ -1064,6 +1069,7 @@ function openConfirmSubmit(view, form, onModalClose) {
       },
     ],
   });
+  document.querySelector("#modal-root .modal")?.classList.add("dw-modal");
 }
 
 async function submitConfirmed(view, form) {
@@ -1119,8 +1125,27 @@ async function submitConfirmed(view, form) {
 
   if (created.length) {
     showToast(`ส่งงานสำเร็จ ${created.length} รายการ`, "success");
+    notifyHighWorkload(requestType, created);
     location.hash = "#/track";
   }
+}
+
+/** ISO 45001/9001: งานใหม่ทำให้ผู้รับผิดชอบภาระงานสูง → แจ้งผู้จัดการทาง Teams (ไม่รอผล) */
+function notifyHighWorkload(requestType, created) {
+  try {
+    const keys = created.map((r) => (r.dueDate ? toDateKey(r.dueDate) : "")).filter(Boolean);
+    const hits = [];
+    ownersFor(selectedProjectName, requestType).forEach((o) => {
+      [...new Set(keys)].forEach((key) => {
+        const load = personLoad(o.email, key, keys.filter((k) => k === key).length);
+        if (load.level === "high") hits.push(`👤 <b>${escapeHtml(o.name)}</b> · ${escapeHtml(new Date(`${key}T00:00:00`).toLocaleDateString("th-TH", { day: "numeric", month: "short" }))}: ส่งวันเดียวกัน ${load.due} งาน · ค้างทั้งหมด ${load.open} งาน${load.factor < 1 ? " · ลา" : ""}`);
+      });
+    });
+    if (!hits.length) return;
+    const me = String(state.user?.email || "").toLowerCase();
+    const msg = `🔴 <b>แจ้งเตือนภาระงานสูง</b> (เกณฑ์ ISO 9001/45001)<br>คำร้องใหม่ ${created.map((r) => escapeHtml(r.requestNo)).join(", ")} · ${escapeHtml(selectedProjectName)} · ${escapeHtml(requestType)}<br>${hits.join("<br>")}<br>👉 พิจารณากระจายงาน / เจรจาวันส่ง`;
+    getAllManagerEmails().filter((e) => e !== me).forEach((email) => sendTeams1on1(email, msg).catch(() => {}));
+  } catch (error) { console.warn("notifyHighWorkload:", error.message); }
 }
 
 function showUploadProgress(view, percent, fileName, totalFiles, uploadedFiles) {

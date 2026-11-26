@@ -14,6 +14,7 @@ import { bindRequestEditor, renderRequestEditor } from "./manage-requests.js";
 import { bindLegacyTab, renderLegacyTab } from "./manage-legacy.js";
 import { renderIsoBrowser } from "../components/iso-browser.js";
 import { legacyMeta, loadLegacy } from "../services/legacy-service.js";
+import { DEFAULT_DUE, DEFAULT_OPEN, WORKLOAD_DUE_KEY, WORKLOAD_OPEN_KEY, thresholds } from "../services/workload-service.js";
 import { DRAWING_CONTACT_KEY, LEAVE_PERIODS, PROPOSAL_OWNERS_KEY, drawingContact, historySuggestions, leaveOf, personName, proposalOwnerEmails, splitTypes, teamOptions, todayKey } from "../services/owner-service.js";
 import { REQUEST_TYPES } from "../constants.js";
 import { holidayName, holidayNameField } from "../services/due-date.js";
@@ -898,6 +899,7 @@ function renderSettings() {
       </form>
       ${proposalOwnersCard()}
       ${contactCard()}
+      ${workloadCard()}
     </div>`;
 }
 
@@ -930,6 +932,33 @@ function proposalOwnersCard() {
       <div class="manage-setting-actions">
         ${custom ? `<button class="secondary-button" type="button" data-action="proposal-reset">คืนค่าเริ่มต้น</button>` : ""}
         <button class="primary-button" type="submit">บันทึกผู้รับผิดชอบ Proposal</button>
+      </div>
+    </form>`;
+}
+
+function workloadCard() {
+  const t = thresholds();
+  const num = (name, v) => `<input type="number" name="${name}" min="1" max="99" value="${v}" style="width:80px" />`;
+  return `
+    <form class="manage-setting-card" data-setting-form="workload" novalidate>
+      <div class="manage-setting-head">
+        <div>
+          <h3>📊 เกณฑ์ภาระงาน (ISO 9001 / 45001)</h3>
+          <p>ใช้ร่วมกันทุกหน้า: หน้าต่างยืนยันส่งคำร้อง · KPI Workload รายวัน/รายบุคคล · แจ้งเตือนผู้จัดการ — เกินระดับปานกลาง = <b>ภาระงานสูง</b> · ลาครึ่งวันเกณฑ์ลดครึ่งหนึ่ง · ลาเต็มวัน = สูง</p>
+        </div>
+      </div>
+      <div class="manage-setting-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+        <div><b>📅 งานที่ต้องส่งในวันเดียวกัน</b><br>
+          <label>🟢 ปกติ ไม่เกิน ${num("dueNormal", t.due[0])} งาน</label><br>
+          <label>🟠 ปานกลาง ไม่เกิน ${num("dueMedium", t.due[1])} งาน</label><br><small>🔴 สูง = มากกว่านี้</small></div>
+        <div><b>📦 งานค้างทั้งหมดที่ยังไม่ส่ง</b><br>
+          <label>🟢 ปกติ ไม่เกิน ${num("openNormal", t.open[0])} งาน</label><br>
+          <label>🟠 ปานกลาง ไม่เกิน ${num("openMedium", t.open[1])} งาน</label><br><small>🔴 สูง = มากกว่านี้</small></div>
+      </div>
+      <div class="manage-setting-meta">${settingMeta(WORKLOAD_DUE_KEY, `${DEFAULT_DUE.join("/")} · ${DEFAULT_OPEN.join("/")}`)}</div>
+      <div class="manage-setting-actions">
+        <button class="secondary-button" type="button" data-action="workload-reset">คืนค่าเริ่มต้น</button>
+        <button class="primary-button" type="submit">บันทึกเกณฑ์ภาระงาน</button>
       </div>
     </form>`;
 }
@@ -997,6 +1026,26 @@ function bindSettings(body, rerender) {
     });
     contact.querySelector('[data-action="contact-reset"]')?.addEventListener("click", (e) =>
       saveSimpleSetting(DRAWING_CONTACT_KEY, "", e.currentTarget, "ช่องทางติดต่อฝ่ายเขียนแบบ", drawingContact(), `ค่าเริ่มต้น (${appConfig.drawingContact || ""})`, rerender));
+  }
+
+  const wl = body.querySelector('[data-setting-form="workload"]');
+  if (wl) {
+    wl.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const v = (n) => Number(wl.querySelector(`[name="${n}"]`).value);
+      const due = [v("dueNormal"), v("dueMedium")];
+      const open = [v("openNormal"), v("openMedium")];
+      if (![...due, ...open].every((n) => Number.isInteger(n) && n >= 1)) { showToast("กรุณากรอกตัวเลขจำนวนเต็มตั้งแต่ 1", "warning"); return; }
+      if (due[0] >= due[1] || open[0] >= open[1]) { showToast("เกณฑ์ปานกลางต้องมากกว่าเกณฑ์ปกติ", "warning"); return; }
+      const btn = wl.querySelector('[type="submit"]');
+      const before = thresholds();
+      await saveSetting(WORKLOAD_OPEN_KEY, open.join(",")).catch((e) => showToast(`บันทึกไม่สำเร็จ: ${e.message}`, "error"));
+      saveSimpleSetting(WORKLOAD_DUE_KEY, due.join(","), btn, "เกณฑ์ภาระงาน", `ส่งวันเดียวกัน ${before.due.join("/")} · ค้าง ${before.open.join("/")}`, `ส่งวันเดียวกัน ${due.join("/")} · ค้าง ${open.join("/")}`, rerender);
+    });
+    wl.querySelector('[data-action="workload-reset"]')?.addEventListener("click", async (e) => {
+      await saveSetting(WORKLOAD_OPEN_KEY, "").catch(() => {});
+      saveSimpleSetting(WORKLOAD_DUE_KEY, "", e.currentTarget, "เกณฑ์ภาระงาน", "", `ค่าเริ่มต้น ${DEFAULT_DUE.join("/")} · ${DEFAULT_OPEN.join("/")}`, rerender);
+    });
   }
 
   const form = body.querySelector('[data-setting-form="version"]');

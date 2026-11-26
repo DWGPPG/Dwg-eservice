@@ -3979,3 +3979,36 @@ tr:has(.due-cell.is-pending) > td:first-child { box-shadow:inset 3px 0 0 #f59e0b
 .due-gate { margin-top:4px; padding:8px 10px; border-radius:10px; background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.35); font-size:12.5px; }
 .due-gate.is-mgr { background:rgba(139,92,246,.1); border-color:rgba(139,92,246,.45); }
 .due-gate small { color:var(--muted, #94A3B8); }
+
+/* ── ภาระงานวันกำหนดส่ง (หน้าต่างยืนยันส่งคำร้อง) ── */
+[data-theme] .modal.dw-modal { width:min(900px, 96vw); max-width:min(900px, 96vw); }
+.dw-box { margin:10px 0; padding:12px; border-radius:14px; border:1px solid var(--line, #E2E8F0); background:color-mix(in srgb, #3b82f6 6%, transparent); }
+.dw-title { font-weight:800; margin-bottom:10px; }
+.dw-title small { font-weight:500; color:var(--muted, #64748B); }
+.dw-grid { display:grid; gap:10px; }
+.dw-grid.is-multi { grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); }
+.dw-person { padding:10px; border-radius:12px; background:var(--surface, #fff); border:1px solid var(--line, #E2E8F0); }
+.dw-name { font-weight:800; margin-bottom:8px; }
+.dw-name small { font-weight:500; color:var(--muted, #64748B); }
+.dw-day { padding:8px 10px; border-radius:10px; border-left:4px solid #10b981; background:rgba(16,185,129,.07); }
+.dw-day + .dw-day { margin-top:8px; }
+.dw-day.is-mid { border-left-color:#f59e0b; background:rgba(245,158,11,.08); }
+.dw-day.is-high { border-left-color:#ef4444; background:rgba(239,68,68,.08); }
+.dw-day-head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:13px; }
+.dw-leave { padding:1px 8px; border-radius:999px; background:rgba(239,68,68,.15); color:#dc2626; font-size:11px; font-weight:700; }
+.dw-count { margin-top:4px; font-size:13px; }
+.dw-num { font-size:20px; font-weight:800; }
+.dw-plus { color:var(--muted, #64748B); font-size:12px; }
+.dw-level { font-size:11.5px; font-weight:700; color:#059669; }
+.dw-day.is-mid .dw-level { color:#b45309; } .dw-day.is-high .dw-level { color:#dc2626; }
+[data-theme="dark"] .dw-level { color:#6ee7b7; } [data-theme="dark"] .dw-day.is-mid .dw-level { color:#fcd34d; } [data-theme="dark"] .dw-day.is-high .dw-level { color:#fca5a5; }
+.dw-list { margin:6px 0 0; padding-left:16px; font-size:11.5px; line-height:1.5; }
+.dw-list small, .dw-hint { color:var(--muted, #64748B); }
+.dw-note { margin:8px 0 0; font-size:12.5px; }
+.dw-warn { margin:8px 0 0; padding:7px 10px; border-radius:10px; background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.35); font-size:12.5px; }
+.dw-hint { margin:6px 0 0; font-size:11px; }
+.dw-empty { margin:0; color:var(--muted, #64748B); }
+.dw-open { margin-top:4px; font-size:11.5px; padding:3px 8px; border-radius:8px; background:rgba(16,185,129,.08); }
+.dw-open.is-mid { background:rgba(245,158,11,.12); } .dw-open.is-high { background:rgba(239,68,68,.12); }
+.assign-load { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:3px; font-size:11px; color:var(--muted, #64748B); }
+.ts-load { font-style:normal; font-size:11px; margin-left:2px; }
