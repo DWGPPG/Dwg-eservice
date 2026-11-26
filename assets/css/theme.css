@@ -3929,3 +3929,40 @@ body.has-req-chat .modal-backdrop { padding-right: 396px; }
 .req-chat-file { display:inline-flex; align-items:center; gap:4px; margin-top:8px; padding:5px 10px; border-radius:10px; background:rgba(255,255,255,.12); color:#E0E7FF; font-size:12px; font-weight:700; text-decoration:none; overflow-wrap:anywhere; }
 .req-chat-file:hover { background:rgba(255,255,255,.2); }
 .req-chat.is-drop { outline:3px dashed #6EE7B7; outline-offset:-6px; }
+
+/* ── ขอเลื่อนกำหนดส่ง ── */
+.due-cell { display:flex; flex-direction:column; align-items:flex-start; gap:4px; min-width:150px; }
+.due-cell s { color:var(--muted, #94A3B8); }
+.due-new { color:#d97706; }
+[data-theme="dark"] .due-new { color:#fcd34d; }
+.due-ok { color:#059669; }
+[data-theme="dark"] .due-ok { color:#6ee7b7; }
+.due-chip { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px; font-weight:700; white-space:nowrap; }
+.due-chip.amber { background:rgba(245,158,11,.15); color:#b45309; border:1px solid rgba(245,158,11,.5); }
+.due-chip.green { background:rgba(16,185,129,.13); color:#047857; border:1px solid rgba(16,185,129,.45); }
+.due-chip.red { background:rgba(239,68,68,.12); color:#b91c1c; border:1px solid rgba(239,68,68,.45); }
+[data-theme="dark"] .due-chip.amber { color:#fcd34d; } [data-theme="dark"] .due-chip.green { color:#6ee7b7; } [data-theme="dark"] .due-chip.red { color:#fca5a5; }
+.due-wait { color:var(--muted, #94A3B8); font-size:11px; }
+.due-callout { margin-top:2px; padding:6px 8px; border-radius:9px; background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.35); font-size:11.5px; line-height:1.45; max-width:280px; white-space:normal; }
+.due-callout.red { background:rgba(239,68,68,.07); border-color:rgba(239,68,68,.4); }
+.due-callout small { color:var(--muted, #94A3B8); }
+.due-actions { display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+.due-btn { border-radius:999px; padding:4px 10px; font:inherit; font-size:11.5px; font-weight:700; cursor:pointer; border:1px solid transparent; white-space:nowrap; }
+.due-btn.green { background:#10b981; color:#fff; }
+.due-btn.red { background:transparent; color:#dc2626; border-color:#dc2626; }
+.due-btn.amber { background:transparent; color:#b45309; border-color:rgba(245,158,11,.6); }
+[data-theme="dark"] .due-btn.red { color:#f87171; border-color:#f87171; } [data-theme="dark"] .due-btn.amber { color:#fcd34d; }
+.due-btn:disabled { opacity:.5; cursor:progress; }
+tr:has(.due-cell.is-pending) > td { background:rgba(245,158,11,.05); }
+tr:has(.due-cell.is-pending) > td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
+.due-banner { display:flex; gap:10px; align-items:center; padding:10px 14px; margin:0 0 12px; border-radius:12px; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.45); font-size:13px; }
+.due-form-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.due-form .field { margin-bottom:10px; }
+.due-form textarea { width:100%; }
+.due-detail { display:grid; gap:4px; border-left:3px solid #f59e0b; }
+.due-detail.is-accepted { border-left-color:#10b981; }
+.due-detail.is-rejected { border-left-color:#ef4444; }
+.due-banner-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.due-banner-req { border:1px solid rgba(245,158,11,.6); background:rgba(245,158,11,.12); color:inherit; border-radius:999px; padding:4px 12px; font:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+.due-banner-req:hover { background:rgba(245,158,11,.25); }
+.due-detail { margin-bottom:12px; }

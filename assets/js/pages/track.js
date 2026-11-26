@@ -18,6 +18,8 @@ import {
 import { auditForRequest, cleanRev, getAuditHistory, getTransmittals, mergeHistory, requestEvents, TRANSMITTAL_ACTION } from "../services/audit-service.js";
 import { graphFetch } from "../graph.js";
 import { openRequestChat } from "../components/request-chat.js";
+import { bindDueChangeButtons, canRequestDueChange, dueCellHtml, dueChangeDetailHtml, onDueChange, openDueChangeRequestModal, pendingBannerHtml } from "../components/due-change.js";
+import { refreshDueChanges } from "../services/due-change-service.js";
 import { assigneeName, getDrawingTeamMembers, getKnownRequesters, teamPositionOf } from "../services/team-service.js";
 import { escapeHtml, formatDate, formatDateOnly, minDueDateKey, projectKey, SAME_DAY_PRIORITY, uniqueProjectNames, workingDaysUntil } from "../utils.js";
 import { hydrateRequesterFiles, renderFileGroups } from "../services/file-service.js";
@@ -27,6 +29,7 @@ import { state as appState } from "../state.js";
 const WORK_STATUS_OPTIONS = [
   { value: STATUS.APPROVED, label: "🔵 รอดำเนินการ" },
   { value: STATUS.WORKING, label: "⚙️ กำลังดำเนินการ" },
+  { value: "__duechange__", label: "📅 ขอเลื่อนกำหนดส่ง…" },
   { value: "__complete__", label: "✅ เสร็จสิ้น" },
   { value: "__cancel__", label: "❌ ยกเลิก" },
 ];
@@ -103,6 +106,10 @@ function getRequestFolderUrl(requestNo) {
 
 export function renderTrack(view, state) {
   const role = state.user?.role;
+  // ขอเลื่อนกำหนดส่ง: ปุ่มยอมรับ/ไม่ยอมรับ/ยกเลิก + วาดใหม่หลังเปลี่ยน · ดึงคำขอล่าสุดเบื้องหลัง
+  bindDueChangeButtons();
+  onDueChange(() => { if (state.currentRoute === "/track") renderTrack(view, state); });
+  refreshDueChanges().then((changed) => { if (changed && state.currentRoute === "/track") renderTrack(view, state); }).catch(() => {});
   if (role === "manager" || role === "designer") {
     renderWorkbookTrack(view, state);
     // ลบ renderMyRequestsSection ออกแล้ว — รวม "รอตรวจรับ" ไว้ใน Tab งานของฉันแทน
@@ -246,6 +253,7 @@ function renderWorkbookTrack(view, state) {
       <div class="section-header">
         <h2>ติดตามงาน <span class="requester-result-count">งานปัจจุบัน ${currentCount} รายการ</span></h2>
       </div>
+      ${pendingBannerHtml()}
 
       <div class="track-filter-bar" style="flex-wrap:wrap;gap:8px;">
         <label class="track-search-field">
@@ -440,7 +448,7 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
       </td>
       <td data-label="โครงการ"><strong>${escapeHtml(item.projectName || "—")}</strong></td>
       <td data-label="Drawing"><strong>${escapeHtml(item.drawingNo || "—")}</strong><br><small>${escapeHtml(item.drawingName || "")}</small></td>
-      <td data-label="กำหนดส่ง">${formatDateOnly(item.dueDate)}</td>
+      <td data-label="กำหนดส่ง">${dueCellHtml(item)}</td>
       <td data-label="โฟลเดอร์ / ลิงก์ / ไฟล์" class="file-groups-cell">${renderFileGroups(item)}</td>
       <td data-label="สถานะ" style="vertical-align:middle;text-align:center;width:155px;">
         ${canEditStatus ? `
@@ -575,6 +583,12 @@ function bindWorkbookEvents(view, state) {
     const request = state.requests.find((item) => item.requestNo === requestNo);
     if (!request) return;
     const value = select.value;
+
+    if (value === "__duechange__") {
+      select.value = request.status;
+      openDueChangeRequestModal(request);
+      return;
+    }
 
     if (value === "__complete__") {
       select.value = request.status;
@@ -1049,7 +1063,7 @@ function renderDeptRow(item) {
       <td data-label="Drawing"><strong>${escapeHtml(item.drawingNo || "-")}</strong><br><small>${escapeHtml(item.drawingName || "")}</small></td>
       <td data-label="ผู้ส่งคำร้อง">${escapeHtml(item.requesterName || "—")}</td>
       <td data-label="ผู้รับผิดชอบ">${escapeHtml(assigneeName(item) || "—")}</td>
-      <td data-label="กำหนดส่ง" style="white-space:nowrap;">${formatDateOnly(item.dueDate)}</td>
+      <td data-label="กำหนดส่ง">${dueCellHtml(item)}</td>
       <td data-label="สถานะ"><span class="fm009-status"><span class="badge badge-${item.status}" style="white-space:nowrap;">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${fm009Button(item)}</span></td>
       <td data-label="ไฟล์ / โฟลเดอร์" style="min-width:170px;">${renderReadOnlyFileCell(item)}</td>
     </tr>
@@ -1132,6 +1146,7 @@ function renderRequesterTrack(view, state) {
             : `งานในฝ่าย — ${deptRows.length} รายการ`}</span>
         </h2>
       </div>
+      ${pendingBannerHtml()}
 
       <div class="track-tab-groups track-tab-groups-stacked">
         <div class="track-tab-group">
@@ -1365,7 +1380,7 @@ function renderRequesterRow(item) {
       <td data-label="เลขที่คำร้อง"><button class="track-request-link" data-request-detail="${escapeHtml(item.requestNo)}" type="button">${escapeHtml(item.requestNo)}</button></td>
       <td data-label="โครงการ"><strong>${escapeHtml(item.projectName || "-")}</strong></td>
       <td data-label="Drawing"><strong>${escapeHtml(item.drawingNo || "-")}</strong><small>${escapeHtml(item.drawingName || "")}</small></td>
-      <td data-label="กำหนดส่ง">${formatDateOnly(item.dueDate)}</td>
+      <td data-label="กำหนดส่ง">${dueCellHtml(item)}</td>
       <td data-label="สถานะ"><span class="fm009-status"><span class="badge badge-${item.status}">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</span>${fm009Button(item)}</span></td>
       <td data-label="ไฟล์งาน">${item.pdfFileUrl ? `<a class="track-file-link" href="${escapeHtml(item.pdfFileUrl)}" target="_blank" rel="noopener noreferrer">FILE</a>` : `<span class="track-no-file">-</span>`}</td>
     </tr>
@@ -1727,6 +1742,7 @@ export function openRequestDetail(request) {
             <strong>${escapeHtml(request.requestNo)}</strong>
             <span class="detail-status badge badge-${request.status}">${escapeHtml(STATUS_LABELS[request.status] || request.status)}</span>
           </div>
+          ${dueChangeDetailHtml(request)}
           <div class="request-detail-grid">
             ${detailItem("โครงการ", request.projectName)}
             ${detailItemLink("Location โครงการ", request.location)}
@@ -1790,6 +1806,7 @@ export function openRequestDetail(request) {
                 </select>
               </label>
               <button type="button" class="primary-button" data-detail-complete>✅ เสร็จสิ้น — ส่งงาน</button>
+              ${canRequestDueChange(request) ? `<button type="button" class="small-button" data-detail-duechange>📅 ขอเลื่อนกำหนดส่ง</button>` : ""}
               <button type="button" class="small-button danger" data-detail-cancel>❌ ยกเลิกงาน</button>
             </div>
             ${request.status === STATUS.MGR_REJECTED && request.mgrRejectReason ? `<p class="detail-actions-note">↩️ ผู้จัดการส่งกลับ: ${escapeHtml(request.mgrRejectReason)}</p>` : ""}
@@ -1814,6 +1831,7 @@ function bindDetailActions(root, request, closeDetail) {
   const view = document.querySelector("#app-view");
   const select = root.querySelector("[data-detail-status]");
   const badge = root.querySelector(".detail-status");
+  root.querySelector("[data-detail-duechange]")?.addEventListener("click", () => openDueChangeRequestModal(request));
 
   select?.addEventListener("change", async () => {
     const value = select.value;
