@@ -4,6 +4,7 @@ import { getDrawingTeamMembers } from "../services/team-service.js";
 import { escapeHtml, formatDateOnly, workingDaysUntil } from "../utils.js";
 import { openModal } from "../components/modal.js";
 import { dueChangeStats } from "../services/due-change-service.js";
+import { HIGH_STREAK_ALERT, LEVELS, highLoadHistory, levelBadge, personLoad, thresholds } from "../services/workload-service.js";
 
 // ── ค่า OT rate เริ่มต้น (บาท/ชั่วโมง) สำหรับคำนวณ Overdue Cost
 // อัตราต้นทุนอยู่ที่ config.js (costRates) — ใช้ร่วมกับบทสรุปผู้บริหาร
@@ -714,6 +715,17 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
   const maxType  = Math.max(1, ...typeList.map(([,n]) => n));
 
   // Workload per member
+  // ช่วงวันที่สำหรับนับ "วันที่ภาระงานสูง" (ตามตัวกรอง KPI · ทั้งหมด = ย้อน 120 วันทำการ)
+  const kpiRangeTo = customRange?.to || new Date();
+  const kpiRangeFrom = (() => {
+    if (customRange?.from) return customRange.from;
+    const n = new Date();
+    if (period === "year") return new Date(n.getFullYear(), 0, 1);
+    if (period === "quarter") return new Date(n.getFullYear(), Math.floor(n.getMonth() / 3) * 3, 1);
+    if (period === "all") return new Date(n.getTime() - 180 * 86400000);
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  })();
+  const kpiHolidaySet = new Set((holidays || []).map((h) => h.HolidayDate || h.holidayDate || "").filter(Boolean).map((d) => new Date(d).toDateString()));
   const memberStats = team.map((u) => {
     const assigned = rows.filter((r) => String(r.assignedToEmail || "").toLowerCase() === u.email.toLowerCase());
     // "ปิดแล้ว" = งานที่ทำเสร็จ/ส่งมอบแล้วทั้งหมด = Requester ตรวจรับ Approve + ส่งมอบแล้วรอตรวจรับ/auto-approve
@@ -730,8 +742,10 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
       const dueDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
       return dueDateStr < todayStr;
     }).length;
-    return { name: u.name, total: assigned.length, closed, cancelled, late };
-  }).filter((m) => m.total > 0).sort((a, b) => b.total - a.total);
+    const hist = highLoadHistory(u.email, kpiRangeFrom, kpiRangeTo, kpiHolidaySet);
+    return { name: u.name, email: u.email, total: assigned.length, closed, cancelled, late, ...hist, now: personLoad(u.email) };
+  }).filter((m) => m.total > 0 || m.highDays > 0).sort((a, b) => b.total - a.total);
+  const highStreakPeople = memberStats.filter((m) => m.currentStreak > HIGH_STREAK_ALERT);
   const maxMember = Math.max(1, ...memberStats.map((m) => m.total));
 
   // ── Drawing Quality Score — วัดเฉพาะสาเหตุ 1.1 จากฝ่ายเขียนแบบเอง ──
@@ -842,7 +856,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
           [STATUS.DELIVERED, STATUS.DONE].includes(r.status) && dayKey(finishedAt(r)) === todayStr
         ).length;
 
-        return { name: u.name, active: active.length, dueToday, overdueNow, pending, closedToday };
+        return { name: u.name, email: u.email, active: active.length, dueToday, overdueNow, pending, closedToday, load: personLoad(u.email) };
       }).filter((m) => m.active > 0 || m.dueToday > 0 || m.overdueNow > 0 || m.closedToday > 0)
         .sort((a, b) => b.active - a.active);
 
@@ -860,6 +874,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#EF4444;font-weight:600;" title="จากงานที่รับผิดชอบอยู่ — กำหนดส่งผ่านมาแล้วแต่ยังไม่ปิดงาน">เกินกำหนด <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#7C3AED;font-weight:600;" title="งานที่รับผิดชอบอยู่ แต่กำหนดส่งเป็นวันข้างหน้า ยังไม่ถึงคิววันนี้">คงค้าง <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
               <th style="padding:7px 8px;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;" title="งานที่รับผิดชอบอยู่ของคนนี้ ÷ งานที่รับผิดชอบอยู่ทั้งทีม × 100%">% Work Load วันนี้ <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
+              <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;" title="ตามเกณฑ์กลาง (จัดการข้อมูล → ตั้งค่าระบบ): งานส่งวันนี้ และงานค้างทั้งหมด — ใช้ระดับที่หนักกว่า · ลาครึ่งวันเกณฑ์ลดครึ่งหนึ่ง">ระดับภาระงาน <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
             </tr>
           </thead>
           <tbody>
@@ -882,6 +897,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                     <span style="font-size:11px;font-weight:700;color:${barColor};width:32px;text-align:right;">${pct}%</span>
                   </div>
                 </td>
+                <td style="padding:7px 8px;text-align:center;border-bottom:1px solid #F1F5F9;" title="ส่งวันนี้ ${m.load.due} (${LEVELS[m.load.dueLevel].short}) · ค้างทั้งหมด ${m.load.open} (${LEVELS[m.load.openLevel].short})${m.load.factor < 1 ? " · ลา" : ""}">${levelBadge(m.load.level)}</td>
               </tr>`;
             }).join("")}
           </tbody>
@@ -890,7 +906,8 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
           📖 <b>รับผิดชอบอยู่</b> = ยังไม่ปิดงาน/ยังไม่ยกเลิก ณ ตอนนี้ (ทุกกำหนดส่ง) &nbsp;·&nbsp;
           <b>ครบกำหนดวันนี้</b> + <b>เกินกำหนด</b> + <b>คงค้าง</b> = รับผิดชอบอยู่ (แยกตามจังหวะกำหนดส่ง) &nbsp;·&nbsp;
           <b>ปิดแล้ว(วันนี้)</b> นับเฉพาะที่ปิดงานวันนี้จริง ไม่ใช่สะสม &nbsp;·&nbsp;
-          <b>% Work Load</b> = ส่วนแบ่งภาระงานของคนนี้เทียบกับภาระงานที่ทั้งทีมถืออยู่รวมกันวันนี้
+          <b>% Work Load</b> = ส่วนแบ่งภาระงานของคนนี้เทียบกับภาระงานที่ทั้งทีมถืออยู่รวมกันวันนี้ &nbsp;·&nbsp;
+          <b>ระดับภาระงาน</b> (เกณฑ์กลาง ISO 9001/45001) = งานส่งวันเดียวกัน ปกติ ≤ ${thresholds().due[0]} · ปานกลาง ≤ ${thresholds().due[1]} · สูงเกินนั้น / งานค้างทั้งหมด ปกติ ≤ ${thresholds().open[0]} · ปานกลาง ≤ ${thresholds().open[1]} · สูงเกินนั้น
         </div>
         ` : `<div style="text-align:center;padding:24px 0;color:#94A3B8;font-size:13px;">✅ วันนี้ไม่มีใครมีงานค้าง/ครบกำหนด/เกินกำหนดเลย</div>`}
       `, "margin-bottom:14px;");
@@ -899,6 +916,7 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
     <!-- Row 1: Workload + Tips (ย้ายขึ้นบนสุดของหน้าภาพรวม) -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
       ${pBox("👥 Workload รายบุคคล",`
+        ${highStreakPeople.length ? `<div style="margin-bottom:10px;padding:8px 12px;border-radius:8px;background:#FEF2F2;border:1px solid #FECACA;color:#991B1B;font-size:12px;">⚠️ <b>ภาระงานสูงต่อเนื่องเกิน ${HIGH_STREAK_ALERT} วันทำการ</b> (ISO 45001 — ควรปรับกระจายงาน/เลื่อนกำหนด): ${highStreakPeople.map((m) => `${escapeHtml(shortPersonName(m.name))} (${m.currentStreak} วัน)`).join(", ")}</div>` : ""}
         <table class="m-card-table" style="width:100%;border-collapse:collapse;font-size:12px;">
           <thead>
             <tr style="background:#F8FAFC;">
@@ -908,6 +926,8 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#94A3B8;font-weight:600;" title="สถานะ = ยกเลิก (cancelled) ทุกกรณี ไม่ว่าต้นเหตุมาจากใคร">ยกเลิก <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
               <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#EF4444;font-weight:600;" title="งานที่ยังค้างจริง ณ วันนี้ และเลยกำหนดส่งแล้ว — งานที่ฝ่ายกดเสร็จสิ้นแล้วไม่นับ">เกินกำหนด <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
               <th style="padding:7px 8px;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;" title="แถบสัดส่วน = ทั้งหมดของคนนี้ ÷ ทั้งหมดของคนที่มากที่สุด × 100%">Workload <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
+              <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#64748B;font-weight:600;" title="ระดับภาระงาน ณ วันนี้ ตามเกณฑ์กลาง (งานส่งวันนี้ / งานค้างทั้งหมด)">ระดับวันนี้ <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
+              <th style="padding:7px 8px;text-align:center;border-bottom:1px solid #E2E8F0;color:#DC2626;font-weight:600;" title="จำนวนวันทำการในช่วงที่เลือกที่ภาระงานอยู่ระดับสูง (ISO 45001) · ต่อเนื่อง = ติดกันนานสุด">วันภาระสูง <span style="color:#CBD5E1;cursor:help;">ⓘ</span></th>
             </tr>
           </thead>
           <tbody>
@@ -923,8 +943,10 @@ export function renderKpiDashboard(allRequests, team, period, person = null, cus
                     <div style="background:${m.late>0?"#EF4444":"#005DAC"};height:100%;width:${Math.round(m.total/maxMember*100)}%;border-radius:4px;"></div>
                   </div>
                 </td>
+                <td style="padding:7px 8px;text-align:center;" title="ส่งวันนี้ ${m.now.due} · ค้างทั้งหมด ${m.now.open}">${levelBadge(m.now.level)}</td>
+                <td style="padding:7px 8px;text-align:center;font-weight:700;color:${m.highDays>0?"#DC2626":"#94A3B8"};">${m.highDays>0?`${m.highDays} วัน<br><span style="font-size:10px;font-weight:400;color:#64748B;">ต่อเนื่อง ${m.maxStreak}</span>`:"—"}</td>
               </tr>
-            `).join("") || `<tr><td colspan="6" style="padding:20px;text-align:center;color:#94A3B8;">ไม่มีข้อมูล</td></tr>`}
+            `).join("") || `<tr><td colspan="8" style="padding:20px;text-align:center;color:#94A3B8;">ไม่มีข้อมูล</td></tr>`}
           </tbody>
         </table>
 

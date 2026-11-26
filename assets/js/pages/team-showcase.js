@@ -8,6 +8,7 @@
 // ══════════════════════════════════════════════════════════════
 
 import { STATUS } from "../../../config/schema.js";
+import { LEVELS, personLoad } from "../services/workload-service.js";
 import { getDrawingTeamMembers } from "../services/team-service.js";
 import { COVER_KEY, listTeamPhotos, photoUrlSync, preloadPhoto } from "../services/team-photo-service.js";
 import { escapeHtml } from "../utils.js";
@@ -285,6 +286,15 @@ function leaveBadge(slide, extraClass = "") {
   return `<span class="ts-leave ${extraClass}" title="${escapeHtml(note ? `${text} · ${note}` : text)}">🏖️ ${escapeHtml(text)}</span>`;
 }
 
+/** ระดับภาระงานวันนี้ตามเกณฑ์กลาง (ISO 9001/45001) */
+function workloadChip(email) {
+  try {
+    const load = personLoad(email);
+    const L = LEVELS[load.level];
+    return `<span class="ts-load is-${load.level}" title="${escapeHtml(`${L.text} · ส่งวันนี้ ${load.due} · ค้างทั้งหมด ${load.open}`)}">${L.icon}</span>`;
+  } catch (_) { return ""; }
+}
+
 function cardHtml(slide, index) {
   const has = Boolean(photoUrlSync(slide.key));
   return `
@@ -294,7 +304,7 @@ function cardHtml(slide, index) {
       <span class="ts-card-text">
         <small>${escapeHtml(slide.kicker)}</small>
         <strong>${escapeHtml(slide.title)}</strong>
-        <em>${slide.m.active} งาน</em>
+        <em>${slide.m.active} งาน${slide.isTeam ? "" : ` ${workloadChip(slide.key)}`}</em>
       </span>
     </button>`;
 }
