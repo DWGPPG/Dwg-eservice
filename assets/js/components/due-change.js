@@ -54,8 +54,15 @@ export function dueCellHtml(item) {
 export function pendingBannerHtml() {
   const list = pendingForRequester();
   if (!list.length) return "";
-  return `<div class="due-banner">📅 <span>มีคำขอ<b>เลื่อนกำหนดส่ง ${list.length} รายการ</b> รอคุณยืนยัน — กดเลขคำร้องเพื่อดูเหตุผลแล้วกด <b>ยอมรับ</b> หรือ <b>ไม่ยอมรับ</b>
-    <span class="due-banner-list">${list.map((r) => `<button type="button" class="due-banner-req" data-request-detail="${escapeHtml(r.requestNo)}">📋 ${escapeHtml(r.requestNo)} · ${escapeHtml(thShort(getDueChange(r.requestNo)?.oldDue))} → ${escapeHtml(thShort(getDueChange(r.requestNo)?.newDue))}</button>`).join("")}</span></span></div>`;
+  return `<div class="due-banner">📅 <div><div>มีคำขอ<b>เลื่อนกำหนดส่ง ${list.length} รายการ</b> รอคุณยืนยัน — กด <b>ยอมรับ</b> หรือ <b>ไม่ยอมรับ</b> ได้ที่นี่เลย (กดเลขคำร้องเพื่อดูรายละเอียด)</div>
+    <div class="due-banner-list">${list.map((r) => {
+      const c = getDueChange(r.requestNo) || {};
+      return `<div class="due-banner-item">
+        <button type="button" class="due-banner-req" data-request-detail="${escapeHtml(r.requestNo)}">📋 ${escapeHtml(r.requestNo)}</button>
+        <span class="due-banner-info"><s>${escapeHtml(thShort(c.oldDue))}</s> → <b class="due-new">${escapeHtml(thShort(c.newDue))}</b> · ${escapeHtml(r.drawingNo || r.projectName || "")}<br><small>${escapeHtml(c.cause || "")} — ${escapeHtml(c.reason || "")}</small></span>
+        <span class="due-actions"><button type="button" class="due-btn green" data-due-accept="${escapeHtml(r.requestNo)}">✅ ยอมรับ</button><button type="button" class="due-btn red" data-due-reject="${escapeHtml(r.requestNo)}">⛔ ไม่ยอมรับ</button></span>
+      </div>`;
+    }).join("")}</div></div></div>`;
 }
 
 /** กล่องในหน้ารายละเอียดคำร้อง */
