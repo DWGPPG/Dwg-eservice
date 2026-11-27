@@ -144,7 +144,18 @@ function canTransferRequester(item, state) {
   return role === "manager" || isMine(item, state);
 }
 
+/** งานที่ถูกตีกลับมาแก้ไขและยังค้างอยู่ — ผู้จัดการส่งกลับ (QC) หรือผู้ร้องขอขอแก้ไข/ไม่ยอมรับ */
+export function isReturnedForRevision(item) {
+  if (item.status === STATUS.MGR_REJECTED) return true;
+  return item.status === STATUS.WORKING && ["revise", "reject"].includes(String(item.reviewResult || ""));
+}
+function returnedBy(item) {
+  if (item.status === STATUS.MGR_REJECTED) return "ผู้จัดการส่งกลับแก้ไข";
+  return item.reviewResult === "reject" ? "ผู้ร้องขอไม่ยอมรับงาน" : "ผู้ร้องขอขอแก้ไข";
+}
+
 function filterByStatusTab(items, state) {
+  if (statusTab === "returned") return items.filter(isReturnedForRevision);
   if (statusTab === "current")  return items.filter((item) => !CLOSED_STATUSES.includes(item.status));
   if (statusTab === "done")     return items.filter((item) => item.status === STATUS.DONE);
   if (statusTab === "cancelled") return items.filter((item) => [STATUS.CANCELLED, STATUS.REJECTED].includes(item.status));
@@ -313,6 +324,7 @@ function renderWorkbookTrack(view, state) {
           <div class="track-tab-group-label">งานของฉัน</div>
           <div class="track-tab-row">
             ${scopeStatusTabButton("mine", "current", "งานปัจจุบัน")}
+            ${scopeStatusTabButton("mine", "returned", "🔁 ตีกลับแก้ไข", myAll.filter(isReturnedForRevision).length)}
             ${scopeStatusTabButton("mine", "done", "เสร็จสิ้น")}
             ${scopeStatusTabButton("mine", "cancelled", "ยกเลิก")}
             ${scopeStatusTabButton("mine", "all", "ทั้งหมด")}
@@ -343,6 +355,7 @@ function renderWorkbookTrack(view, state) {
           <div class="track-tab-group-label">งานในฝ่าย</div>
           <div class="track-tab-row">
             ${scopeStatusTabButton("department", "current", "งานปัจจุบัน")}
+            ${scopeStatusTabButton("department", "returned", "🔁 ตีกลับแก้ไข", deptAll.filter(isReturnedForRevision).length)}
             ${scopeStatusTabButton("department", "done", "เสร็จสิ้น")}
             ${scopeStatusTabButton("department", "cancelled", "ยกเลิก")}
             ${scopeStatusTabButton("department", "all", "ทั้งหมด")}
@@ -424,8 +437,11 @@ function renderWorkbookTrack(view, state) {
 function scopeStatusTabButton(scope, status, label, count = null) {
   const isActive = scopeTab === scope && statusTab === status;
   const isAwaiting = status === "awaiting";
-  const alertClass = isAwaiting && count > 0 ? "requester-tab-alert" : "";
-  const badge = count > 0 ? `<span class="requester-tab-badge${isAwaiting ? "" : " requester-tab-badge-gray"}">${count}</span>` : "";
+  const isReturned = status === "returned";
+  const alertClass = isReturned && count > 0 ? "track-tab-returned" : isAwaiting && count > 0 ? "requester-tab-alert" : "";
+  const badge = count > 0
+    ? `<span class="${isReturned ? "track-returned-badge" : `requester-tab-badge${isAwaiting ? "" : " requester-tab-badge-gray"}`}">${count}</span>`
+    : (isReturned ? `<span class="track-returned-zero">0</span>` : "");
   return `<button class="filter-button ${isActive ? "is-active" : ""} ${alertClass}" data-scope="${scope}" data-status-tab="${status}" type="button">${label}${badge}</button>`;
 }
 
@@ -434,9 +450,10 @@ function renderWorkbookRow(item, state, holidaySet = new Set()) {
   const mine = isMine(item, state);
   const canEditStatus = mine && DESIGNER_EDITABLE_STATUSES.includes(item.status);
   return `
-    <tr>
+    <tr class="${isReturnedForRevision(item) ? "track-row-returned" : ""}">
       <td data-label="เหลือ/เกินกำหนด"><span class="due-chip ${due.className}">${escapeHtml(due.label)}</span></td>
-      <td data-label="เลขที่คำร้อง"><button class="track-request-link" data-request-detail="${escapeHtml(item.requestNo)}" type="button">${escapeHtml(item.requestNo)}</button></td>
+      <td data-label="เลขที่คำร้อง"><button class="track-request-link" data-request-detail="${escapeHtml(item.requestNo)}" type="button">${escapeHtml(item.requestNo)}</button>
+        ${isReturnedForRevision(item) ? `<br><span class="track-returned-chip" title="${escapeHtml(item.mgrRejectReason || item.reviseComment || item.revisionReason || item.deliveryRejectReason || "")}">🔁 ${escapeHtml(returnedBy(item))}</span>` : ""}</td>
       <td data-label="ผู้ร้องขอ" style="min-width:190px;">
         <span style="font-weight:600;">${escapeHtml(item.requesterName || "—")}</span><br>
         <small style="color:#94A3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:210px;display:inline-block;vertical-align:top;" title="${escapeHtml(item.requesterEmail || "")}">${escapeHtml(item.requesterEmail || "")}</small>
