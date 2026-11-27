@@ -4012,3 +4012,19 @@ tr:has(.due-cell.is-pending) > td:first-child { box-shadow:inset 3px 0 0 #f59e0b
 .dw-open.is-mid { background:rgba(245,158,11,.12); } .dw-open.is-high { background:rgba(239,68,68,.12); }
 .assign-load { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:3px; font-size:11px; color:var(--muted, #64748B); }
 .ts-load { font-style:normal; font-size:11px; margin-left:2px; }
+
+/* ── ตีกลับแก้ไข (หน้าติดตามงาน) ── */
+.filter-button.track-tab-returned { border-color: #EF4444 !important; color: #B91C1C; background: #FEF2F2; font-weight: 700; }
+.filter-button.track-tab-returned.is-active { background: #DC2626 !important; color: #fff !important; border-color: #DC2626 !important; }
+.track-returned-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: #EF4444; color: #fff; font-size: 11px; font-weight: 800; box-shadow: 0 0 0 0 rgba(239,68,68,.6); animation: trackReturnedPulse 1.6s infinite; }
+.filter-button.track-tab-returned.is-active .track-returned-badge { background: #fff; color: #DC2626; }
+.track-returned-zero { display: inline-flex; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: #E5E7EB; color: #6B7280; font-size: 10px; font-weight: 700; align-items: center; justify-content: center; }
+@keyframes trackReturnedPulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,.6); } 70% { box-shadow: 0 0 0 7px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+.track-returned-chip { display: inline-block; margin-top: 5px; padding: 2px 8px; border-radius: 999px; background: #DC2626; color: #fff; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.track-sheet tr.track-row-returned > td { background: rgba(239,68,68,.07); }
+.track-sheet tr.track-row-returned > td:first-child { box-shadow: inset 4px 0 0 #EF4444; }
+[data-theme="dark"] .filter-button.track-tab-returned { background: rgba(239,68,68,.15); color: #FCA5A5; }
+[data-theme="dark"] .filter-button.track-tab-returned.is-active { background: #DC2626 !important; color: #fff !important; }
+[data-theme="dark"] .track-sheet tr.track-row-returned > td { background: rgba(239,68,68,.12); }
+.track-tab-row .filter-button.track-tab-returned { flex: 1 0 auto; padding-left: 12px; padding-right: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.track-tab-row .filter-button { overflow: visible; }
